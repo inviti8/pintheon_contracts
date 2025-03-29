@@ -1,11 +1,11 @@
 #![no_std]
 
 use crate::event::Events;
-use crate::metadata::Metadata;
+use crate::filemetadata::FileMetadata;
 use soroban_sdk::Env;
 
 pub mod event;
-pub mod metadata;
+pub mod filemetadata;
 
 #[derive(Clone)]
 pub struct TokenUtils(Env);
@@ -16,8 +16,8 @@ impl TokenUtils {
         TokenUtils(env.clone())
     }
 
-    pub fn metadata(&self) -> Metadata {
-        Metadata::new(&self.0)
+    pub fn metadata(&self) -> FileMetadata {
+        FileMetadata::new(&self.0)
     }
 
     pub fn events(&self) -> Events {
