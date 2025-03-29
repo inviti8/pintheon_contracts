@@ -1,6 +1,6 @@
-use soroban_sdk::{contracttype, symbol_short, unwrap::UnwrapOptimized, Env, String, Symbol};
+use soroban_sdk::{contracttype, symbol_short, unwrap::UnwrapOptimized, Env, String, Symbol, Vec};
 
-const METADATA_KEY: Symbol = symbol_short!("HVYMFILEDATA");
+const METADATA_KEY: Symbol = symbol_short!("HVYMFILE");
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[contracttype]
