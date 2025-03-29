@@ -5,7 +5,7 @@ version = "0.0.1"
 homepage = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-file-token"
 repository = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-file-token"
 authors = ["Heavymeta <metavinci@heavymeta.art>"]
-readme = "/README.md"
+readme = "./README.md"
 license = "Apache-2.0"
 edition = "2021"
 
