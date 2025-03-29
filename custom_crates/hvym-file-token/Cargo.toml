@@ -1,0 +1,21 @@
+[package]
+name = "hvym-file-token"
+description = "Custom file data token for Heavymeta Network, code variant based on Soroban Token SDK."
+version = "0.0.1"
+homepage = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-file-token"
+repository = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-file-token"
+authors = ["Heavymeta <metavinci@heavymeta.art>"]
+readme = "/README.md"
+license = "Apache-2.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { version = "22.0.1" }
+soroban-token-sdk = { version = "22.0.1" }
+
+[dev-dependencies]
+soroban-sdk = { version = "22.0.1", features = ["testutils"] }
