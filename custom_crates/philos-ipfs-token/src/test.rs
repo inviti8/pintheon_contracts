@@ -10,8 +10,7 @@ use soroban_sdk::{
 
 fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
     let gateways = vec![&e, String::from_val(e, &"gateway1"), String::from_val(e, &"gateway2")];
-
-    let ipns_hash: Option<String> = None; // Replace with Some if you have an IPNS hash
+    let ipns_hash: Option<String> = None;
 
     let token_contract = e.register(
         Token,
@@ -252,6 +251,8 @@ fn transfer_from_insufficient_allowance() {
 fn decimal_is_over_eighteen() {
     let e = Env::default();
     let admin = Address::generate(&e);
+    let gateways = vec![&e, String::from_val(&e, &"gateway1"), String::from_val(&e, &"gateway2")];
+    let ipns_hash: Option<String> = None;
     let _ = TokenClient::new(
         &e,
         &e.register(
@@ -261,6 +262,11 @@ fn decimal_is_over_eighteen() {
                 19_u32,
                 String::from_val(&e, &"name"),
                 String::from_val(&e, &"symbol"),
+                String::from_val(&e, &"IPFS_HASH"),
+                String::from_val(&e, &"FILE_TYPE"),
+                String::from_val(&e, &"PUBLISHED"),
+                gateways,
+                ipns_hash
             ),
         ),
     );
@@ -279,4 +285,31 @@ fn test_zero_allowance() {
 
     token.transfer_from(&spender, &from, &spender, &0);
     assert!(token.get_allowance(&from, &spender).is_none());
+}
+
+#[test]
+fn check_file_token_data() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let name = String::from_val(&e, &"name");
+    let symbol = String::from_val(&e, &"symbol");
+    let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
+    let file_type = String::from_val(&e, &"FILE_TYPE");
+    let published = String::from_val(&e, &"PUBLISHED");
+    let gateways = vec![&e, String::from_val(&e, &"gateway1"), String::from_val(&e, &"gateway2")];
+    let _ipns_hash: Option<String> = None;
+
+    let admin = Address::generate(&e);
+    let user1 = Address::generate(&e);
+    let token = create_token(&e, &admin);
+
+    token.mint(&user1, &1000);
+    assert_eq!(token.name(), name);
+    assert_eq!(token.symbol(), symbol);
+    assert_eq!(token.ipfs_hash(), ipfs_hash);
+    assert_eq!(token.file_type(), file_type);
+    assert_eq!(token.published(), published);
+    assert_eq!(token.gateways(), gateways);
+    assert_eq!(token.ipns_hash(), _ipns_hash);
+
 }

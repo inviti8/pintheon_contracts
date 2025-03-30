@@ -3,7 +3,7 @@
 use crate::admin::{read_administrator, write_administrator};
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{read_balance, receive_balance, spend_balance};
-use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
+use crate::metadata::{FileTokenInterface, read_decimal, read_name, read_symbol, read_ipfs_hash, read_file_type, read_published, read_gateways, read_ipns_hash, write_metadata};
 #[cfg(test)]
 use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
 use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
@@ -173,5 +173,29 @@ impl token::Interface for Token {
 
     fn symbol(e: Env) -> String {
         read_symbol(&e)
+    }
+}
+
+#[contractimpl]
+impl FileTokenInterface for Token {
+
+    fn ipfs_hash(e: Env) -> String {
+        read_ipfs_hash(&e)
+    }
+
+    fn file_type(e: Env) -> String {
+        read_file_type(&e)
+    }
+
+    fn published(e: Env) -> String {
+        read_published(&e)
+    }
+
+    fn gateways(e: Env) -> Vec<String> {
+        read_gateways(&e)
+    }
+
+    fn ipns_hash(e: Env) -> Option<String> {
+        read_ipns_hash(&e)
     }
 }
