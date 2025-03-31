@@ -55,6 +55,6 @@ fn test() {
 
     // Invoke contract to check that it is initialized.
     let token = contract::Client::new(&env, &contract_id);
-    assert_eq!(token.name(), name.clone());
+    assert_eq!(token.name(), name);
     assert_eq!(token.symbol(), symbol);
 }
