@@ -9,21 +9,27 @@ use soroban_sdk::{
 };
 
 fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
-    let gateways = vec![&e, String::from_val(e, &"gateway1"), String::from_val(e, &"gateway2")];
-    let ipns_hash: Option<String> = None;
+    let name = String::from_val(e, &"name");
+    let symbol = String::from_val(e, &"symbol");
+    let ipfs_hash = String::from_val(e, &"IPFS_HASH");
+    let file_type = String::from_val(e, &"FILE_TYPE");
+    let published = String::from_val(e, &"PUBLISHED");
+    let gateways = vec![e, String::from_val(e, &"gateway1"), String::from_val(e, &"gateway2")];
+    let _ipns_hash: Option<String> = None;
+
 
     let token_contract = e.register(
         Token,
         (
             admin,
             7_u32,
-            String::from_val(e, &"name"),
-            String::from_val(e, &"symbol"),
-            String::from_val(e, &"IPFS_HASH"),
-            String::from_val(e, &"FILE_TYPE"),
-            String::from_val(e, &"PUBLISHED"),
+            name,
+            symbol,
+            ipfs_hash,
+            file_type,
+            published,
             gateways,
-            ipns_hash
+            _ipns_hash
         ),
     );
     TokenClient::new(e, &token_contract)
@@ -251,8 +257,14 @@ fn transfer_from_insufficient_allowance() {
 fn decimal_is_over_eighteen() {
     let e = Env::default();
     let admin = Address::generate(&e);
+    let name = String::from_val(&e, &"name");
+    let symbol = String::from_val(&e, &"symbol");
+    let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
+    let file_type = String::from_val(&e, &"FILE_TYPE");
+    let published = String::from_val(&e, &"PUBLISHED");
     let gateways = vec![&e, String::from_val(&e, &"gateway1"), String::from_val(&e, &"gateway2")];
-    let ipns_hash: Option<String> = None;
+    let _ipns_hash: Option<String> = None;
+
     let _ = TokenClient::new(
         &e,
         &e.register(
@@ -260,13 +272,13 @@ fn decimal_is_over_eighteen() {
             (
                 admin,
                 19_u32,
-                String::from_val(&e, &"name"),
-                String::from_val(&e, &"symbol"),
-                String::from_val(&e, &"IPFS_HASH"),
-                String::from_val(&e, &"FILE_TYPE"),
-                String::from_val(&e, &"PUBLISHED"),
+                name,
+                symbol,
+                ipfs_hash,
+                file_type,
+                published,
                 gateways,
-                ipns_hash
+                _ipns_hash
             ),
         ),
     );
@@ -316,7 +328,7 @@ fn check_file_token_data() {
 }
 
 #[test]
-#[should_panic(expected = "Insufficient balance: 0")]
+#[should_panic(expected = "insufficient balance: 0")]
 fn check_file_token_data_balance_gate() {
     let e = Env::default();
     e.mock_all_auths();

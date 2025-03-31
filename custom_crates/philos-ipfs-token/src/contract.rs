@@ -20,7 +20,7 @@ fn check_nonnegative_amount(amount: i128) {
 
 fn check_minimum_balance(amount: i128) {
     if amount < 1 {
-        panic!("Insufficient balance: {}", amount)
+        panic!("insufficient balance: {}", amount)
     }
 }
 
@@ -186,6 +186,7 @@ impl token::Interface for Token {
 impl FileTokenInterface for Token {
 
     fn ipfs_hash(e: Env, caller: Address) -> String {
+        caller.require_auth();
         check_minimum_balance(read_balance(&e, caller));
         read_ipfs_hash(&e)
     }
@@ -196,16 +197,19 @@ impl FileTokenInterface for Token {
     }
 
     fn published(e: Env, caller: Address) -> String {
+        caller.require_auth();
         check_minimum_balance(read_balance(&e, caller));
         read_published(&e)
     }
 
     fn gateways(e: Env, caller: Address) -> Vec<String> {
+        caller.require_auth();
         check_minimum_balance(read_balance(&e, caller));
         read_gateways(&e)
     }
 
     fn ipns_hash(e: Env, caller: Address) -> Option<String> {
+        caller.require_auth();
         check_minimum_balance(read_balance(&e, caller));
         read_ipns_hash(&e)
     }
