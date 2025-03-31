@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, symbol_short, unwrap::UnwrapOptimized, Env, String, Symbol, Vec};
+use soroban_sdk::{contracttype, symbol_short, unwrap::UnwrapOptimized, Env, String, Symbol};
 
 const METADATA_KEY: Symbol = symbol_short!("HVYMFILE");
 
@@ -11,7 +11,7 @@ pub struct FileTokenMetadata {
     pub ipfs_hash: String,
     pub file_type: String,
     pub published: String,
-    pub gateways: Vec<String>,
+    pub gateways: String,
     pub ipns_hash: Option<String>,
 }
 
