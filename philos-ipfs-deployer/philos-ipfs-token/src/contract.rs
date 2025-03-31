@@ -8,7 +8,7 @@ use crate::metadata::{FileTokenInterface, read_decimal, read_name, read_symbol, 
 use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
 use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
 use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
 use hvym_file_token::filemetadata::FileTokenMetadata;
 use hvym_file_token::TokenUtils;
 
@@ -29,7 +29,7 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
-    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, ipfs_hash: String, file_type: String, published: String, gateways: Vec<String>, ipns_hash: Option<String>) {
+    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, ipfs_hash: String, file_type: String, published: String, gateways: String, ipns_hash: Option<String>) {
         if decimal > 18 {
             panic!("Decimal must not be greater than 18");
         }
@@ -202,7 +202,7 @@ impl FileTokenInterface for Token {
         read_published(&e)
     }
 
-    fn gateways(e: Env, caller: Address) -> Vec<String> {
+    fn gateways(e: Env, caller: Address) -> String {
         caller.require_auth();
         check_minimum_balance(read_balance(&e, caller));
         read_gateways(&e)

@@ -5,7 +5,7 @@ use crate::{contract::Token, TokenClient};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, FromVal, IntoVal, String, Symbol, vec,
+    Address, Env, FromVal, IntoVal, String, Symbol,
 };
 
 fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
@@ -14,7 +14,7 @@ fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
     let ipfs_hash = String::from_val(e, &"IPFS_HASH");
     let file_type = String::from_val(e, &"FILE_TYPE");
     let published = String::from_val(e, &"PUBLISHED");
-    let gateways = vec![e, String::from_val(e, &"gateway1"), String::from_val(e, &"gateway2")];
+    let gateways = String::from_val(e, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 
 
@@ -262,7 +262,7 @@ fn decimal_is_over_eighteen() {
     let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
     let file_type = String::from_val(&e, &"FILE_TYPE");
     let published = String::from_val(&e, &"PUBLISHED");
-    let gateways = vec![&e, String::from_val(&e, &"gateway1"), String::from_val(&e, &"gateway2")];
+    let gateways = String::from_val(&e, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 
     let _ = TokenClient::new(
@@ -308,7 +308,7 @@ fn check_file_token_data() {
     let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
     let file_type = String::from_val(&e, &"FILE_TYPE");
     let published = String::from_val(&e, &"PUBLISHED");
-    let gateways = vec![&e, String::from_val(&e, &"gateway1"), String::from_val(&e, &"gateway2")];
+    let gateways = String::from_val(&e, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 
     let admin = Address::generate(&e);
@@ -346,5 +346,4 @@ fn check_file_token_data_balance_gate() {
     assert_eq!(token.name(), name);
     assert_eq!(token.symbol(), symbol);
     assert_eq!(token.ipfs_hash(&user1), ipfs_hash);
-
 }

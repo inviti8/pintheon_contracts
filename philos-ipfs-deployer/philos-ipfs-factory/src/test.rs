@@ -7,7 +7,7 @@ use alloc::vec;
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, BytesN, Env, IntoVal, Val, Vec,
+    Address, BytesN, Val, Env, FromVal, IntoVal, String, Vec,
 };
 
 // The contract that will be deployed by the deployer contract.
@@ -23,6 +23,13 @@ fn test() {
     let env = Env::default();
     let admin = Address::generate(&env);
     let deployer_client = PhilosFactoryClient::new(&env, &env.register(PhilosFactory, (&admin,)));
+    let name = String::from_val(&env, &"name");
+    let symbol = String::from_val(&env, &"symbol");
+    let ipfs_hash = String::from_val(&env, &"IPFS_HASH");
+    let file_type = String::from_val(&env, &"FILE_TYPE");
+    let published = String::from_val(&env, &"PUBLISHED");
+    let gateways = String::from_val(&env, &"GATEWAYS");
+    let _ipns_hash: Option<String> = None;
 
     // Upload the Wasm to be deployed from the deployer contract.
     // This can also be called from within a contract if needed.
@@ -30,7 +37,7 @@ fn test() {
 
     // Deploy contract using deployer, and include an init function to call.
     let salt = BytesN::from_array(&env, &[0; 32]);
-    let constructor_args: Vec<Val> = (5u32,).into_val(&env);
+    let constructor_args: Vec<Val> = (admin.clone(), 5u32, name.clone(), symbol.clone(), ipfs_hash, file_type, published, gateways, _ipns_hash).into_val(&env);
     env.mock_all_auths();
     let contract_id = deployer_client.deploy(&wasm_hash, &salt, &constructor_args);
 
@@ -47,7 +54,7 @@ fn test() {
     assert_eq!(env.auths(), vec![(admin, expected_auth)]);
 
     // Invoke contract to check that it is initialized.
-    let client = contract::Client::new(&env, &contract_id);
-    let sum = client.value();
-    assert_eq!(sum, 5);
+    let token = contract::Client::new(&env, &contract_id);
+    assert_eq!(token.name(), name.clone());
+    assert_eq!(token.symbol(), symbol);
 }

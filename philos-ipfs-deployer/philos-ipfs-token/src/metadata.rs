@@ -1,11 +1,11 @@
-use soroban_sdk::{Env, Address, String, Vec};
+use soroban_sdk::{Env, Address, String};
 use hvym_file_token::{filemetadata::FileTokenMetadata, TokenUtils};
 
 pub trait FileTokenInterface {
     fn ipfs_hash(env: Env, caller: Address) -> String;
     fn file_type(env: Env, caller: Address) -> String;
     fn published(env: Env, caller: Address) -> String;
-    fn gateways(env: Env, caller: Address) -> Vec<String>;
+    fn gateways(env: Env, caller: Address) -> String;
     fn ipns_hash(env: Env, caller: Address) -> Option<String>;
 }
 
@@ -39,7 +39,7 @@ pub fn read_published(e: &Env) -> String {
     util.metadata().get_metadata().published
 }
 
-pub fn read_gateways(e: &Env) -> Vec<String> {
+pub fn read_gateways(e: &Env) -> String {
     let util = TokenUtils::new(e);
     util.metadata().get_metadata().gateways
 }
