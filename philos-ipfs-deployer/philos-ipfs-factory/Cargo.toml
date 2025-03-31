@@ -1,16 +1,15 @@
 [package]
-name = "philos-ipfs-token"
-description = "Philos IPFS Token standard token contract"
-version = "0.0.6"
+name = "philos-ipfs-factory"
+version = "0.0.0"
 edition = "2021"
+publish = false
 
 [lib]
 crate-type = ["cdylib"]
+doctest = false
 
 [dependencies]
 soroban-sdk = { version = "22.0.1" }
-soroban-token-sdk = { version = "22.0.1" }
-hvym-file-token = { version = "0.0.1" }
 
 [dev-dependencies]
 soroban-sdk = { version = "22.0.1", features = ["testutils"] }
