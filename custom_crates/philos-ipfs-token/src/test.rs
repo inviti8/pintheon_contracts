@@ -304,12 +304,35 @@ fn check_file_token_data() {
     let token = create_token(&e, &admin);
 
     token.mint(&user1, &1000);
+    assert_eq!(token.balance(&user1), 1000);
+
     assert_eq!(token.name(), name);
     assert_eq!(token.symbol(), symbol);
-    assert_eq!(token.ipfs_hash(), ipfs_hash);
-    assert_eq!(token.file_type(), file_type);
-    assert_eq!(token.published(), published);
-    assert_eq!(token.gateways(), gateways);
-    assert_eq!(token.ipns_hash(), _ipns_hash);
+    assert_eq!(token.ipfs_hash(&user1), ipfs_hash);
+    assert_eq!(token.file_type(&user1), file_type);
+    assert_eq!(token.published(&user1), published);
+    assert_eq!(token.gateways(&user1), gateways);
+    assert_eq!(token.ipns_hash(&user1), _ipns_hash);
+}
+
+#[test]
+#[should_panic(expected = "Insufficient balance: 0")]
+fn check_file_token_data_balance_gate() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let name = String::from_val(&e, &"name");
+    let symbol = String::from_val(&e, &"symbol");
+    let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
+
+    let admin = Address::generate(&e);
+    let user1 = Address::generate(&e);
+    let token = create_token(&e, &admin);
+
+
+    assert_eq!(token.balance(&user1), 0);
+
+    assert_eq!(token.name(), name);
+    assert_eq!(token.symbol(), symbol);
+    assert_eq!(token.ipfs_hash(&user1), ipfs_hash);
 
 }

@@ -18,6 +18,12 @@ fn check_nonnegative_amount(amount: i128) {
     }
 }
 
+fn check_minimum_balance(amount: i128) {
+    if amount < 1 {
+        panic!("Insufficient balance: {}", amount)
+    }
+}
+
 #[contract]
 pub struct Token;
 
@@ -179,23 +185,28 @@ impl token::Interface for Token {
 #[contractimpl]
 impl FileTokenInterface for Token {
 
-    fn ipfs_hash(e: Env) -> String {
+    fn ipfs_hash(e: Env, caller: Address) -> String {
+        check_minimum_balance(read_balance(&e, caller));
         read_ipfs_hash(&e)
     }
 
-    fn file_type(e: Env) -> String {
+    fn file_type(e: Env, caller: Address) -> String {
+        check_minimum_balance(read_balance(&e, caller));
         read_file_type(&e)
     }
 
-    fn published(e: Env) -> String {
+    fn published(e: Env, caller: Address) -> String {
+        check_minimum_balance(read_balance(&e, caller));
         read_published(&e)
     }
 
-    fn gateways(e: Env) -> Vec<String> {
+    fn gateways(e: Env, caller: Address) -> Vec<String> {
+        check_minimum_balance(read_balance(&e, caller));
         read_gateways(&e)
     }
 
-    fn ipns_hash(e: Env) -> Option<String> {
+    fn ipns_hash(e: Env, caller: Address) -> Option<String> {
+        check_minimum_balance(read_balance(&e, caller));
         read_ipns_hash(&e)
     }
 }

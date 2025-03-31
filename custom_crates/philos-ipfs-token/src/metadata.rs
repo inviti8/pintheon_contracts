@@ -1,12 +1,12 @@
-use soroban_sdk::{Env, String, Vec};
+use soroban_sdk::{Env, Address, String, Vec};
 use hvym_file_token::{filemetadata::FileTokenMetadata, TokenUtils};
 
 pub trait FileTokenInterface {
-    fn ipfs_hash(env: Env) -> String;
-    fn file_type(env: Env) -> String;
-    fn published(env: Env) -> String;
-    fn gateways(env: Env) -> Vec<String>;
-    fn ipns_hash(env: Env) -> Option<String>;
+    fn ipfs_hash(env: Env, caller: Address) -> String;
+    fn file_type(env: Env, caller: Address) -> String;
+    fn published(env: Env, caller: Address) -> String;
+    fn gateways(env: Env, caller: Address) -> Vec<String>;
+    fn ipns_hash(env: Env, caller: Address) -> Option<String>;
 }
 
 pub fn read_decimal(e: &Env) -> u32 {
