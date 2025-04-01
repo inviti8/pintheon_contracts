@@ -22,6 +22,7 @@ mod contract {
 fn test() {
     let env = Env::default();
     let admin = Address::generate(&env);
+    let user1 = Address::generate(&env);
     let deployer_client = PhilosFactoryClient::new(&env, &env.register(PhilosFactory, (&admin,)));
     let name = String::from_val(&env, &"name");
     let symbol = String::from_val(&env, &"symbol");
@@ -37,7 +38,7 @@ fn test() {
 
     // Deploy contract using deployer, and include an init function to call.
     let salt = BytesN::from_array(&env, &[0; 32]);
-    let constructor_args: Vec<Val> = (admin.clone(), 5u32, name.clone(), symbol.clone(), ipfs_hash, file_type, published, gateways, _ipns_hash).into_val(&env);
+    let constructor_args: Vec<Val> = (admin.clone(), 5u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&env);
     env.mock_all_auths();
     let contract_id = deployer_client.deploy(&wasm_hash, &salt, &constructor_args);
 
@@ -55,6 +56,15 @@ fn test() {
 
     // Invoke contract to check that it is initialized.
     let token = contract::Client::new(&env, &contract_id);
+
+    token.mint(&user1, &1000);
+    assert_eq!(token.balance(&user1), 1000);
+
     assert_eq!(token.name(), name);
     assert_eq!(token.symbol(), symbol);
+    assert_eq!(token.ipfs_hash(&user1), ipfs_hash);
+    assert_eq!(token.file_type(&user1), file_type);
+    assert_eq!(token.published(&user1), published);
+    assert_eq!(token.gateways(&user1), gateways);
+    assert_eq!(token.ipns_hash(&user1), _ipns_hash);
 }
