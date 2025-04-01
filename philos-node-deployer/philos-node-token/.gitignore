@@ -1,0 +1,3 @@
+# Entire content of .gitignore or changes to be made
+target/
+test_snapshots/
