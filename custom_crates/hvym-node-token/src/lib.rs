@@ -5,7 +5,7 @@ use crate::nodemetadata::NodeMetadata;
 use soroban_sdk::Env;
 
 pub mod event;
-pub mod filemetadata;
+pub mod nodemetadata;
 
 #[derive(Clone)]
 pub struct TokenUtils(Env);
