@@ -1,7 +1,7 @@
 [package]
 name = "hvym-node-token"
 description = "Custom ipfs node token for Heavymeta Network, code variant based on Soroban Token SDK."
-version = "0.0.1"
+version = "0.0.2"
 homepage = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-node-token"
 repository = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-node-token"
 authors = ["Heavymeta <metavinci@heavymeta.art>"]
