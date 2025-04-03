@@ -1,9 +1,11 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, vec, String, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, token
+    contract, contractimpl, contracttype, symbol_short, vec, String, Address, Env, IntoVal, 
+    TryFromVal, Val, Vec, Error, Symbol, token
 };
+
+const ADMIN: Symbol = symbol_short!("admin");
 
 
 #[contracttype]
@@ -40,7 +42,6 @@ pub enum Kind {
 pub struct CollectiveContract;
 
 pub trait CollectiveContractTrait {
-    fn init(e: Env, admin: Address, fee: i128) -> bool;
     fn members(env: Env, person: Address) -> Vec<Member>;
     fn member_paid(e: Env, person: Address) -> i128;
     fn close_member(e:Env, person: Address, admin: Address)-> bool;
@@ -49,20 +50,48 @@ pub trait CollectiveContractTrait {
 }
 
 #[contractimpl]
-impl CollectiveContractTrait for CollectiveContract {
-    fn init(e: Env, admin: Address, fee: i128) -> bool {
-        assert!(!e.storage().persistent().has(&Datakey::Admin));
+impl CollectiveContract{
+    pub fn __constructor(e: Env, admin: Address) {
+        e.storage().instance().set(&ADMIN, &admin);
 
-        let collective = Collective { members: vec![&e], fee: fee };
+        let collective = Collective { members: vec![&e], fee: 3 };
 
         storage_p(e.clone(), admin, Kind::Permanent, Datakey::Admin);
 
-        storage_p(e, collective, Kind::Permanent, Datakey::Collective)
+        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
     }
 
+    pub fn do_join(e: Env, person: Address) -> Member {
+        person.require_auth();
+        let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
+
+        let member = Member {
+            address: person.clone(),
+            paid: collective.fee.clone(),
+        };
+
+        collective.members.push_back(member.clone());
+
+        storage_p(
+            e.clone(),
+            member.clone(),
+            Kind::Permanent,
+            Datakey::Member(person),
+        );
+        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
+
+        member
+    }
+}
+
+#[contractimpl]
+impl CollectiveContractTrait for CollectiveContract {
+    
     fn join(e: Env, person: Address) -> Member {
         person.require_auth();
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
+
+        //pay_fee_to_contract(&e, &person, collective.fee);
 
         let member = Member {
             address: person.clone(),

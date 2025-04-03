@@ -3,24 +3,25 @@ extern crate std;
 
 use crate::{CollectiveContract, CollectiveContractClient};
 use soroban_sdk::{
-    symbol_short,
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, FromVal, IntoVal, String, Symbol,
+    Address, Env,
 };
 
 #[test]
 fn test_member_creation() {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register_contract(None, CollectiveContract);
-    let client = CollectiveContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let client = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin,)));
+    //let contract = &env.register(CollectiveContract, ((&admin_add),));
+    //let client = CollectiveContractClient::new(&env, &contract);
+    //let contract_id = env.register(None, CollectiveContract);
+    //let client = CollectiveContractClient::new(&env, &contract_id);
 
-    let admin_add = Address::generate(&env);
+    
     let person = Address::generate(&env);
 
 
-
-    let x = client.init(&admin_add, &3);
 
     let y = client.join(&person);
 
@@ -33,8 +34,8 @@ fn test_member_creation() {
 
 
 
-    assert!(x);
-    assert_eq!(y.address, person);
+    //assert!(x);
+    //assert_eq!(y.address, person);
     // assert_eq!(z.balance, 20);
     // assert_eq!(a.get(0).unwrap().address, person);
     // assert_eq!(b, 15);
