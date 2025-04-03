@@ -1,9 +1,10 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, vec, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec,
+    contract, contractimpl, contracttype, vec, String, Address, Env, IntoVal, 
+    TryFromVal, Val, Vec, Error, token
 };
+
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -39,13 +40,12 @@ pub enum Kind {
 pub struct CollectiveContract;
 
 pub trait CollectiveContractTrait {
-    fn init(e: Env, admin: Address) -> bool;
-    fn create_member(e: Env, person: Address, amount: i128) -> Member;
+    fn init(e: Env, admin: Address, fee: i128) -> bool;
     fn members(env: Env, person: Address) -> Vec<Member>;
     fn member_paid(e: Env, person: Address) -> i128;
     fn close_member(e:Env, person: Address, admin: Address)-> bool;
-    fn join(env:Env, person: Address, amount: i128)-> Member;
-    fn withdraw(env:Env, person: Address, amount: i128)-> Member;
+    fn join(env:Env, person: Address)-> Member;
+    fn withdraw(env:Env, admin: Address, some: Address)-> Result<bool, Error>;
 }
 
 #[contractimpl]
@@ -53,22 +53,22 @@ impl CollectiveContractTrait for CollectiveContract {
     fn init(e: Env, admin: Address, fee: i128) -> bool {
         assert!(!e.storage().persistent().has(&Datakey::Admin));
 
-        let collective = Collective { members: vec![&e], fee: &fee };
+        let collective = Collective { members: vec![&e], fee: fee };
 
         storage_p(e.clone(), admin, Kind::Permanent, Datakey::Admin);
 
         storage_p(e, collective, Kind::Permanent, Datakey::Collective)
     }
 
-    fn create_member(e: Env, person: Address) -> Member {
+    fn join(e: Env, person: Address) -> Member {
         person.require_auth();
+        let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
+
         let member = Member {
             address: person.clone(),
-            paid: 0,
+            paid: collective.fee.clone(),
         };
 
-        let mut collective: Collective =
-            storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         collective.members.push_back(member.clone());
 
         storage_p(
@@ -83,38 +83,11 @@ impl CollectiveContractTrait for CollectiveContract {
     }
 
 
-    fn join(e:Env, person: Address, fee: i128)-> Member{
-        person.require_auth();
-
-        let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
-        pay_fee_to_contract(&e, &person, &collective.fee);
-
-        let mut members:Vec<Member> = collective.members;
-        
-        let index:usize = members.clone().iter().position(|x| x.address == person).expect("Coundnt get position");
-        let mut member:Member = storage_g(e.clone(), Kind::Permanent, Datakey::Member(person.clone())).expect("Member Error");
-        member.paid = fee;
-         
-        members.remove(index as u32);
-        members.push_back(member.clone());
-
-        collective.members = members;
-
-        storage_p(e.clone(), collective, Kind::Permanent, Datakey::Collective);
-        storage_p(e, member.clone(),Kind::Permanent, Datakey::Member(person));
-
-        member
-
-
-    }
-
-
-
-    fn withdraw(e:Env, admin: Address, some:Addres)-> Result<bool, Error> {
+    fn withdraw(e:Env, admin: Address, some:Address)-> Result<bool, Error> {
         admin.require_auth();
-        let admin_data: Address = env.clone().storage().instance().get(&DataKey::Admin).unwrap();
-        let client = token::Client::new(&env, &admin_data);
-        let totalfees: i128 = client.balance(&get_native_asset_address(&env));
+        let admin_data: Address = e.clone().storage().instance().get(&Datakey::Admin).unwrap();
+        let client = token::Client::new(&e, &admin_data);
+        let totalfees: i128 = client.balance(&xlm_asset_address(&e));
 
         collect_fees_from_contract(&e, &some, &totalfees);
 
@@ -208,7 +181,7 @@ fn get_admin(env: Env) -> Address {
     storage_g(env, Kind::Permanent, Datakey::Admin).unwrap()
 }
 
-fn get_native_asset_address(env: &Env) -> Address {
+fn xlm_asset_address(env: &Env) -> Address {
     let string_adr: String = String::from_str(
         &env,
         "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
@@ -217,13 +190,13 @@ fn get_native_asset_address(env: &Env) -> Address {
 }
 
 fn pay_fee_to_contract(env: &Env, person: &Address, price: i128) {
-    let admin_data: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+    let admin_data: Address = env.storage().instance().get(&Datakey::Admin).unwrap();
     let client = token::Client::new(env, &admin_data);
     client.transfer(person, &env.current_contract_address(), &price);
 }
 
 fn collect_fees_from_contract(env: &Env, to: &Address, amount: &i128) {
-    let admin_data: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+    let admin_data: Address = env.storage().instance().get(&Datakey::Admin).unwrap();
     let client = token::Client::new(env, &admin_data);
     client.transfer(&env.current_contract_address(), to, amount);
 }
