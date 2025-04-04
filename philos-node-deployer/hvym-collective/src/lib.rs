@@ -44,6 +44,7 @@ pub struct CollectiveContract;
 
 #[contractimpl]
 impl CollectiveContract{
+    
     pub fn __constructor(e: Env, admin: Address, fee: u32, token: Address) {
         e.storage().instance().set(&ADMIN, &admin);
 

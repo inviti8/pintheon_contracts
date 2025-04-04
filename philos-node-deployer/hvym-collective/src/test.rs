@@ -45,11 +45,13 @@ fn test_member_creation() {
 
     assert_eq!(a.address, person1);
 
+    assert_eq!(collective.member_paid(&person1), 7);
+
     assert_eq!(collective.withdraw(&admin), true);
 
     assert_eq!(pay_token_client.balance(&admin), 14);
 
-    let _c = collective.join(&person3);
+    collective.join(&person3);
 
     assert_eq!(collective.remove(&person3), true);
     
@@ -72,6 +74,21 @@ fn test_member_join_fail() {
     pay_token_admin_client.mint(&person1, &5);
 
     collective.join(&person1);
+
+
+}
+
+#[test]
+#[should_panic(expected = "not enough collected to withdraw")]
+fn test_withdraw_fail() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let pay_token = create_token_contract(&env, &admin);
+    let pay_token_client = pay_token.0;
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+
+    collective.withdraw(&admin);
 
 
 }
