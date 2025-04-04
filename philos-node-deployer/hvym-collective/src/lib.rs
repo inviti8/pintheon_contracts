@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, vec, String, Address, Env, IntoVal, 
+    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, 
     TryFromVal, Val, Vec, Error, Symbol, token
 };
 
@@ -42,14 +42,6 @@ pub enum Kind {
 #[contract]
 pub struct CollectiveContract;
 
-pub trait CollectiveContractTrait {
-    fn members(env: Env, person: Address) -> Vec<Member>;
-    fn member_paid(e: Env, person: Address) -> u32;
-    fn close_member(e:Env, person: Address, admin: Address)-> bool;
-    fn join(env:Env, person: Address)-> Member;
-    fn withdraw(env:Env, some: Address)-> Result<bool, Error>;
-}
-
 #[contractimpl]
 impl CollectiveContract{
     pub fn __constructor(e: Env, admin: Address, fee: u32, token: Address) {
@@ -61,16 +53,10 @@ impl CollectiveContract{
 
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
     }
-}
 
-#[contractimpl]
-impl CollectiveContractTrait for CollectiveContract {
-    
-    fn join(e: Env, person: Address) -> Member {
+    pub fn join(e: Env, person: Address) -> Member {
         person.require_auth();
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
-
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         let client = token::Client::new(&e, &collective.pay_token);
         let balance = client.balance(&person);
         let fee = collective.fee as i128;
@@ -99,8 +85,7 @@ impl CollectiveContractTrait for CollectiveContract {
         member
     }
 
-
-    fn withdraw(e:Env, some:Address)-> Result<bool, Error> {
+    pub fn withdraw(e:Env, some:Address)-> Result<bool, Error> {
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
         let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
@@ -119,14 +104,15 @@ impl CollectiveContractTrait for CollectiveContract {
 
     }
 
-    fn members(e: Env, person: Address) -> Vec<Member> {
-        assert_eq!(get_admin(e.clone()), person);
+    pub fn members(e: Env) -> Vec<Member> {
+        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
+        admin.require_auth();
         let collective: Collective =
             storage_g(e, Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         collective.members
     }
 
-    fn member_paid(e: Env, person: Address) -> u32 {
+    pub fn member_paid(e: Env, person: Address) -> u32 {
         person.require_auth();
         let member: Member = e
             .storage()
@@ -137,13 +123,14 @@ impl CollectiveContractTrait for CollectiveContract {
     }
 
 
-    fn close_member(e:Env, person: Address, admin: Address)-> bool{
+    pub fn remove(e:Env, person: Address)-> bool{
+        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
 
         let mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not found a collective");
         let mut accs:Vec<Member> =collective.members;
 
-         let index =  accs.clone().iter().position(|x| x.address == person).expect("Member not found");
+        let index =  accs.clone().iter().position(|x| x.address == person).expect("Member not found");
 
 
       let done = match accs.remove(index as u32) {
@@ -198,10 +185,6 @@ fn storage_p<T: IntoVal<Env, Val>>(env: Env, value: T, kind: Kind, key: Datakey)
     };
 
     done
-}
-
-fn get_admin(env: Env) -> Address {
-    storage_g(env, Kind::Permanent, Datakey::Admin).unwrap()
 }
 
 mod test;
