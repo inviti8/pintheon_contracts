@@ -2,21 +2,20 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, Symbol, String, token,
-    format_args!--{}!--, format_arguments_for_output, now
+    TryFromVal, Val, Vec, Error, Symbol, String, Bytes, BytesN, FromVal, token
 };
 
 const ADMIN: Symbol = symbol_short!("admin");
 
-mod philos_node_factory {
+mod philos_node_token {
     soroban_sdk::contractimport!(
-        file = "../philos-node-factory/target/wasm32-unknown-unknown/release/philos_node_factory.wasm"
+        file = "../philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.wasm"
     );
 }
 
-mod philos_ipfs_factory {
+mod philos_ipfs_token {
     soroban_sdk::contractimport!(
-        file = "../../philos-ipfs-deployer/philos-ipfs-factory/target/wasm32-unknown-unknown/release/philos_ipfs_factory.wasm"
+        file = "../../philos-ipfs-deployer/philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.wasm"
     );
 }
 
@@ -179,9 +178,70 @@ impl CollectiveContract{
         done
     }
 
-    pub fn deploy_node(e:Env, person: Address, name: String, descriptor: String)-> bool{
+    pub fn deploy_node_token(e:Env, person: Address, name: String, descriptor: String)-> Address{
 
-        true
+        person.require_auth();
+
+        if Self::is_member(e.clone(), person.clone()) == false {
+            panic!("unauthorized");
+        }
+
+        let ledger = e.ledger();
+        let symbol = String::from_val(&e, &"HVYMNODE");
+        let b: [u8; 32] = e.prng().gen();
+        let node_id = String::from_bytes(&e, &b);
+        let established = ledger.timestamp();
+        let wasm_hash = e.deployer().upload_contract_wasm(philos_node_token::WASM);
+        let mut ran = [0u8; 32];
+        e.prng().fill(&mut ran);
+        let salt = BytesN::from_array(&e, &ran);
+        let constructor_args: Vec<Val> = (person.clone(), 1u32, name.clone(), symbol.clone(), node_id.clone(), descriptor.clone(), established.clone()).into_val(&e);
+
+        let contract_id = Self::deploy_contract(e.clone(), person.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
+
+        contract_id
+    }
+
+    pub fn deploy_ipfs_token(e:Env, person: Address, name: String, ipfs_hash: String, file_type: String, gateways: String, _ipns_hash: Option<String>)-> Address{
+
+        person.require_auth();
+
+        if Self::is_member(e.clone(), person.clone()) == false {
+            panic!("unauthorized");
+        }
+
+        let ledger = e.ledger();
+        let symbol = String::from_val(&e, &"HVYMFILE");
+        let published = ledger.timestamp();
+        let wasm_hash = e.deployer().upload_contract_wasm(philos_ipfs_token::WASM);
+        let mut ran = [0u8; 32];
+        e.prng().fill(&mut ran);
+        let salt = BytesN::from_array(&e, &ran);
+        let constructor_args: Vec<Val> = (person.clone(), 8u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
+
+        let contract_id = Self::deploy_contract(e.clone(), person.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
+
+        contract_id
+    }
+
+    fn deploy_contract(
+        e: Env,
+        person: Address,
+        wasm_hash: BytesN<32>,
+        salt: BytesN<32>,
+        constructor_args: Vec<Val>,
+    ) -> Address {
+        
+        if Self::is_member(e.clone(), person.clone()) == false {
+            panic!("unauthorized");
+        }
+
+        let deployed_address = e
+            .deployer()
+            .with_address(e.current_contract_address(), salt)
+            .deploy_v2(wasm_hash, constructor_args);
+
+        deployed_address
     }
 }
 
@@ -222,9 +282,5 @@ fn storage_p<T: IntoVal<Env, Val>>(env: Env, value: T, kind: Kind, key: Datakey)
     done
 }
 
-fn get_current_timestamp(env: Env) -> String {
-    let now = env.now(); // this gives you seconds since Unix Epoch
-    format_args!--{}!--.to_string() 
-}
 
 mod test;
