@@ -2,11 +2,23 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, Symbol, token
+    TryFromVal, Val, Vec, Error, Symbol, String, token,
+    format_args!--{}!--, format_arguments_for_output, now
 };
 
 const ADMIN: Symbol = symbol_short!("admin");
 
+mod philos_node_factory {
+    soroban_sdk::contractimport!(
+        file = "../philos-node-factory/target/wasm32-unknown-unknown/release/philos_node_factory.wasm"
+    );
+}
+
+mod philos_ipfs_factory {
+    soroban_sdk::contractimport!(
+        file = "../../philos-ipfs-deployer/philos-ipfs-factory/target/wasm32-unknown-unknown/release/philos_ipfs_factory.wasm"
+    );
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -166,6 +178,11 @@ impl CollectiveContract{
 
         done
     }
+
+    pub fn deploy_node(e:Env, person: Address, name: String, descriptor: String)-> bool{
+
+        true
+    }
 }
 
 fn storage_g<T: IntoVal<Env, Val> + TryFromVal<Env, Val>>(
@@ -203,6 +220,11 @@ fn storage_p<T: IntoVal<Env, Val>>(env: Env, value: T, kind: Kind, key: Datakey)
     };
 
     done
+}
+
+fn get_current_timestamp(env: Env) -> String {
+    let now = env.now(); // this gives you seconds since Unix Epoch
+    format_args!--{}!--.to_string() 
 }
 
 mod test;

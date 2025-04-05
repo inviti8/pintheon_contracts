@@ -54,7 +54,6 @@ fn test_member_creation() {
     assert_eq!(pay_token_client.balance(&admin), 14);
 
     collective.join(&person3);
-
     assert_eq!(collective.is_member(&person3), true);
     assert_eq!(collective.remove(&person3), true);
     assert_eq!(collective.is_member(&person3), false);
