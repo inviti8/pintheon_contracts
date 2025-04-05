@@ -10,7 +10,7 @@ pub struct FileTokenMetadata {
     pub symbol: String,
     pub ipfs_hash: String,
     pub file_type: String,
-    pub published: String,
+    pub published: u64,
     pub gateways: String,
     pub ipns_hash: Option<String>,
 }
