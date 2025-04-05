@@ -45,6 +45,8 @@ fn test_member_creation() {
 
     assert_eq!(a.address, person1);
 
+    assert_eq!(collective.is_member(&person1), true);
+
     assert_eq!(collective.member_paid(&person1), 7);
 
     assert_eq!(collective.withdraw(&admin), true);
@@ -53,7 +55,10 @@ fn test_member_creation() {
 
     collective.join(&person3);
 
+    assert_eq!(collective.is_member(&person3), true);
     assert_eq!(collective.remove(&person3), true);
+    assert_eq!(collective.is_member(&person3), false);
+
     
 
 }
@@ -73,6 +78,27 @@ fn test_member_join_fail() {
 
     pay_token_admin_client.mint(&person1, &5);
 
+    collective.join(&person1);
+
+
+}
+
+#[test]
+#[should_panic(expected = "already part of collective")]
+fn test_member_join_twice_fail() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let pay_token = create_token_contract(&env, &admin);
+    let pay_token_client = pay_token.0;
+    let pay_token_admin_client  = pay_token.1;
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+
+    let person1 = Address::generate(&env);
+
+    pay_token_admin_client.mint(&person1, &10);
+
+    collective.join(&person1);
     collective.join(&person1);
 
 

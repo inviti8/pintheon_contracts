@@ -56,6 +56,11 @@ impl CollectiveContract{
     }
 
     pub fn join(e: Env, person: Address) -> Member {
+
+        if Self::is_member(e.clone(), person.clone()) {
+            panic!("already part of collective");
+        }
+
         person.require_auth();
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         let client = token::Client::new(&e, &collective.pay_token);
@@ -123,12 +128,26 @@ impl CollectiveContract{
         member.paid
     }
 
+    pub fn is_member(e: Env, person: Address) -> bool {
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+
+        let exists = match collective.members.clone().iter().position(|x| x.address == person) {
+            Some( _) => {
+                true
+            },
+            None => false
+              
+        };  
+    
+    
+        exists
+    }
 
     pub fn remove(e:Env, person: Address)-> bool{
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
 
-        let mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not found a collective");
+        let mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         let mut accs:Vec<Member> =collective.members;
 
         let index =  accs.clone().iter().position(|x| x.address == person).expect("Member not found");
@@ -144,8 +163,6 @@ impl CollectiveContract{
           
       };  
 
-
-       
 
         done
     }
