@@ -623,9 +623,9 @@ dependencies = [
 
 [[package]]
 name = "hvym-node-token"
-version = "0.0.1"
+version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbca60a80e07f8a16c62d4110d74a2f97831c943d45432700a2d6e4bb134f277"
+checksum = "8097cf2fa648ecdb10bebd4841a5a98f028e60db40591f269117c86fbf3e6753"
 dependencies = [
  "soroban-sdk",
  "soroban-token-sdk",

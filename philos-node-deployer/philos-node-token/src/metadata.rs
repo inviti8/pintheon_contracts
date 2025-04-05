@@ -4,7 +4,7 @@ use hvym_node_token::{nodemetadata::NodeTokenMetadata, TokenUtils};
 pub trait NodeTokenInterface {
     fn node_id(env: Env) -> String;
     fn descriptor(env: Env) -> String;
-    fn established(env: Env) -> String;
+    fn established(env: Env) -> u64;
 }
 
 pub fn read_decimal(e: &Env) -> u32 {
@@ -32,7 +32,7 @@ pub fn read_descriptor(e: &Env) -> String {
     util.metadata().get_metadata().descriptor
 }
 
-pub fn read_established(e: &Env) -> String {
+pub fn read_established(e: &Env) -> u64{
     let util = TokenUtils::new(e);
     util.metadata().get_metadata().established
 }

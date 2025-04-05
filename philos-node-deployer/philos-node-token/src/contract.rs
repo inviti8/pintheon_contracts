@@ -23,7 +23,7 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
-    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, node_id: String, descriptor: String, established: String) {
+    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, node_id: String, descriptor: String, established: u64) {
         if decimal > 18 {
             panic!("Decimal must not be greater than 18");
         }
@@ -185,7 +185,7 @@ impl NodeTokenInterface for Token {
         read_descriptor(&e)
     }
 
-    fn established(e: Env) -> String {
+    fn established(e: Env) -> u64 {
         read_established(&e)
     }
 }
