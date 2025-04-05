@@ -29,7 +29,7 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
-    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, ipfs_hash: String, file_type: String, published: String, gateways: String, ipns_hash: Option<String>) {
+    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, ipfs_hash: String, file_type: String, published: u64, gateways: String, ipns_hash: Option<String>) {
         if decimal > 18 {
             panic!("Decimal must not be greater than 18");
         }
@@ -196,7 +196,7 @@ impl FileTokenInterface for Token {
         read_file_type(&e)
     }
 
-    fn published(e: Env, caller: Address) -> String {
+    fn published(e: Env, caller: Address) -> u64 {
         caller.require_auth();
         check_minimum_balance(read_balance(&e, caller));
         read_published(&e)

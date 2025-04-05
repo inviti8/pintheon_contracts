@@ -9,11 +9,12 @@ use soroban_sdk::{
 };
 
 fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
+    let ledger = e.ledger();
     let name = String::from_val(e, &"name");
     let symbol = String::from_val(e, &"symbol");
     let ipfs_hash = String::from_val(e, &"IPFS_HASH");
     let file_type = String::from_val(e, &"FILE_TYPE");
-    let published = String::from_val(e, &"PUBLISHED");
+    let published = ledger.timestamp();
     let gateways = String::from_val(e, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 
@@ -256,12 +257,13 @@ fn transfer_from_insufficient_allowance() {
 #[should_panic(expected = "Decimal must not be greater than 18")]
 fn decimal_is_over_eighteen() {
     let e = Env::default();
+    let ledger = e.ledger();
     let admin = Address::generate(&e);
     let name = String::from_val(&e, &"name");
     let symbol = String::from_val(&e, &"symbol");
     let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
     let file_type = String::from_val(&e, &"FILE_TYPE");
-    let published = String::from_val(&e, &"PUBLISHED");
+    let published = ledger.timestamp();
     let gateways = String::from_val(&e, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 
@@ -302,12 +304,13 @@ fn test_zero_allowance() {
 #[test]
 fn check_file_token_data() {
     let e = Env::default();
+    let ledger = e.ledger();
     e.mock_all_auths();
     let name = String::from_val(&e, &"name");
     let symbol = String::from_val(&e, &"symbol");
     let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
     let file_type = String::from_val(&e, &"FILE_TYPE");
-    let published = String::from_val(&e, &"PUBLISHED");
+    let published = ledger.timestamp();
     let gateways = String::from_val(&e, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 
