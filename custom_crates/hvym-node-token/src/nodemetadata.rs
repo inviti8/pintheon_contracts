@@ -10,7 +10,7 @@ pub struct NodeTokenMetadata {
     pub symbol: String,
     pub node_id: String,
     pub descriptor: String,
-    pub established: String,
+    pub established: u64,
 }
 
 pub struct NodeMetadata {
