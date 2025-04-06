@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, Symbol, String, Bytes, BytesN, FromVal, token
+    TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, token
 };
 
 const ADMIN: Symbol = symbol_short!("admin");
@@ -198,6 +198,8 @@ impl CollectiveContract{
         let constructor_args: Vec<Val> = (person.clone(), 1u32, name.clone(), symbol.clone(), node_id.clone(), descriptor.clone(), established.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), person.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
+        let token = philos_node_token::Client::new(&e, &contract_id);
+        token.mint(&person, &1);
 
         contract_id
     }
