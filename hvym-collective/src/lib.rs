@@ -9,13 +9,13 @@ const ADMIN: Symbol = symbol_short!("admin");
 
 mod philos_node_token {
     soroban_sdk::contractimport!(
-        file = "../philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.wasm"
+        file = "../philos-node-deployer/philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.wasm"
     );
 }
 
 mod philos_ipfs_token {
     soroban_sdk::contractimport!(
-        file = "../../philos-ipfs-deployer/philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.wasm"
+        file = "../philos-ipfs-deployer/philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.wasm"
     );
 }
 
