@@ -37,8 +37,10 @@ pub struct Member {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Collective {
+   pub symbol: Symbol,
    pub members: Vec<Member>,
-   pub fee: u32,
+   pub join_fee: u32,
+   pub mint_fee: u32,
    pub pay_token: Address,
 }
 
@@ -56,10 +58,13 @@ pub struct CollectiveContract;
 #[contractimpl]
 impl CollectiveContract{
     
-    pub fn __constructor(e: Env, admin: Address, fee: u32, token: Address) {
+    pub fn __constructor(e: Env, admin: Address, join_fee: u32, mint_fee: u32, token: Address) {
+
+        let heavymeta: Symbol = Symbol::new(&e, "HEAVYMETA");
+        
         e.storage().instance().set(&ADMIN, &admin);
 
-        let collective = Collective { members: vec![&e], fee: fee, pay_token: token };
+        let collective = Collective { symbol: heavymeta, members: vec![&e], join_fee: join_fee, mint_fee: mint_fee, pay_token: token };
 
         storage_p(e.clone(), admin, Kind::Permanent, Datakey::Admin);
 
@@ -76,17 +81,17 @@ impl CollectiveContract{
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         let client = token::Client::new(&e, &collective.pay_token);
         let balance = client.balance(&person);
-        let fee = collective.fee as i128;
+        let join_fee = collective.join_fee as i128;
 
-        if balance < fee {
+        if balance < join_fee {
             panic!("not enough to cover fee");
         }
 
-        client.transfer(&person, &e.current_contract_address(), &fee);
+        client.transfer(&person, &e.current_contract_address(), &join_fee);
 
         let member = Member {
             address: person.clone(),
-            paid: collective.fee.clone(),
+            paid: collective.join_fee.clone(),
         };
 
         collective.members.push_back(member.clone());
@@ -107,10 +112,10 @@ impl CollectiveContract{
         admin.require_auth();
         let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         let client = token::Client::new(&e, &collective.pay_token);
-        let fee = collective.fee as i128;
+        let join_fee = collective.join_fee as i128;
         let totalfees = client.balance(&e.current_contract_address());
 
-        if totalfees < fee {
+        if totalfees < join_fee {
             panic!("not enough collected to withdraw");
         }
 
@@ -119,6 +124,21 @@ impl CollectiveContract{
         Ok(true)
 
 
+    }
+
+    pub fn symbol(e: Env) -> Symbol {
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+        collective.symbol
+    }
+
+    pub fn join_fee(e: Env) -> i128 {
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+        collective.join_fee as i128
+    }
+
+    pub fn mint_fee(e: Env) -> i128 {
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+        collective.mint_fee as i128
     }
 
     pub fn members(e: Env) -> Vec<Member> {
@@ -211,6 +231,16 @@ impl CollectiveContract{
         if Self::is_member(e.clone(), person.clone()) == false {
             panic!("unauthorized");
         }
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+        let client = token::Client::new(&e, &collective.pay_token);
+        let balance = client.balance(&person);
+        let mint_fee = collective.mint_fee as i128;
+
+        if balance < mint_fee {
+            panic!("not enough to cover fee");
+        }
+
+        client.transfer(&person, &e.current_contract_address(), &mint_fee);
 
         let ledger = e.ledger();
         let symbol = String::from_val(&e, &"HVYMFILE");
@@ -244,6 +274,24 @@ impl CollectiveContract{
             .deploy_v2(wasm_hash, constructor_args);
 
         deployed_address
+    }
+
+    pub fn update_join_fee(e: Env, new_fee: u32) -> i128 {
+        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
+        admin.require_auth();
+        let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
+        collective.join_fee = new_fee;
+        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
+        new_fee as i128
+    }
+
+    pub fn update_mint_fee(e: Env, new_fee: u32) -> i128 {
+        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
+        admin.require_auth();
+        let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
+        collective.join_fee = new_fee;
+        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
+        new_fee as i128
     }
 }
 

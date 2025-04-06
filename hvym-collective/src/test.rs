@@ -5,7 +5,7 @@ use crate::{CollectiveContract, CollectiveContractClient};
 use crate::{token};
 use soroban_sdk::{
     testutils::{Address as _},
-    Address, Env, String, FromVal
+    Address, Env, String, Symbol, FromVal
 };
 
 mod philos_node_token {
@@ -35,11 +35,12 @@ fn create_token_contract<'a>(
 fn test_member_creation() {
     let env = Env::default();
     env.mock_all_auths();
+    let heavymeta: Symbol = Symbol::new(&env, "HEAVYMETA");
     let admin = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let person1 = Address::generate(&env);
     let person2 = Address::generate(&env);
@@ -52,6 +53,12 @@ fn test_member_creation() {
 
     let a = collective.join(&person1);
     collective.join(&person2);
+
+    assert_eq!(collective.symbol(), heavymeta);
+
+    assert_eq!(collective.join_fee(), 7);
+
+    assert_eq!(collective.mint_fee(), 7);
 
     assert_eq!(pay_token_client.balance(&admin), 0);
 
@@ -70,6 +77,9 @@ fn test_member_creation() {
     assert_eq!(collective.remove(&person3), true);
     assert_eq!(collective.is_member(&person3), false);
 
+    assert_eq!(collective.update_join_fee(&21_u32), 21);
+    assert_eq!(collective.join_fee(), 21);
+
     
 
 }
@@ -82,7 +92,7 @@ fn test_node_creation() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let name = String::from_val(&env, &"name");
     let symbol = String::from_val(&env, &"HVYMNODE");
@@ -113,7 +123,7 @@ fn test_node_creation_fail() {
     let admin = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let name = String::from_val(&env, &"name");
     let descriptor = String::from_val(&env, &"DESCRIPTOR");
@@ -133,7 +143,7 @@ fn test_ipfs_token_creation() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let ledger = env.ledger();
     let name = String::from_val(&env, &"name");
@@ -166,15 +176,44 @@ fn test_ipfs_token_creation() {
 }
 
 #[test]
-#[should_panic(expected = "unauthorized")]
-fn test_ipfs_token_creation_fail() {
+#[should_panic(expected = "not enough to cover fee")]
+fn test_ipfs_token_creation_fail_no_fee() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
+
+    let name = String::from_val(&env, &"name");
+    let ipfs_hash = String::from_val(&env, &"IPFS_HASH");
+    let file_type = String::from_val(&env, &"FILE_TYPE");
+    let gateways = String::from_val(&env, &"GATEWAYS");
+    let _ipns_hash: Option<String> = None;
+
+    let person1 = Address::generate(&env);
+
+    pay_token_admin_client.mint(&person1, &7);
+    assert_eq!(pay_token_client.balance(&person1), 7);
+    collective.join(&person1);
+    assert_eq!(pay_token_client.balance(&person1), 0);
+
+    collective.deploy_ipfs_token(&person1, &name, &ipfs_hash, &file_type, &gateways, &_ipns_hash);
+
+    
+}
+
+#[test]
+#[should_panic(expected = "unauthorized")]
+fn test_ipfs_token_creation_fail_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let pay_token = create_token_contract(&env, &admin);
+    let pay_token_client = pay_token.0;
+    let pay_token_admin_client  = pay_token.1;
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let name = String::from_val(&env, &"name");
     let ipfs_hash = String::from_val(&env, &"IPFS_HASH");
@@ -201,7 +240,7 @@ fn test_member_join_fail() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let person1 = Address::generate(&env);
 
@@ -221,7 +260,7 @@ fn test_member_join_twice_fail() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     let person1 = Address::generate(&env);
 
@@ -241,7 +280,7 @@ fn test_withdraw_fail() {
     let admin = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
-    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, &pay_token_client.address)));
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address)));
 
     collective.withdraw(&admin);
 
