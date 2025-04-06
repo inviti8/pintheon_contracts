@@ -21,6 +21,7 @@ mod contract {
 #[test]
 fn test() {
     let env = Env::default();
+    let ledger = env.ledger();
     let admin = Address::generate(&env);
     let user1 = Address::generate(&env);
     let deployer_client = PhilosFactoryClient::new(&env, &env.register(PhilosFactory, (&admin,)));
@@ -28,7 +29,7 @@ fn test() {
     let symbol = String::from_val(&env, &"symbol");
     let ipfs_hash = String::from_val(&env, &"IPFS_HASH");
     let file_type = String::from_val(&env, &"FILE_TYPE");
-    let published = String::from_val(&env, &"PUBLISHED");
+    let published = ledger.timestamp();
     let gateways = String::from_val(&env, &"GATEWAYS");
     let _ipns_hash: Option<String> = None;
 

@@ -21,13 +21,14 @@ mod contract {
 #[test]
 fn test() {
     let env = Env::default();
+    let ledger = env.ledger();
     let admin = Address::generate(&env);
     let deployer_client = PhilosFactoryClient::new(&env, &env.register(PhilosFactory, (&admin,)));
     let name = String::from_val(&env, &"name");
     let symbol = String::from_val(&env, &"symbol");
     let node_id = String::from_val(&env, &"NODE_ID");
     let descriptor = String::from_val(&env, &"DESCRIPTOR");
-    let established = String::from_val(&env, &"ESTABLISHED");
+    let established = ledger.timestamp();
 
     // Upload the Wasm to be deployed from the deployer contract.
     // This can also be called from within a contract if needed.
