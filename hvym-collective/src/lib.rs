@@ -176,6 +176,11 @@ impl CollectiveContract{
         member.paid
     }
 
+    pub fn opus_address(e: Env)-> Address {
+        let address: Address = e.storage().instance().get::<Symbol, Address>(&OPUS).expect("network not initialized");
+        address
+    }
+
     pub fn is_member(e: Env, caller: Address) -> bool {
         let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         let this_contract: Address = e.current_contract_address();
@@ -294,12 +299,12 @@ impl CollectiveContract{
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
 
-        //mint opus to caller
-        // let opus_address: Address = e.storage().instance().get(&OPUS).unwrap();
-        // let opus_client = token::StellarAssetClient::new(&e, &opus_address);
-        // let reward = collective.opus_reward as i128;
+        //mint opus reward to caller
+        let opus_address: Address = e.storage().instance().get(&OPUS).unwrap();
+        let opus_client = token::StellarAssetClient::new(&e, &opus_address);
+        let reward = collective.opus_reward as i128;
 
-        // opus_client.mint(&caller, &reward);
+        opus_client.mint(&caller, &reward);
 
         contract_id
     }

@@ -20,6 +20,12 @@ mod philos_ipfs_token {
     );
 }
 
+mod opus_token {
+    soroban_sdk::contractimport!(
+        file = "../opus_token/target/wasm32-unknown-unknown/release/opus_token.wasm"
+    );
+}
+
 fn create_token_contract<'a>(
     e: &Env,
     admin: &Address,
@@ -42,7 +48,6 @@ fn test_member_creation() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    //pay_token_admin_client.set_admin(&admin);
 
     pay_token_admin_client.mint(&issuer, &10000);
     
@@ -57,8 +62,6 @@ fn test_member_creation() {
     pay_token_admin_client.mint(&person1, &100);
     pay_token_admin_client.mint(&person2, &100);
     pay_token_admin_client.mint(&person3, &50);
-
-    //pay_token_client.transfer(&admin, &person1, &100);
 
     collective.launch_opus(&888);
 
@@ -103,7 +106,6 @@ fn test_node_creation() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    //pay_token_admin_client.mint(&admin, &1000);
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
 
     let name = String::from_val(&env, &"name");
@@ -135,8 +137,6 @@ fn test_node_creation_fail() {
     let admin = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
-    let pay_token_admin_client  = pay_token.1;
-    //pay_token_admin_client.mint(&admin, &1000);
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
 
     let name = String::from_val(&env, &"name");
@@ -154,11 +154,14 @@ fn test_ipfs_token_creation() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    //pay_token_admin_client.mint(&admin, &1000);
+    pay_token_admin_client.mint(&issuer, &1000);
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
+
+    collective.launch_opus(&888);
 
     let ledger = env.ledger();
     let name = String::from_val(&env, &"name");
@@ -170,8 +173,6 @@ fn test_ipfs_token_creation() {
     let _ipns_hash: Option<String> = None;
 
     let person1 = Address::generate(&env);
-
-    //collective.launch_opus(&888);
 
     pay_token_admin_client.mint(&person1, &100);
     collective.join(&person1);
@@ -188,6 +189,9 @@ fn test_ipfs_token_creation() {
     assert_eq!(token.published(&person1), published);
     assert_eq!(token.gateways(&person1), gateways);
     assert_eq!(token.ipns_hash(&person1), _ipns_hash);
+    //check rewards
+    let opus = opus_token::Client::new(&env, &collective.opus_address());
+    assert_eq!(opus.balance(&person1), 7);
 
     
 }
@@ -201,7 +205,6 @@ fn test_ipfs_token_creation_fail_no_fee() {
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    //pay_token_admin_client.mint(&admin, &1000);
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
 
     let name = String::from_val(&env, &"name");
