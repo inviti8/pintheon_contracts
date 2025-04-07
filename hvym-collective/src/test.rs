@@ -199,6 +199,57 @@ fn test_ipfs_token_creation() {
 }
 
 #[test]
+#[should_panic(expected = "network not up")]
+fn test_ipfs_token_creation_fail_no_network() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
+    let pay_token = create_token_contract(&env, &admin);
+    let pay_token_client = pay_token.0;
+    let pay_token_admin_client  = pay_token.1;
+    pay_token_admin_client.mint(&issuer, &1000);
+
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
+
+    collective.fund_contract(&issuer, &500);
+
+    let name = String::from_val(&env, &"name");
+    let ipfs_hash = String::from_val(&env, &"IPFS_HASH");
+    let file_type = String::from_val(&env, &"FILE_TYPE");
+    let gateways = String::from_val(&env, &"GATEWAYS");
+    let _ipns_hash: Option<String> = None;
+
+    let person1 = Address::generate(&env);
+
+    pay_token_admin_client.mint(&person1, &100);
+    collective.join(&person1);
+
+    collective.deploy_ipfs_token(&person1, &name, &ipfs_hash, &file_type, &gateways, &_ipns_hash);
+
+    
+}
+
+#[test]
+#[should_panic(expected = "opus already up")]
+fn test_fail_launch_twice() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
+    let pay_token = create_token_contract(&env, &admin);
+    let pay_token_client = pay_token.0;
+    let pay_token_admin_client  = pay_token.1;
+    pay_token_admin_client.mint(&issuer, &1000);
+    let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
+
+    collective.fund_contract(&issuer, &500);
+    collective.launch_opus(&888);
+    collective.launch_opus(&888);
+    
+}
+
+#[test]
 #[should_panic(expected = "not enough to cover fee")]
 fn test_ipfs_token_creation_fail_no_fee() {
     let env = Env::default();
