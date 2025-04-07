@@ -41,7 +41,7 @@ fn create_token_contract<'a>(
 fn test_member_creation() {
     let env = Env::default();
     env.mock_all_auths();
-    let heavymeta: Symbol = Symbol::new(&env, "HEAVYMETA");
+    let heavymeta: Symbol = Symbol::new(&env, "HVYM");
     let admin = Address::generate(&env);
     let issuer = Address::generate(&env);
     
@@ -159,8 +159,10 @@ fn test_ipfs_token_creation() {
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
     pay_token_admin_client.mint(&issuer, &1000);
+
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
 
+    collective.fund_contract(&issuer, &500);
     collective.launch_opus(&888);
 
     let ledger = env.ledger();
@@ -202,10 +204,15 @@ fn test_ipfs_token_creation_fail_no_fee() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
+    pay_token_admin_client.mint(&issuer, &1000);
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
+
+    collective.fund_contract(&issuer, &500);
+    collective.launch_opus(&888);
 
     let name = String::from_val(&env, &"name");
     let ipfs_hash = String::from_val(&env, &"IPFS_HASH");
@@ -214,6 +221,7 @@ fn test_ipfs_token_creation_fail_no_fee() {
     let _ipns_hash: Option<String> = None;
 
     let person1 = Address::generate(&env);
+    
 
     pay_token_admin_client.mint(&person1, &7);
     assert_eq!(pay_token_client.balance(&person1), 7);
@@ -231,11 +239,15 @@ fn test_ipfs_token_creation_fail_unauthorized() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
     let pay_token = create_token_contract(&env, &admin);
     let pay_token_client = pay_token.0;
     let pay_token_admin_client  = pay_token.1;
-    //pay_token_admin_client.mint(&admin, &1000);
+    pay_token_admin_client.mint(&issuer, &1000);
     let collective = CollectiveContractClient::new(&env, &env.register(CollectiveContract, (&admin, 7_u32, 7_u32, &pay_token_client.address, 7_u32)));
+
+    collective.fund_contract(&issuer, &500);
+    collective.launch_opus(&888);
 
     let name = String::from_val(&env, &"name");
     let ipfs_hash = String::from_val(&env, &"IPFS_HASH");

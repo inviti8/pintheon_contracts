@@ -6,6 +6,7 @@ use soroban_sdk::{
 };
 
 const ADMIN: Symbol = symbol_short!("admin");
+const HEAVYMETA: Symbol = symbol_short!("HVYM");
 const OPUS: Symbol = symbol_short!("OPUS");
 
 mod philos_node_token {
@@ -67,12 +68,10 @@ pub struct CollectiveContract;
 impl CollectiveContract{
     
     pub fn __constructor(e: Env, admin: Address, join_fee: u32, mint_fee: u32, token: Address, reward: u32) {
-
-        let heavymeta: Symbol = Symbol::new(&e, "HEAVYMETA");
         
         e.storage().instance().set(&ADMIN, &admin);
 
-        let collective = Collective { symbol: heavymeta, members: vec![&e], join_fee: join_fee, mint_fee: mint_fee, pay_token: token, opus_reward: reward };
+        let collective = Collective { symbol: HEAVYMETA, members: vec![&e], join_fee: join_fee, mint_fee: mint_fee, pay_token: token, opus_reward: reward };
 
         storage_p(e.clone(), admin, Kind::Permanent, Datakey::Admin);
 
@@ -267,6 +266,10 @@ impl CollectiveContract{
 
     pub fn deploy_ipfs_token(e:Env, caller: Address, name: String, ipfs_hash: String, file_type: String, gateways: String, _ipns_hash: Option<String>)-> Address{
 
+        if Self::is_launched(e.clone()) == false {
+            panic!("network not up");
+        }
+
         caller.require_auth();
 
         if Self::is_member(e.clone(), caller.clone()) == false {
@@ -352,15 +355,8 @@ impl CollectiveContract{
     }
 
     pub fn is_launched(e: Env) -> bool {
-        let launched = match e.storage().instance().get::<Symbol, Address>(&OPUS) {
-            Some( _) => {
-                true
-            },
-            None => false
-              
-        };  
-    
-    
+        let launched = if e.storage().instance().get::<_, Address>(&OPUS).is_some() { true } else { false }; 
+
         launched
     }
 
