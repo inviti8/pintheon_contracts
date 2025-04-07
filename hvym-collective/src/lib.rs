@@ -79,6 +79,24 @@ impl CollectiveContract{
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
     }
 
+    pub fn fund_contract(e: Env, caller: Address, fund_amount: u32) -> i128 {
+
+        caller.require_auth();
+
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+        let client = token::Client::new(&e, &collective.pay_token);
+        let balance = client.balance(&caller);
+        let amount = fund_amount as i128;
+
+        if balance < amount{
+            panic!("not enough to fund");
+        }
+
+        client.transfer(&caller, &e.current_contract_address(), &amount);
+
+        amount
+    }
+
     pub fn join(e: Env, caller: Address) -> Member {
 
         if Self::is_member(e.clone(), caller.clone()) {
@@ -132,10 +150,6 @@ impl CollectiveContract{
         Ok(true)
 
 
-    }
-
-    pub fn address(e: Env) -> Address {
-        e.current_contract_address()
     }
 
     pub fn symbol(e: Env) -> Symbol {
@@ -223,24 +237,6 @@ impl CollectiveContract{
 
 
         done
-    }
-
-    pub fn fund_contract(e: Env, caller: Address, fund_amount: u32) -> i128 {
-
-        caller.require_auth();
-
-        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
-        let client = token::Client::new(&e, &collective.pay_token);
-        let balance = client.balance(&caller);
-        let amount = fund_amount as i128;
-
-        if balance < amount{
-            panic!("not enough to fund");
-        }
-
-        client.transfer(&caller, &e.current_contract_address(), &amount);
-
-        amount
     }
 
     pub fn deploy_node_token(e:Env, caller: Address, name: String, descriptor: String)-> Address{
