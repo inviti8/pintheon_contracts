@@ -87,6 +87,10 @@ impl CollectiveContract{
         let balance = client.balance(&caller);
         let amount = fund_amount as i128;
 
+        if !validate_negative_amount(amount as i128) {
+            panic!("invalid amount, must be non-negative");
+        }
+
         if balance < amount{
             panic!("not enough to fund");
         }
@@ -242,7 +246,7 @@ impl CollectiveContract{
 
         caller.require_auth();
 
-        if Self::is_member(e.clone(), caller.clone()) == false {
+        if !Self::is_member(e.clone(), caller.clone()) {
             panic!("unauthorized");
         }
 
@@ -272,7 +276,7 @@ impl CollectiveContract{
 
         caller.require_auth();
 
-        if Self::is_member(e.clone(), caller.clone()) == false {
+        if !Self::is_member(e.clone(), caller.clone()) {
             panic!("unauthorized");
         }
         
@@ -333,26 +337,6 @@ impl CollectiveContract{
         contract_id
 
     }
-    
-    fn deploy_contract(
-        e: Env,
-        caller: Address,
-        wasm_hash: BytesN<32>,
-        salt: BytesN<32>,
-        constructor_args: Vec<Val>,
-    ) -> Address {
-        
-        if Self::is_member(e.clone(), caller.clone()) == false {
-            panic!("unauthorized");
-        }
-
-        let deployed_address = e
-            .deployer()
-            .with_address(e.current_contract_address(), salt)
-            .deploy_v2(wasm_hash, constructor_args);
-
-        deployed_address
-    }
 
     pub fn is_launched(e: Env) -> bool {
         let launched = if e.storage().instance().get::<_, Address>(&OPUS).is_some() { true } else { false }; 
@@ -365,6 +349,11 @@ impl CollectiveContract{
         admin.require_auth();
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         collective.join_fee = new_fee;
+
+        if !validate_negative_amount(new_fee as i128) {
+            panic!("invalid amount, must be non-negative");
+        }
+
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
         new_fee as i128
     }
@@ -374,6 +363,11 @@ impl CollectiveContract{
         admin.require_auth();
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         collective.join_fee = new_fee;
+
+        if !validate_negative_amount(new_fee as i128) {
+            panic!("invalid amount, must be non-negative");
+        }
+
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
         new_fee as i128
     }
@@ -383,9 +377,41 @@ impl CollectiveContract{
         admin.require_auth();
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         collective.opus_reward = new_reward;
+
+        if !validate_negative_amount(new_reward as i128) {
+            panic!("invalid amount, must be non-negative");
+        }
+
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
         new_reward as i128
     }
+
+    fn deploy_contract(
+        e: Env,
+        caller: Address,
+        wasm_hash: BytesN<32>,
+        salt: BytesN<32>,
+        constructor_args: Vec<Val>,
+    ) -> Address {
+        
+        if !Self::is_member(e.clone(), caller.clone()) {
+            panic!("unauthorized");
+        }
+
+        let deployed_address = e
+            .deployer()
+            .with_address(e.current_contract_address(), salt)
+            .deploy_v2(wasm_hash, constructor_args);
+
+        deployed_address
+    }
+
+}
+
+fn validate_negative_amount(amount: i128)-> bool {
+    let amt: u32 = amount as u32;
+
+    amt ==0 || (amt & 0xffffffff) > 0
 }
 
 fn storage_g<T: IntoVal<Env, Val> + TryFromVal<Env, Val>>(
@@ -424,6 +450,7 @@ fn storage_p<T: IntoVal<Env, Val>>(env: Env, value: T, kind: Kind, key: Datakey)
 
     done
 }
+
 
 
 mod test;
