@@ -11,6 +11,7 @@ const ADMIN: Symbol = symbol_short!("admin");
 const JOIN_FEE: u32 = 30;
 const MINT_FEE: u32 = 3;
 const OPUS_REWARD: u32 = 300;
+const MAINNET: bool = false;
 
 mod hvym_collective {
     soroban_sdk::contractimport!(
@@ -30,7 +31,7 @@ impl CollectiveFactory {
         admin.require_auth();
 
         let wasm_hash = env.deployer().upload_contract_wasm(hvym_collective::WASM);
-        let xlm: Address = Self::native_asset_contract_address(&env);
+        let xlm: Address = Self::native_asset_contract_address(&env, MAINNET);
         let mut ran = [0u8; 32];
         env.prng().fill(&mut ran);
         let salt = BytesN::from_array(&env, &ran);
@@ -59,8 +60,12 @@ impl CollectiveFactory {
         deployed_address
     }
 
-    fn native_asset_contract_address(e: &Env) -> Address {
-        let str_addr = String::from_str(&e, &"GDQBQ2RNABM3GPGZ7KJ4AIOUA6LTOR6OBZT52XXZOW734STABOHYBSIS");
+    fn native_asset_contract_address(e: &Env, mainnet: bool) -> Address {
+        let mut str_addr = String::from_str(&e, &"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC");
+        if mainnet {
+            str_addr = String::from_str(&e, &"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC");
+        }
+        
         let native_asset_address = Address::from_string(&str_addr);
         native_asset_address
     }
