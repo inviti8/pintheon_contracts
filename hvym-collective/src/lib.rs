@@ -2,7 +2,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, token
+    TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, Bytes, token
 };
 
 const ADMIN: Symbol = symbol_short!("admin");
@@ -256,9 +256,8 @@ impl CollectiveContract{
         let node_id = String::from_bytes(&e, &b);
         let established = ledger.timestamp();
         let wasm_hash = e.deployer().upload_contract_wasm(philos_node_token::WASM);
-        let mut ran = [0u8; 32];
-        e.prng().fill(&mut ran);
-        let salt = BytesN::from_array(&e, &ran);
+        let str_addr = Address::to_string(&caller);
+        let salt = hash_string(&e, &str_addr);
         let constructor_args: Vec<Val> = (caller.clone(), 1u32, name.clone(), symbol.clone(), node_id.clone(), descriptor.clone(), established.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
@@ -295,9 +294,8 @@ impl CollectiveContract{
         let symbol = String::from_val(&e, &"HVYMFILE");
         let published = ledger.timestamp();
         let wasm_hash = e.deployer().upload_contract_wasm(philos_ipfs_token::WASM);
-        let mut ran = [0u8; 32];
-        e.prng().fill(&mut ran);
-        let salt = BytesN::from_array(&e, &ran);
+        let str_addr = Address::to_string(&caller);
+        let salt = hash_string(&e, &str_addr);
         let constructor_args: Vec<Val> = (caller.clone(), 8u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
@@ -321,9 +319,8 @@ impl CollectiveContract{
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
         let wasm_hash = e.deployer().upload_contract_wasm(opus_token::WASM);
-        let mut ran = [0u8; 32];
-        e.prng().fill(&mut ran);
-        let salt = BytesN::from_array(&e, &ran);
+        let str_addr = Address::to_string(&admin);
+        let salt = hash_string(&e, &str_addr);
         let this_contract = &e.current_contract_address();
         let constructor_args: Vec<Val> = (this_contract.clone(),).into_val(&e);
 
@@ -406,6 +403,16 @@ impl CollectiveContract{
         deployed_address
     }
 
+}
+
+fn hash_string(env: &Env, s: &String) -> BytesN<32> {
+    let len = s.len() as usize;
+    let mut bytes = [0u8; 100];
+    let bytes = &mut bytes[0..len];
+    s.copy_into_slice(bytes);
+    let mut b = Bytes::new(env);
+    b.copy_from_slice(0, bytes);
+    env.crypto().sha256(&b).to_bytes()
 }
 
 fn validate_negative_amount(amount: i128)-> bool {
