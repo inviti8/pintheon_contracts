@@ -252,7 +252,7 @@ impl CollectiveContract{
 
         let ledger = e.ledger();
         let symbol = String::from_val(&e, &"HVYMNODE");
-        let b: [u8; 32] = e.prng().gen();
+        let b: [u8; 32] = hash_string(&e, &name).into();
         let node_id = String::from_bytes(&e, &b);
         let established = ledger.timestamp();
         let wasm_hash = e.deployer().upload_contract_wasm(philos_node_token::WASM);
