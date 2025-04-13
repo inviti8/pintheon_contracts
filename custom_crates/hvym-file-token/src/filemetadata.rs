@@ -26,7 +26,7 @@ impl FileMetadata {
 
     #[inline(always)]
     pub fn set_metadata(&self, metadata: &FileTokenMetadata) {
-        self.env.storage().peristent().set(&METADATA_KEY, metadata);
+        self.env.storage().persistent().set(&METADATA_KEY, metadata);
     }
 
     #[inline(always)]
