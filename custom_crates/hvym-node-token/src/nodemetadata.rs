@@ -24,14 +24,14 @@ impl NodeMetadata {
 
     #[inline(always)]
     pub fn set_metadata(&self, metadata: &NodeTokenMetadata) {
-        self.env.storage().instance().set(&METADATA_KEY, metadata);
+        self.env.storage().persistent().set(&METADATA_KEY, metadata);
     }
 
     #[inline(always)]
     pub fn get_metadata(&self) -> NodeTokenMetadata {
         self.env
             .storage()
-            .instance()
+            .persistent()
             .get(&METADATA_KEY)
             .unwrap_optimized()
     }
