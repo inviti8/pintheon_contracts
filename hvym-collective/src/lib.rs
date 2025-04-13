@@ -11,19 +11,19 @@ const OPUS: Symbol = symbol_short!("OPUS");
 
 mod philos_node_token {
     soroban_sdk::contractimport!(
-        file = "../philos-node-deployer/philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.wasm"
+        file = "../philos-node-deployer/philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.optimized.wasm"
     );
 }
 
 mod philos_ipfs_token {
     soroban_sdk::contractimport!(
-        file = "../philos-ipfs-deployer/philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.wasm"
+        file = "../philos-ipfs-deployer/philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.optimized.wasm"
     );
 }
 
 mod opus_token {
     soroban_sdk::contractimport!(
-        file = "../opus_token/target/wasm32-unknown-unknown/release/opus_token.wasm"
+        file = "../opus_token/target/wasm32-unknown-unknown/release/opus_token.optimized.wasm"
     );
 }
 
@@ -294,8 +294,7 @@ impl CollectiveContract{
         let symbol = String::from_val(&e, &"HVYMFILE");
         let published = ledger.timestamp();
         let wasm_hash = e.deployer().upload_contract_wasm(philos_ipfs_token::WASM);
-        let str_addr = Address::to_string(&caller);
-        let salt = hash_string(&e, &str_addr);
+        let salt = hash_string(&e, &ipfs_hash);
         let constructor_args: Vec<Val> = (caller.clone(), 8u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
