@@ -14,7 +14,7 @@ use soroban_sdk::{
 mod contract {
     soroban_sdk::contractimport!(
         file =
-            "../philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.wasm"
+            "../philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.optimized.wasm"
     );
 }
 

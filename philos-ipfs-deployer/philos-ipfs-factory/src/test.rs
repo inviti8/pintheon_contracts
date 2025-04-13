@@ -14,7 +14,7 @@ use soroban_sdk::{
 mod contract {
     soroban_sdk::contractimport!(
         file =
-            "../philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.wasm"
+            "../philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.optimized.wasm"
     );
 }
 
