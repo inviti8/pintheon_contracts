@@ -217,7 +217,7 @@ impl CollectiveContract{
         let wasm_hash = e.deployer().upload_contract_wasm(philos_node_token::WASM);
         let str_addr = Address::to_string(&caller);
         let salt = hash_string(&e, &str_addr);
-        let constructor_args: Vec<Val> = (caller.clone(), 1u32, name.clone(), symbol.clone(), node_id.clone(), descriptor.clone(), established.clone()).into_val(&e);
+        let constructor_args: Vec<Val> = (caller.clone(), 0u32, name.clone(), symbol.clone(), node_id.clone(), descriptor.clone(), established.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
         let token = philos_node_token::Client::new(&e, &contract_id);
