@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, 
+    contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal, 
     TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, Bytes, token
 };
 
@@ -46,7 +46,6 @@ pub struct Member {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Collective {
    pub symbol: Symbol,
-   pub members: Vec<Member>,
    pub join_fee: u32,
    pub mint_fee: u32,
    pub pay_token: Address,
@@ -68,14 +67,18 @@ pub struct CollectiveContract;
 impl CollectiveContract{
     
     pub fn __constructor(e: Env, admin: Address, join_fee: u32, mint_fee: u32, token: Address, reward: u32) {
-        
         e.storage().instance().set(&ADMIN, &admin);
 
-        let collective = Collective { symbol: HEAVYMETA, members: vec![&e], join_fee: join_fee, mint_fee: mint_fee, pay_token: token, opus_reward: reward };
+        let collective = Collective {
+            symbol: HEAVYMETA,
+            join_fee,
+            mint_fee,
+            pay_token: token,
+            opus_reward: reward,
+        };
 
-        storage_p(e.clone(), admin, Kind::Permanent, Datakey::Admin);
-
-        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
+        e.storage().persistent().set(&Datakey::Admin, &admin);
+        e.storage().persistent().set(&Datakey::Collective, &collective);
     }
 
     pub fn fund_contract(e: Env, caller: Address, fund_amount: u32) -> i128 {
@@ -91,6 +94,10 @@ impl CollectiveContract{
             panic!("invalid amount, must be non-negative");
         }
 
+        if amount == 0 {
+            panic!("cannot fund with zero");
+        }
+
         if balance < amount{
             panic!("not enough to fund");
         }
@@ -100,14 +107,14 @@ impl CollectiveContract{
         amount
     }
 
-    pub fn join(e: Env, caller: Address) -> Member {
+    pub fn join(e: Env, caller: Address) {
 
-        if Self::is_member(e.clone(), caller.clone()) {
+        if e.storage().persistent().has(&Datakey::Member(caller.clone())) {
             panic!("already part of collective");
         }
 
         caller.require_auth();
-        let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
+        let collective: Collective = e.storage().persistent().get(&Datakey::Collective).unwrap();
         let client = token::Client::new(&e, &collective.pay_token);
         let balance = client.balance(&caller);
         let join_fee = collective.join_fee as i128;
@@ -117,23 +124,9 @@ impl CollectiveContract{
         }
 
         client.transfer(&caller, &e.current_contract_address(), &join_fee);
+        e.storage().persistent().set(&Datakey::Member(caller.clone()), &collective.join_fee);
 
-        let member = Member {
-            address: caller.clone(),
-            paid: collective.join_fee.clone(),
-        };
-
-        collective.members.push_back(member.clone());
-
-        storage_p(
-            e.clone(),
-            member.clone(),
-            Kind::Permanent,
-            Datakey::Member(caller),
-        );
-        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
-
-        member
+        e.events().publish(("member_joined",), (caller, collective.join_fee));
     }
 
     pub fn withdraw(e:Env, some:Address)-> Result<bool, Error> {
@@ -175,22 +168,9 @@ impl CollectiveContract{
         collective.opus_reward as i128
     }
 
-    pub fn members(e: Env) -> Vec<Member> {
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
-        let collective: Collective =
-            storage_g(e, Kind::Permanent, Datakey::Collective).expect("cound not find collective");
-        collective.members
-    }
-
     pub fn member_paid(e: Env, caller: Address) -> u32 {
         caller.require_auth();
-        let member: Member = e
-            .storage()
-            .persistent()
-            .get(&Datakey::Member(caller))
-            .unwrap();
-        member.paid
+        e.storage().persistent().get(&Datakey::Member(caller)).unwrap_or(0)
     }
 
     pub fn opus_address(e: Env)-> Address {
@@ -199,47 +179,23 @@ impl CollectiveContract{
     }
 
     pub fn is_member(e: Env, caller: Address) -> bool {
-        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
-        let this_contract: Address = e.current_contract_address();
+        let this_contract = e.current_contract_address();
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
 
-        let mut exists = match collective.members.clone().iter().position(|x| x.address == caller) {
-            Some( _) => {
-                true
-            },
-            None => false
-              
-        };
-
-        if caller == admin || caller == this_contract {
-            exists = true
+            caller == admin || caller == this_contract || e.storage().persistent().has(&Datakey::Member(caller))
         }
-    
-        exists
-    }
 
     pub fn remove(e:Env, caller: Address)-> bool{
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         admin.require_auth();
 
-        let mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
-        let mut accs:Vec<Member> =collective.members;
+        if !e.storage().persistent().has(&Datakey::Member(caller.clone())) {
+            return false;
+        }
 
-        let index =  accs.clone().iter().position(|x| x.address == caller).expect("Member not found");
-
-
-      let done = match accs.remove(index as u32) {
-        Some( _) => {
-            collective.members = accs;
-            storage_p(e, collective, Kind::Permanent, Datakey::Collective);
-            true
-        },
-        None => false
-          
-      };  
-
-
-        done
+        e.storage().persistent().remove(&Datakey::Member(caller.clone()));
+        e.events().publish(("member_removed",), caller);
+        true
     }
 
     pub fn deploy_node_token(e:Env, caller: Address, name: String, descriptor: String)-> Address{
@@ -295,7 +251,7 @@ impl CollectiveContract{
         let published = ledger.timestamp();
         let wasm_hash = e.deployer().upload_contract_wasm(philos_ipfs_token::WASM);
         let salt = hash_string(&e, &ipfs_hash);
-        let constructor_args: Vec<Val> = (caller.clone(), 8u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
+        let constructor_args: Vec<Val> = (caller.clone(), 0u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
 
@@ -416,7 +372,6 @@ fn hash_string(env: &Env, s: &String) -> BytesN<32> {
 
 fn validate_negative_amount(amount: i128)-> bool {
     let amt: u32 = amount as u32;
-
     amt ==0 || (amt & 0xffffffff) > 0
 }
 
