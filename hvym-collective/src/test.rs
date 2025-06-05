@@ -2,9 +2,10 @@
 
 use crate::{CollectiveContract, CollectiveContractClient};
 use crate::{token};
+use crate::test::std::println;
 use soroban_sdk::{
     testutils::{Address as _, Events}, testutils::arbitrary::std,
-    Address, Env, String, FromVal
+    Symbol, Address, Env, String, FromVal, IntoVal, TryFromVal, symbol_short, vec
 };
 use std::format;
 
@@ -219,27 +220,44 @@ fn test_deploy_ipfs_token() {
 }
 
 #[test]
-fn test_event_emission_on_join_and_remove() {
+fn test_emits_join_and_remove_events() {
     let env = Env::default();
     env.mock_all_auths();
+
     let admin = Address::generate(&env);
     let user = Address::generate(&env);
+
     let (pay_token_client, pay_token_admin_client) = create_token_contract(&env, &admin);
     pay_token_admin_client.mint(&user, &100);
 
-    let collective = CollectiveContractClient::new(
-        &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    let contract_id = env.register(
+        CollectiveContract,
+        (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32),
     );
+    let collective = CollectiveContractClient::new(&env, &contract_id);
 
     collective.join(&user);
-    let events = env.events().all();
-    assert!(events.iter().any(|e| format!("{:?}", e).contains("member_joined")));
+    let events_1: std::vec::Vec<_> = env.events().all().into_iter().collect();
+    let join_event = &events_1[1];
+
+    let (_contract_id, topics, _data) = join_event;
+    let join_symbol: Symbol = Symbol::try_from_val(&env, &topics.get_unchecked(0))
+        .expect("Expected first topic to be a Symbol");
+
+    assert_eq!(join_symbol, symbol_short!("JOIN"));
 
     collective.remove(&user);
-    let events = env.events().all();
-    assert!(events.iter().any(|e| format!("{:?}", e).contains("member_removed")));
+    let events_2: std::vec::Vec<_> = env.events().all().into_iter().collect();
+    let remove_event = &events_2[0];
+
+    let (_contract_id, topics, _data) = remove_event;
+    let remove_symbol: Symbol = Symbol::try_from_val(&env, &topics.get_unchecked(0))
+        .expect("Expected first topic to be a Symbol");
+
+    assert_eq!(remove_symbol, symbol_short!("REMOVE"));
+
 }
+
 
 #[test]
 #[should_panic(expected = "cannot fund with zero")]

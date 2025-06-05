@@ -9,6 +9,9 @@ const ADMIN: Symbol = symbol_short!("admin");
 const HEAVYMETA: Symbol = symbol_short!("HVYM");
 const OPUS: Symbol = symbol_short!("OPUS");
 
+const JOIN: Symbol = symbol_short!("JOIN");
+const REMOVE: Symbol = symbol_short!("REMOVE");
+
 mod philos_node_token {
     soroban_sdk::contractimport!(
         file = "../philos-node-deployer/philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.optimized.wasm"
@@ -126,7 +129,7 @@ impl CollectiveContract{
         client.transfer(&caller, &e.current_contract_address(), &join_fee);
         e.storage().persistent().set(&Datakey::Member(caller.clone()), &collective.join_fee);
 
-        e.events().publish(("member_joined",), (caller, collective.join_fee));
+        e.events().publish((JOIN, symbol_short!("member")), (caller, collective.join_fee));
     }
 
     pub fn withdraw(e:Env, some:Address)-> Result<bool, Error> {
@@ -183,7 +186,7 @@ impl CollectiveContract{
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
 
             caller == admin || caller == this_contract || e.storage().persistent().has(&Datakey::Member(caller))
-        }
+    }
 
     pub fn remove(e:Env, caller: Address)-> bool{
         let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
@@ -194,7 +197,7 @@ impl CollectiveContract{
         }
 
         e.storage().persistent().remove(&Datakey::Member(caller.clone()));
-        e.events().publish(("member_removed",), caller);
+        e.events().publish((REMOVE, symbol_short!("member")), caller);
         true
     }
 
