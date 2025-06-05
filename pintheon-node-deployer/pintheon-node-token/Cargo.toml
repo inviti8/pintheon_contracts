@@ -1,6 +1,6 @@
 [package]
-name = "philos-node-token"
-description = "Philos IPFS Node Token contract"
+name = "pintheon-node-token"
+description = "pintheon IPFS Node Token contract"
 version = "0.0.6"
 edition = "2021"
 

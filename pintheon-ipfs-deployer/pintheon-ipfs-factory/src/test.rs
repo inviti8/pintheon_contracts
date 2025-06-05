@@ -2,7 +2,7 @@
 extern crate alloc;
 extern crate std;
 
-use crate::{PhilosFactory, PhilosFactoryClient};
+use crate::{PintheonFactory, PintheonFactoryClient};
 use alloc::vec;
 use soroban_sdk::{
     symbol_short,
@@ -14,7 +14,7 @@ use soroban_sdk::{
 mod contract {
     soroban_sdk::contractimport!(
         file =
-            "../philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.optimized.wasm"
+            "../pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
     );
 }
 
@@ -24,7 +24,7 @@ fn test() {
     let ledger = env.ledger();
     let admin = Address::generate(&env);
     let user1 = Address::generate(&env);
-    let deployer_client = PhilosFactoryClient::new(&env, &env.register(PhilosFactory, (&admin,)));
+    let deployer_client = PintheonFactoryClient::new(&env, &env.register(PintheonFactory, (&admin,)));
     let name = String::from_val(&env, &"name");
     let symbol = String::from_val(&env, &"symbol");
     let ipfs_hash = String::from_val(&env, &"IPFS_HASH");

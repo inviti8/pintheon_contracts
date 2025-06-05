@@ -622,10 +622,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "hvym-file-token"
-version = "0.0.6"
+name = "hvym-node-token"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "317c041d7a7e062ebc4624f7876b81bb646c99e516ae1c57b162b617bccf8fba"
+checksum = "7886717358fc643c23bbbdca29f554000ddbb9131652829d7b8ee587468676f9"
 dependencies = [
  "soroban-sdk",
  "soroban-token-sdk",
@@ -827,10 +827,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "philos-ipfs-token"
+name = "pintheon-node-token"
 version = "0.0.6"
 dependencies = [
- "hvym-file-token",
+ "hvym-node-token",
  "soroban-sdk",
  "soroban-token-sdk",
 ]

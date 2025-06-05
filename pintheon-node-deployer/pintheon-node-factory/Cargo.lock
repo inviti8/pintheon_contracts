@@ -622,16 +622,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hvym-node-token"
-version = "0.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7886717358fc643c23bbbdca29f554000ddbb9131652829d7b8ee587468676f9"
-dependencies = [
- "soroban-sdk",
- "soroban-token-sdk",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -827,12 +817,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "philos-node-token"
-version = "0.0.6"
+name = "pintheon-node-factory"
+version = "0.0.0"
 dependencies = [
- "hvym-node-token",
  "soroban-sdk",
- "soroban-token-sdk",
 ]
 
 [[package]]
@@ -1250,15 +1238,6 @@ dependencies = [
  "stellar-xdr",
  "syn 2.0.79",
  "thiserror",
-]
-
-[[package]]
-name = "soroban-token-sdk"
-version = "22.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "858a3c2d7fce27bd105c4747850dfb2b0d945eb8880aeaa963d5c8ac659ca105"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]

@@ -5,20 +5,20 @@
 use soroban_sdk::{contract, contractimpl, symbol_short, Address, BytesN, Env, Symbol, Val, Vec};
 
 #[contract]
-pub struct PhilosFactory;
+pub struct PintheonFactory;
 
 const ADMIN: Symbol = symbol_short!("admin");
 
 #[contractimpl]
-impl PhilosFactory {
+impl PintheonFactory {
     /// Construct the deployer with a provided administrator.
     pub fn __constructor(env: Env, admin: Address) {
         env.storage().instance().set(&ADMIN, &admin);
     }
 
-    /// Deploys the contract on behalf of the `PhilosFactory` contract.
+    /// Deploys the contract on behalf of the `PintheonFactory` contract.
     ///
-    /// This has to be authorized by the `PhilosFactory`s administrator.    
+    /// This has to be authorized by the `PintheonFactory`s administrator.    
     pub fn deploy(
         env: Env,
         wasm_hash: BytesN<32>,
@@ -34,7 +34,7 @@ impl PhilosFactory {
         // consistent address space for the deployer contracts - the admin could
         // change or it could be a completely separate contract with complex
         // authorization rules, but all the contracts will still be deployed
-        // by the same `PhilosFactory` contract address.
+        // by the same `PintheonFactory` contract address.
         let deployed_address = env
             .deployer()
             .with_address(env.current_contract_address(), salt)

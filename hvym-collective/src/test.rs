@@ -2,22 +2,20 @@
 
 use crate::{CollectiveContract, CollectiveContractClient};
 use crate::{token};
-use crate::test::std::println;
 use soroban_sdk::{
     testutils::{Address as _, Events}, testutils::arbitrary::std,
-    Symbol, Address, Env, String, FromVal, IntoVal, TryFromVal, symbol_short, vec
+    Symbol, Address, Env, String, FromVal, TryFromVal, symbol_short
 };
-use std::format;
 
-mod philos_node_token {
+mod pintheon_node_token {
     soroban_sdk::contractimport!(
-        file = "../philos-node-deployer/philos-node-token/target/wasm32-unknown-unknown/release/philos_node_token.optimized.wasm"
+        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
     );
 }
 
-mod philos_ipfs_token {
+mod pintheon_ipfs_token {
     soroban_sdk::contractimport!(
-        file = "../philos-ipfs-deployer/philos-ipfs-token/target/wasm32-unknown-unknown/release/philos_ipfs_token.optimized.wasm"
+        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
     );
 }
 
@@ -187,7 +185,7 @@ fn test_deploy_node_token() {
     let descriptor = String::from_val(&env, &"This is a node");
     let contract_id = collective.deploy_node_token(&user, &name, &descriptor);
 
-    let token = philos_node_token::Client::new(&env, &contract_id);
+    let token = pintheon_node_token::Client::new(&env, &contract_id);
     assert_eq!(token.balance(&user), 1);
 }
 
@@ -215,7 +213,7 @@ fn test_deploy_ipfs_token() {
     let ipns_hash: Option<String> = None;
 
     let contract_id = collective.deploy_ipfs_token(&user, &name, &ipfs_hash, &file_type, &gateways, &ipns_hash);
-    let token = philos_ipfs_token::Client::new(&env, &contract_id);
+    let token = pintheon_ipfs_token::Client::new(&env, &contract_id);
     assert_eq!(token.name(), name);
 }
 

@@ -8,10 +8,6 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Address, BytesN, Bytes, 
 pub struct CollectiveFactory;
 
 const ADMIN: Symbol = symbol_short!("admin");
-const JOIN_FEE: u32 = 3_u32;
-const MINT_FEE: u32 = 3_u32;
-const OPUS_REWARD: u32 = 3_u32;
-const MAINNET: bool = false;
 
 mod hvym_collective {
     soroban_sdk::contractimport!(
@@ -59,7 +55,7 @@ impl CollectiveFactory {
         env.crypto().sha256(&b).to_bytes()
     }
 
-    fn address_to_bytesN(env: &Env, address: Address) -> BytesN<32> {
+    fn address_to_bytes_n(env: &Env, address: Address) -> BytesN<32> {
         Self::string_to_bytesN(env, Address::to_string(&address))
     }
     
