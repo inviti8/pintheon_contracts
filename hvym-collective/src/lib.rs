@@ -11,6 +11,7 @@ const OPUS: Symbol = symbol_short!("OPUS");
 
 const JOIN: Symbol = symbol_short!("JOIN");
 const REMOVE: Symbol = symbol_short!("REMOVE");
+const PUBLISH: Symbol = symbol_short!("PUBLISH");
 
 mod pintheon_node_token {
     soroban_sdk::contractimport!(
@@ -266,6 +267,40 @@ impl CollectiveContract{
         opus_client.mint(&caller, &reward);
 
         contract_id
+    }
+
+    pub fn publish_file(e: Env, caller: Address, ipfs_hash: String) {
+
+        caller.require_auth();
+        let collective: Collective = e.storage().persistent().get(&Datakey::Collective).unwrap();
+        let client = token::Client::new(&e, &collective.pay_token);
+        let balance = client.balance(&caller);
+        let mint_fee = collective.mint_fee as i128;
+
+        if balance < mint_fee {
+            panic!("not enough to cover fee");
+        }
+
+        client.transfer(&caller, &e.current_contract_address(), &mint_fee);
+
+        e.events().publish((PUBLISH, symbol_short!("file")), (caller, ipfs_hash));
+    }
+
+    pub fn publish_encrypted_share(e: Env, caller: Address, recipient: Address, ipfs_hash: String) {
+
+        caller.require_auth();
+        let collective: Collective = e.storage().persistent().get(&Datakey::Collective).unwrap();
+        let client = token::Client::new(&e, &collective.pay_token);
+        let balance = client.balance(&caller);
+        let mint_fee = collective.mint_fee as i128;
+
+        if balance < mint_fee {
+            panic!("not enough to cover fee");
+        }
+
+        client.transfer(&caller, &e.current_contract_address(), &mint_fee);
+
+        e.events().publish((PUBLISH, symbol_short!("encrypted")), (caller, recipient, ipfs_hash));
     }
 
     pub fn launch_opus(e:Env, initial_alloc: u32)-> Address{

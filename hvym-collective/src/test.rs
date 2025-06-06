@@ -256,6 +256,48 @@ fn test_emits_join_and_remove_events() {
 
 }
 
+#[test]
+fn test_emits_publish_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let (pay_token_client, pay_token_admin_client) = create_token_contract(&env, &admin);
+    pay_token_admin_client.mint(&user, &100);
+
+    let contract_id = env.register(
+        CollectiveContract,
+        (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32),
+    );
+    let collective = CollectiveContractClient::new(&env, &contract_id);
+
+    let ipfs_hash = String::from_val(&env, &"SomeHash");
+
+    collective.publish_file(&user, &ipfs_hash);
+    let events_1: std::vec::Vec<_> = env.events().all().into_iter().collect();
+    let event1 = &events_1[1];
+
+    let (_contract_id, topics, _data) = event1;
+    let symbol1: Symbol = Symbol::try_from_val(&env, &topics.get_unchecked(0))
+        .expect("Expected first topic to be a Symbol");
+
+    assert_eq!(symbol1, symbol_short!("PUBLISH"));
+
+    collective.publish_encrypted_share(&user, &recipient, &ipfs_hash);
+    let events_2: std::vec::Vec<_> = env.events().all().into_iter().collect();
+    let event2 = &events_2[1];
+
+    let (_contract_id, topics, _data) = event2;
+    let symbol2: Symbol = Symbol::try_from_val(&env, &topics.get_unchecked(0))
+        .expect("Expected first topic to be a Symbol");
+
+    assert_eq!(symbol2, symbol_short!("PUBLISH"));
+
+}
+
 
 #[test]
 #[should_panic(expected = "cannot fund with zero")]
