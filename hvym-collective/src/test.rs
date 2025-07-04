@@ -2,9 +2,10 @@
 
 use crate::{CollectiveContract, CollectiveContractClient};
 use crate::{token};
+use crate::test::std::println;
 use soroban_sdk::{
     testutils::{Address as _, Events}, testutils::arbitrary::std,
-    Symbol, Address, Env, String, FromVal, TryFromVal, symbol_short
+    Symbol, Address, Env, String, FromVal, TryFromVal, symbol_short, vec
 };
 
 mod pintheon_node_token {
@@ -263,7 +264,6 @@ fn test_emits_publish_events() {
 
     let admin = Address::generate(&env);
     let user = Address::generate(&env);
-    let recipient = Address::generate(&env);
 
     let (pay_token_client, pay_token_admin_client) = create_token_contract(&env, &admin);
     pay_token_admin_client.mint(&user, &100);
@@ -275,8 +275,10 @@ fn test_emits_publish_events() {
     let collective = CollectiveContractClient::new(&env, &contract_id);
 
     let ipfs_hash = String::from_val(&env, &"SomeHash");
+    let publisher_key = String::from_val(&env, &"SomePublisher");
+    let recipient_key = String::from_val(&env, &"SomeReciever");
 
-    collective.publish_file(&user, &ipfs_hash);
+    collective.publish_file(&user, &publisher_key, &ipfs_hash);
     let events_1: std::vec::Vec<_> = env.events().all().into_iter().collect();
     let event1 = &events_1[1];
 
@@ -286,7 +288,7 @@ fn test_emits_publish_events() {
 
     assert_eq!(symbol1, symbol_short!("PUBLISH"));
 
-    collective.publish_encrypted_share(&user, &recipient, &ipfs_hash);
+    collective.publish_encrypted_share(&user,  &publisher_key, &recipient_key, &ipfs_hash);
     let events_2: std::vec::Vec<_> = env.events().all().into_iter().collect();
     let event2 = &events_2[1];
 
@@ -362,3 +364,54 @@ fn test_deploy_ipfs_before_opus() {
 
     collective.deploy_ipfs_token(&user, &name, &ipfs_hash, &file_type, &gateways, &ipns_hash);
 }
+
+// #[test]
+// fn benchmark_collective_storage_growth() {
+//     use soroban_sdk::{testutils::Address as _, symbol_short, IntoVal, Vec, TryFromVal};
+
+//     let env = Env::default();
+//     env.mock_all_auths();
+
+//     let admin = Address::generate(&env);
+//     let (token_client, token_admin_client) = create_token_contract(&env, &admin);
+
+//     // Create 10 mock users
+//     let users: Vec<Address> = (0..10)
+//         .map(|_| {
+//             let user = Address::generate(&env);
+//             token_admin_client.mint(&user, &100);
+//             user
+//         })
+//         .collect();
+
+//     // Register your real contract
+//     let contract_id = env.register(CollectiveContract, (&admin, 10, 5, &token_client.address, 3));
+//     let client = CollectiveContractClient::new(&env, &contract_id);
+
+//     let mut previous_size = 0u32;
+
+//     println!(
+//         "{:<8} {:<12} {:<10}",
+//         "User#", "StorageSize", "Delta"
+//     );
+
+//     for (i, user) in users.iter().enumerate() {
+//         client.join(user);
+
+//         // Use env.as_contract() to scope to your contract's storage
+//         let contract_env = env.clone().as_contract(&contract_id);
+//         let new_size = contract_env.storage().persistent().size();
+
+//         let delta = new_size - previous_size;
+
+//         println!("{:<8} {:<12} {:<10}", i + 1, new_size, delta);
+
+//         previous_size = new_size;
+//     }
+// }
+
+
+
+
+
+

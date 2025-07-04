@@ -269,7 +269,7 @@ impl CollectiveContract{
         contract_id
     }
 
-    pub fn publish_file(e: Env, caller: Address, ipfs_hash: String) {
+    pub fn publish_file(e: Env, caller: Address, publisher: String, ipfs_hash: String) {
 
         caller.require_auth();
         let collective: Collective = e.storage().persistent().get(&Datakey::Collective).unwrap();
@@ -283,10 +283,10 @@ impl CollectiveContract{
 
         client.transfer(&caller, &e.current_contract_address(), &mint_fee);
 
-        e.events().publish((PUBLISH, symbol_short!("file")), (caller, ipfs_hash));
+        e.events().publish((PUBLISH, symbol_short!("file")), (publisher, ipfs_hash));
     }
 
-    pub fn publish_encrypted_share(e: Env, caller: Address, recipient: Address, ipfs_hash: String) {
+    pub fn publish_encrypted_share(e: Env, caller: Address, publisher: String, recipient: String, ipfs_hash: String) {
 
         caller.require_auth();
         let collective: Collective = e.storage().persistent().get(&Datakey::Collective).unwrap();
@@ -300,7 +300,7 @@ impl CollectiveContract{
 
         client.transfer(&caller, &e.current_contract_address(), &mint_fee);
 
-        e.events().publish((PUBLISH, symbol_short!("encrypted")), (caller, recipient, ipfs_hash));
+        e.events().publish((PUBLISH, symbol_short!("encrypted")), (publisher, recipient, ipfs_hash));
     }
 
     pub fn launch_opus(e:Env, initial_alloc: u32)-> Address{
