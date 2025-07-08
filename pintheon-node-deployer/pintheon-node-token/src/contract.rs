@@ -23,15 +23,12 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
-    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, node_id: String, descriptor: String, established: u64) {
-        if decimal > 18 {
-            panic!("Decimal must not be greater than 18");
-        }
+    pub fn __constructor(e: Env, admin: Address, name: String, symbol: String, node_id: String, descriptor: String, established: u64) {
         write_administrator(&e, &admin);
         write_metadata(
             &e,
             NodeTokenMetadata {
-                decimal,
+                decimal:0_u32,
                 name,
                 symbol,
                 node_id,

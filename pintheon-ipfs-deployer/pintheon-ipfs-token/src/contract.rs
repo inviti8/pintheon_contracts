@@ -29,15 +29,12 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
-    pub fn __constructor(e: Env, admin: Address, decimal: u32, name: String, symbol: String, ipfs_hash: String, file_type: String, published: u64, gateways: String, ipns_hash: Option<String>) {
-        if decimal > 18 {
-            panic!("Decimal must not be greater than 18");
-        }
+    pub fn __constructor(e: Env, admin: Address, name: String, symbol: String, ipfs_hash: String, file_type: String, published: u64, gateways: String, ipns_hash: Option<String>) {
         write_administrator(&e, &admin);
         write_metadata(
             &e,
             FileTokenMetadata {
-                decimal,
+                decimal:0_u32,
                 name,
                 symbol,
                 ipfs_hash,

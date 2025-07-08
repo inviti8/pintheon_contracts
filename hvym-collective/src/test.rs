@@ -2,10 +2,9 @@
 
 use crate::{CollectiveContract, CollectiveContractClient};
 use crate::{token};
-use crate::test::std::println;
 use soroban_sdk::{
     testutils::{Address as _, Events}, testutils::arbitrary::std,
-    Symbol, Address, Env, String, FromVal, TryFromVal, symbol_short, vec
+    Symbol, Address, Env, String, FromVal, TryFromVal, symbol_short
 };
 
 mod pintheon_node_token {

@@ -21,7 +21,6 @@ fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
         Token,
         (
             admin,
-            7_u32,
             name,
             symbol,
             node_id,
@@ -247,35 +246,6 @@ fn transfer_from_insufficient_allowance() {
     assert_eq!(token.allowance(&user1, &user3), 100);
 
     token.transfer_from(&user3, &user1, &user2, &101);
-}
-
-#[test]
-#[should_panic(expected = "Decimal must not be greater than 18")]
-fn decimal_is_over_eighteen() {
-    let e = Env::default();
-    let ledger = e.ledger();
-    let admin = Address::generate(&e);
-    let name = String::from_val(&e, &"name");
-    let symbol = String::from_val(&e, &"symbol");
-    let node_id = String::from_val(&e, &"NODE_ID");
-    let descriptor = String::from_val(&e, &"DESCRIPTOR");
-    let established = ledger.timestamp();
-
-    let _ = TokenClient::new(
-        &e,
-        &e.register(
-            Token,
-            (
-                admin,
-                19_u32,
-                name,
-                symbol,
-                node_id,
-                descriptor,
-                established
-            ),
-        ),
-    );
 }
 
 #[test]
