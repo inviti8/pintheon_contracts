@@ -77,7 +77,35 @@ Uploads and/or deploys contracts in the correct order. Only `hvym-collective` is
 
 ---
 
-## 4. Post-Deployment Actions
+## 4. Deploy Node and IPFS Tokens
+
+**Script:** `deploy_node_and_ipfs.py`
+
+Deploys `pintheon-ipfs-token` and `pintheon-node-token` contracts using their WASM hashes from `deployments.json`. Constructor arguments are loaded from JSON files. Only prints the contract IDs to the terminal; does not update `deployments.json`.
+
+### Usage
+
+- Deploy both contracts:
+  ```bash
+  python3 deploy_node_and_ipfs.py --deployer-acct <ACCOUNT_NAME>
+  ```
+- Deploy a specific contract:
+  ```bash
+  python3 deploy_node_and_ipfs.py --deployer-acct <ACCOUNT_NAME> --contract pintheon-ipfs-token
+  ```
+
+### Arguments
+- `--deployer-acct <name>`: (Required) Stellar CLI account name or secret to use as deployer.
+- `--network <name>`: (Optional) Network name (default: testnet).
+- `--contract <name>`: (Optional) Deploy only the specified contract (pintheon-ipfs-token or pintheon-node-token).
+
+### Notes
+- Requires `pintheon-ipfs-token_args.json` and `pintheon-node-token_args.json` files with constructor arguments.
+- Uses WASM hashes from `deployments.json` (contracts must be uploaded first via `deploy_contracts.py`).
+
+---
+
+## 5. Post-Deployment Actions
 
 **Script:** `hvym_post_deploy.py`
 
@@ -99,7 +127,7 @@ python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount 30 --in
 
 ---
 
-## 5. Constructor Argument JSON Files
+## 6. Constructor Argument JSON Files
 
 For contracts that require constructor arguments, create a JSON file named `<contract>_args.json` (e.g., `hvym-collective_args.json`) with all required fields. Example:
 
@@ -115,7 +143,7 @@ For contracts that require constructor arguments, create a JSON file named `<con
 
 ---
 
-## 6. Deployment Records
+## 7. Deployment Records
 
 - `deployments.json`: Machine-readable record of all contract uploads and deployments (hashes and IDs).
 - `deployments.md`: Human-readable markdown table of all contract uploads and deployments.
@@ -127,7 +155,8 @@ For contracts that require constructor arguments, create a JSON file named `<con
 1. **Build** all contracts: `python3 build_contracts.py`
 2. **Test** contracts as needed: `python3 test_contract.py <dir>`
 3. **Deploy** contracts: `python3 deploy_contracts.py --deployer-acct <ACCOUNT_NAME>`
-4. **Post-deploy** actions: `python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount ... --initial-opus-alloc ...`
+4. **Deploy node and IPFS tokens** (optional): `python3 deploy_node_and_ipfs.py --deployer-acct <ACCOUNT_NAME>`
+5. **Post-deploy** actions: `python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount ... --initial-opus-alloc ...`
 
 ---
 

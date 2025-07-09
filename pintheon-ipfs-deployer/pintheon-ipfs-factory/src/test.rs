@@ -39,7 +39,7 @@ fn test() {
 
     // Deploy contract using deployer, and include an init function to call.
     let salt = BytesN::from_array(&env, &[0; 32]);
-    let constructor_args: Vec<Val> = (admin.clone(), 5u32, name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&env);
+    let constructor_args: Vec<Val> = (admin.clone(), name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&env);
     env.mock_all_auths();
     let contract_id = deployer_client.deploy(&wasm_hash, &salt, &constructor_args);
 

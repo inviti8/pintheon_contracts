@@ -1,0 +1,8 @@
+{
+  "admin": "TESTNET_DEPLOYER",
+  "name": "Sample Node Token",
+  "symbol": "NODE",
+  "node_id": "node_123456789",
+  "descriptor": "Sample node description",
+  "established": 1640995200
+} 

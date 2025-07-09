@@ -6,17 +6,17 @@
   },
   "pintheon-node-token": {
     "contract_dir": "pintheon-node-deployer/pintheon-node-token",
-    "wasm_hash": "2e6fc9fafec353f35f1ba498cd21c988b8d2516e418491473f8f3a132c71a3e0",
-    "contract_id": null
+    "wasm_hash": "1a801a33d665592ba1ac670118b5b5c24842f9178e766e2283ce6e61e29feaa2",
+    "contract_id": "CDWEWACOESJIWE5JVG6WM4LZG3ILB2ZOMLSCIDFU3PTN7BA6XD7LZKG2"
   },
   "opus_token": {
     "contract_dir": "opus_token",
     "wasm_hash": "76b3118658f64564ab577e3b2cd7218213dbdd86a51c315b7b3034c300d7c58d",
-    "contract_id": "CBEWVY5VF32AEKIMLZVJKQCM3AUPQOYY6Y3ZUTLB6BD6BXSDQNEDMUES"
+    "contract_id": null
   },
   "hvym-collective": {
     "contract_dir": "hvym-collective",
     "wasm_hash": "1a03a07720290b9f895e13550400f6e8ade93fc8791432249345d34dcdbac237",
-    "contract_id": "CAWC54ZWVT7MDBEJ4N4QXPR5BNXLFAV4OIKA2PJZ23AD3WAF5GWFXL2C"
+    "contract_id": "CA52LPCUG6MVVPXDSACNXAN6EOCTDMB3WP555F5KL3AYMIGPEP5AHVCI"
   }
 }
