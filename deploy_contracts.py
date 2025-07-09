@@ -177,6 +177,16 @@ def load_args_from_json(contract_key):
     with open(json_file, "r") as f:
         data = json.load(f)
     args = []
+    # For hvym-collective, convert join_fee, mint_fee, reward to stroops
+    if contract_key == "hvym-collective":
+        for key in ["join_fee", "mint_fee", "reward"]:
+            if key in data:
+                # Allow both int and float (for decimal XLM values)
+                try:
+                    data[key] = int(float(data[key]) * 10_000_000)
+                except Exception as e:
+                    print(f"Error converting {key} to stroops: {e}")
+                    sys.exit(1)
     for k, v in data.items():
         args.append(f"--{k.replace('_', '-')}")
         args.append(str(v))
