@@ -54,7 +54,7 @@ fn test_join_and_remove() {
     collective.join(&user);
     assert_eq!(collective.is_member(&user), true);
     assert_eq!(collective.member_paid(&user), 10);
-    assert_eq!(collective.remove(&user), true);
+    assert_eq!(collective.remove(&admin, &user), true);
     assert_eq!(collective.is_member(&user), false);
 }
 
@@ -107,9 +107,9 @@ fn test_update_fees_and_reward() {
         &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
     );
 
-    assert_eq!(collective.update_join_fee(&20_u32), 20);
-    assert_eq!(collective.update_mint_fee(&15_u32), 15);
-    assert_eq!(collective.update_opus_reward(&8_u32), 8);
+    assert_eq!(collective.update_join_fee(&admin, &20_u32), 20);
+    assert_eq!(collective.update_mint_fee(&admin, &15_u32), 15);
+    assert_eq!(collective.update_opus_reward(&admin, &8_u32), 8);
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn test_fund_and_withdraw() {
 
     collective.fund_contract(&user, &50);
     assert_eq!(pay_token_client.balance(&collective.address), 50);
-    collective.withdraw(&admin);
+    collective.withdraw(&admin, &admin);
     assert_eq!(pay_token_client.balance(&admin), 50);
 }
 
@@ -144,7 +144,7 @@ fn test_deploy_opus() {
         &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 10_u32))
     );
 
-    let opus_address = collective.launch_opus(&100);
+    let opus_address = collective.launch_opus(&admin, &100);
     let opus_client = opus_token::Client::new(&env, &opus_address);
     assert_eq!(opus_client.balance(&admin), 100);
 }
@@ -162,8 +162,8 @@ fn test_deploy_opus_twice_should_fail() {
         &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 10_u32))
     );
 
-    collective.launch_opus(&100);
-    collective.launch_opus(&100); // should panic
+    collective.launch_opus(&admin, &100);
+    collective.launch_opus(&admin, &100); // should panic
 }
 
 #[test]
@@ -204,7 +204,7 @@ fn test_deploy_ipfs_token() {
     );
 
     collective.join(&user);
-    collective.launch_opus(&100);
+    collective.launch_opus(&admin, &100);
 
     let name = String::from_val(&env, &"MyFile");
     let ipfs_hash = String::from_val(&env, &"QmHash");
@@ -244,7 +244,7 @@ fn test_emits_join_and_remove_events() {
 
     assert_eq!(join_symbol, symbol_short!("JOIN"));
 
-    collective.remove(&user);
+    collective.remove(&admin, &user);
     let events_2: std::vec::Vec<_> = env.events().all().into_iter().collect();
     let remove_event = &events_2[0];
 
@@ -364,50 +364,305 @@ fn test_deploy_ipfs_before_opus() {
     collective.deploy_ipfs_token(&user, &name, &ipfs_hash, &file_type, &gateways, &ipns_hash);
 }
 
-// #[test]
-// fn benchmark_collective_storage_growth() {
-//     use soroban_sdk::{testutils::Address as _, symbol_short, IntoVal, Vec, TryFromVal};
+#[test]
+fn test_add_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
 
-//     let env = Env::default();
-//     env.mock_all_auths();
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
 
-//     let admin = Address::generate(&env);
-//     let (token_client, token_admin_client) = create_token_contract(&env, &admin);
+    // Initial admin should be in the list
+    assert_eq!(collective.is_admin(&admin), true);
+    assert_eq!(collective.is_admin(&new_admin), false);
 
-//     // Create 10 mock users
-//     let users: Vec<Address> = (0..10)
-//         .map(|_| {
-//             let user = Address::generate(&env);
-//             token_admin_client.mint(&user, &100);
-//             user
-//         })
-//         .collect();
+    // Add new admin
+    let result = collective.add_admin(&admin, &new_admin);
+    assert_eq!(result, true);
+    assert_eq!(collective.is_admin(&new_admin), true);
 
-//     // Register your real contract
-//     let contract_id = env.register(CollectiveContract, (&admin, 10, 5, &token_client.address, 3));
-//     let client = CollectiveContractClient::new(&env, &contract_id);
+    // Check admin list
+    let admin_list = collective.get_admin_list();
+    assert_eq!(admin_list.len(), 2);
+    assert!(admin_list.contains(&admin));
+    assert!(admin_list.contains(&new_admin));
+}
 
-//     let mut previous_size = 0u32;
+#[test]
+#[should_panic(expected = "admin already exists")]
+fn test_add_admin_duplicate() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
 
-//     println!(
-//         "{:<8} {:<12} {:<10}",
-//         "User#", "StorageSize", "Delta"
-//     );
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
 
-//     for (i, user) in users.iter().enumerate() {
-//         client.join(user);
+    // Try to add admin twice
+    collective.add_admin(&admin, &admin);
+}
 
-//         // Use env.as_contract() to scope to your contract's storage
-//         let contract_env = env.clone().as_contract(&contract_id);
-//         let new_size = contract_env.storage().persistent().size();
+#[test]
+#[should_panic(expected = "unauthorized: admin access required")]
+fn test_add_admin_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
 
-//         let delta = new_size - previous_size;
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
 
-//         println!("{:<8} {:<12} {:<10}", i + 1, new_size, delta);
+    // Non-admin tries to add admin
+    collective.add_admin(&non_admin, &new_admin);
+}
 
-//         previous_size = new_size;
-//     }
-// }
+#[test]
+fn test_remove_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Add new admin first
+    collective.add_admin(&admin, &new_admin);
+    assert_eq!(collective.is_admin(&new_admin), true);
+
+    // Remove the new admin
+    let result = collective.remove_admin(&admin, &new_admin);
+    assert_eq!(result, true);
+    assert_eq!(collective.is_admin(&new_admin), false);
+
+    // Check admin list
+    let admin_list = collective.get_admin_list();
+    assert_eq!(admin_list.len(), 1);
+    assert!(admin_list.contains(&admin));
+    assert!(!admin_list.contains(&new_admin));
+}
+
+#[test]
+#[should_panic(expected = "cannot remove initial admin")]
+fn test_remove_initial_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Try to remove initial admin
+    collective.remove_admin(&admin, &admin);
+}
+
+#[test]
+#[should_panic(expected = "admin not found")]
+fn test_remove_nonexistent_admin() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Try to remove non-existent admin
+    collective.remove_admin(&admin, &non_admin);
+}
+
+#[test]
+#[should_panic(expected = "unauthorized: admin access required")]
+fn test_remove_admin_unauthorized() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Add new admin
+    collective.add_admin(&admin, &new_admin);
+
+    // Non-admin tries to remove admin
+    collective.remove_admin(&non_admin, &new_admin);
+}
+
+#[test]
+fn test_multi_admin_functionality() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let admin2 = Address::generate(&env);
+    let admin3 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_admin_client) = create_token_contract(&env, &admin);
+    pay_token_admin_client.mint(&user, &100);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Add multiple admins
+    collective.add_admin(&admin, &admin2);
+    collective.add_admin(&admin, &admin3);
+
+    // All admins should be able to perform admin functions
+    assert_eq!(collective.is_admin(&admin), true);
+    assert_eq!(collective.is_admin(&admin2), true);
+    assert_eq!(collective.is_admin(&admin3), true);
+
+    // Admin2 can update fees
+    assert_eq!(collective.update_join_fee(&admin2, &25_u32), 25);
+    assert_eq!(collective.update_mint_fee(&admin2, &20_u32), 20);
+
+    // Admin3 can remove members
+    collective.join(&user);
+    assert_eq!(collective.is_member(&user), true);
+    collective.remove(&admin3, &user);
+    assert_eq!(collective.is_member(&user), false);
+
+    // Admin2 can remove admin3
+    collective.remove_admin(&admin2, &admin3);
+    assert_eq!(collective.is_admin(&admin3), false);
+    assert_eq!(collective.is_admin(&admin2), true);
+}
+
+#[test]
+fn test_admin_events() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Add admin and check event
+    collective.add_admin(&admin, &new_admin);
+    let events = env.events().all();
+    let add_event = events.last().unwrap();
+    use soroban_sdk::{Symbol, Address, TryFromVal};
+    let topic0: Symbol = Symbol::try_from_val(&env, &add_event.1.get_unchecked(0)).unwrap();
+    let topic1: Symbol = Symbol::try_from_val(&env, &add_event.1.get_unchecked(1)).unwrap();
+    let data_addr: Address = Address::try_from_val(&env, &add_event.2).unwrap();
+    assert_eq!(topic0, symbol_short!("ADD_ADMIN"));
+    assert_eq!(topic1, symbol_short!("admin"));
+    assert_eq!(data_addr, new_admin);
+
+    // Remove admin and check event
+    collective.remove_admin(&admin, &new_admin);
+    let events = env.events().all();
+    let remove_event = events.last().unwrap();
+    let topic0: Symbol = Symbol::try_from_val(&env, &remove_event.1.get_unchecked(0)).unwrap();
+    let topic1: Symbol = Symbol::try_from_val(&env, &remove_event.1.get_unchecked(1)).unwrap();
+    let data_addr: Address = Address::try_from_val(&env, &remove_event.2).unwrap();
+    assert_eq!(topic0, symbol_short!("REM_ADMIN"));
+    assert_eq!(topic1, symbol_short!("admin"));
+    assert_eq!(data_addr, new_admin);
+}
+
+#[test]
+fn test_admin_list_persistence() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let admin2 = Address::generate(&env);
+    let admin3 = Address::generate(&env);
+    let (pay_token_client, _) = create_token_contract(&env, &admin);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Add multiple admins
+    collective.add_admin(&admin, &admin2);
+    collective.add_admin(&admin, &admin3);
+
+    // Check admin list
+    let admin_list = collective.get_admin_list();
+    assert_eq!(admin_list.len(), 3);
+    assert!(admin_list.contains(&admin));
+    assert!(admin_list.contains(&admin2));
+    assert!(admin_list.contains(&admin3));
+
+    // Remove one admin
+    collective.remove_admin(&admin, &admin2);
+    
+    // Check updated admin list
+    let admin_list = collective.get_admin_list();
+    assert_eq!(admin_list.len(), 2);
+    assert!(admin_list.contains(&admin));
+    assert!(!admin_list.contains(&admin2));
+    assert!(admin_list.contains(&admin3));
+}
+
+#[test]
+fn test_admin_authorization_in_existing_functions() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let admin2 = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_admin_client) = create_token_contract(&env, &admin);
+    pay_token_admin_client.mint(&user, &100);
+    pay_token_admin_client.mint(&admin2, &100);
+
+    let collective = CollectiveContractClient::new(
+        &env,
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 3_u32))
+    );
+
+    // Add admin2
+    collective.add_admin(&admin, &admin2);
+
+    // Admin2 should be able to perform all admin functions
+    assert_eq!(collective.update_join_fee(&admin2, &30_u32), 30);
+    assert_eq!(collective.update_mint_fee(&admin2, &25_u32), 25);
+    assert_eq!(collective.update_opus_reward(&admin2, &10_u32), 10);
+
+    // Admin2 should be considered a member
+    assert_eq!(collective.is_member(&admin2), true);
+
+    // Admin2 should be able to withdraw funds
+    collective.fund_contract(&user, &50);
+    collective.withdraw(&admin2, &admin2);
+    assert_eq!(pay_token_client.balance(&admin2), 150);
+}
+
+
 
 
 

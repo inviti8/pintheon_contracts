@@ -6,12 +6,14 @@ use soroban_sdk::{
 };
 
 const ADMIN: Symbol = symbol_short!("admin");
-const HEAVYMETA: Symbol = symbol_short!("HVYM");
+const HEAVYMETA: Symbol = symbol_short!("TEST");
 const OPUS: Symbol = symbol_short!("OPUS");
 
 const JOIN: Symbol = symbol_short!("JOIN");
 const REMOVE: Symbol = symbol_short!("REMOVE");
 const PUBLISH: Symbol = symbol_short!("PUBLISH");
+const ADD_ADMIN: Symbol = symbol_short!("ADD_ADMIN");
+const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 
 mod pintheon_node_token {
     soroban_sdk::contractimport!(
@@ -37,6 +39,7 @@ pub enum Datakey {
     Member(Address),
     Collective,
     Admin,
+    AdminList,
 }
 
 #[contracttype]
@@ -81,7 +84,12 @@ impl CollectiveContract{
             opus_reward: reward,
         };
 
+        // Initialize admin list with the initial admin
+        let mut admin_list = Vec::new(&e);
+        admin_list.push_back(admin.clone());
+
         e.storage().persistent().set(&Datakey::Admin, &admin);
+        e.storage().persistent().set(&Datakey::AdminList, &admin_list);
         e.storage().persistent().set(&Datakey::Collective, &collective);
     }
 
@@ -133,9 +141,8 @@ impl CollectiveContract{
         e.events().publish((JOIN, symbol_short!("member")), (caller, collective.join_fee));
     }
 
-    pub fn withdraw(e:Env, some:Address)-> Result<bool, Error> {
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
+    pub fn withdraw(e:Env, caller: Address, recipient: Address)-> Result<bool, Error> {
+        Self::require_admin_auth(e.clone(), caller.clone());
         let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         let client = token::Client::new(&e, &collective.pay_token);
         let join_fee = collective.join_fee as i128;
@@ -145,11 +152,9 @@ impl CollectiveContract{
             panic!("not enough collected to withdraw");
         }
 
-        client.transfer(&e.current_contract_address(), &some, &totalfees);
+        client.transfer(&e.current_contract_address(), &recipient, &totalfees);
 
         Ok(true)
-
-
     }
 
     pub fn symbol(e: Env) -> Symbol {
@@ -184,21 +189,19 @@ impl CollectiveContract{
 
     pub fn is_member(e: Env, caller: Address) -> bool {
         let this_contract = e.current_contract_address();
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
 
-            caller == admin || caller == this_contract || e.storage().persistent().has(&Datakey::Member(caller))
+        caller == this_contract || Self::is_admin(e.clone(), caller.clone()) || e.storage().persistent().has(&Datakey::Member(caller))
     }
 
-    pub fn remove(e:Env, caller: Address)-> bool{
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
+    pub fn remove(e:Env, admin_caller: Address, member_to_remove: Address)-> bool{
+        Self::require_admin_auth(e.clone(), admin_caller.clone());
 
-        if !e.storage().persistent().has(&Datakey::Member(caller.clone())) {
+        if !e.storage().persistent().has(&Datakey::Member(member_to_remove.clone())) {
             return false;
         }
 
-        e.storage().persistent().remove(&Datakey::Member(caller.clone()));
-        e.events().publish((REMOVE, symbol_short!("member")), caller);
+        e.storage().persistent().remove(&Datakey::Member(member_to_remove.clone()));
+        e.events().publish((REMOVE, symbol_short!("member")), member_to_remove);
         true
     }
 
@@ -303,16 +306,15 @@ impl CollectiveContract{
         e.events().publish((PUBLISH, symbol_short!("encrypted")), (publisher, recipient, ipfs_hash));
     }
 
-    pub fn launch_opus(e:Env, initial_alloc: u32)-> Address{
+    pub fn launch_opus(e:Env, caller: Address, initial_alloc: u32)-> Address{
 
         if Self::is_launched(e.clone()) {
             panic!("opus already up");
         }
 
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
+        Self::require_admin_auth(e.clone(), caller.clone());
         let wasm_hash = e.deployer().upload_contract_wasm(opus_token::WASM);
-        let str_addr = Address::to_string(&admin);
+        let str_addr = Address::to_string(&caller);
         let salt = hash_string(&e, &str_addr);
         let this_contract = &e.current_contract_address();
         let constructor_args: Vec<Val> = (this_contract.clone(),).into_val(&e);
@@ -322,7 +324,7 @@ impl CollectiveContract{
         e.storage().instance().set(&OPUS, &contract_id);
         let token = opus_token::Client::new(&e, &contract_id);
 
-        token.mint(&admin, &allocation);
+        token.mint(&caller, &allocation);
 
         contract_id
 
@@ -334,9 +336,8 @@ impl CollectiveContract{
         launched
     }
 
-    pub fn update_join_fee(e: Env, new_fee: u32) -> i128 {
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
+    pub fn update_join_fee(e: Env, caller: Address, new_fee: u32) -> i128 {
+        Self::require_admin_auth(e.clone(), caller.clone());
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         collective.join_fee = new_fee;
 
@@ -348,11 +349,10 @@ impl CollectiveContract{
         new_fee as i128
     }
 
-    pub fn update_mint_fee(e: Env, new_fee: u32) -> i128 {
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
+    pub fn update_mint_fee(e: Env, caller: Address, new_fee: u32) -> i128 {
+        Self::require_admin_auth(e.clone(), caller.clone());
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
-        collective.join_fee = new_fee;
+        collective.mint_fee = new_fee;
 
         if !validate_negative_amount(new_fee as i128) {
             panic!("invalid amount, must be non-negative");
@@ -362,9 +362,8 @@ impl CollectiveContract{
         new_fee as i128
     }
 
-    pub fn update_opus_reward(e: Env, new_reward: u32) -> i128 {
-        let admin: Address = e.storage().instance().get(&ADMIN).unwrap();
-        admin.require_auth();
+    pub fn update_opus_reward(e: Env, caller: Address, new_reward: u32) -> i128 {
+        Self::require_admin_auth(e.clone(), caller.clone());
         let  mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound find collective");
         collective.opus_reward = new_reward;
 
@@ -374,6 +373,79 @@ impl CollectiveContract{
 
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
         new_reward as i128
+    }
+
+    pub fn add_admin(e: Env, caller: Address, new_admin: Address) -> bool {
+        Self::require_admin_auth(e.clone(), caller.clone());
+        
+        let mut admin_list: Vec<Address> = e.storage().persistent().get(&Datakey::AdminList).unwrap();
+        
+        // Check if admin already exists
+        for admin in admin_list.iter() {
+            if admin == new_admin {
+                panic!("admin already exists");
+            }
+        }
+        
+        admin_list.push_back(new_admin.clone());
+        e.storage().persistent().set(&Datakey::AdminList, &admin_list);
+        
+        e.events().publish((ADD_ADMIN, symbol_short!("admin")), new_admin);
+        true
+    }
+
+    pub fn remove_admin(e: Env, caller: Address, admin_to_remove: Address) -> bool {
+        Self::require_admin_auth(e.clone(), caller.clone());
+        
+        let mut admin_list: Vec<Address> = e.storage().persistent().get(&Datakey::AdminList).unwrap();
+        let initial_admin: Address = e.storage().instance().get(&ADMIN).unwrap();
+        
+        // Prevent removing the initial admin
+        if admin_to_remove == initial_admin {
+            panic!("cannot remove initial admin");
+        }
+        
+        // Find and remove the admin
+        let mut found = false;
+        let mut new_admin_list = Vec::new(&e);
+        
+        for admin in admin_list.iter() {
+            if admin == admin_to_remove {
+                found = true;
+            } else {
+                new_admin_list.push_back(admin);
+            }
+        }
+        
+        if !found {
+            panic!("admin not found");
+        }
+        
+        e.storage().persistent().set(&Datakey::AdminList, &new_admin_list);
+        
+        e.events().publish((REM_ADMIN, symbol_short!("admin")), admin_to_remove);
+        true
+    }
+
+    pub fn is_admin(e: Env, caller: Address) -> bool {
+        let admin_list: Vec<Address> = e.storage().persistent().get(&Datakey::AdminList).unwrap();
+        for admin in admin_list.iter() {
+            if admin == caller {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn get_admin_list(e: Env) -> Vec<Address> {
+        e.storage().persistent().get(&Datakey::AdminList).unwrap()
+    }
+
+    fn require_admin_auth(e: Env, caller: Address) {
+        if !Self::is_admin(e.clone(), caller.clone()) {
+            panic!("unauthorized: admin access required");
+        }
+        caller.require_auth();
     }
 
     fn deploy_contract(
