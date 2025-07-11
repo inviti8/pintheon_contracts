@@ -69,6 +69,7 @@ def main():
         "--source", args.deployer_acct,
         "--network", args.network,
         "--", "launch-opus",
+        "--caller", args.deployer_acct,
         "--initial-alloc", initial_opus_alloc_stroops
     ]
     launch_out = run_cmd(launch_cmd)
