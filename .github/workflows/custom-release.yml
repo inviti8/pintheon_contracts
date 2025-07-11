@@ -83,57 +83,6 @@ jobs:
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
-    needs: [release-opus-token, release-pintheon-node-token, release-pintheon-ipfs-token]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
-      
-      - name: Install wasm-opt
-        run: |
-          wget https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
-          tar xzf binaryen-version_116-x86_64-linux.tar.gz
-          sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
-      
-      - name: Install Stellar CLI
-        uses: stellar/stellar-cli@v22.8.2
-
-      - name: Add wasm32v1-none target
-        run: rustup target add wasm32v1-none
-
-      - name: Install Stellar CLI
-        uses: stellar/stellar-cli@v22.8.2
-
-      - name: Download dependency artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dependency-wasm-files
-          path: temp-deps/
-
-      - name: List all downloaded artifacts
-        run: find temp-deps/
-
-      - name: Copy dependency WASM files
-        run: |
-          mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          mkdir -p opus_token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          cp temp-deps/opus_token/target/wasm32v1-none/release/opus_token.optimized.wasm opus_token/target/wasm32v1-none/release/
-      
-      - name: Build HVYM Collective
-        working-directory: hvym-collective
-        run: |
-          stellar contract build
-
-  release-hvym-collective:
     needs: build-dependencies
     runs-on: ubuntu-latest
     steps:
@@ -157,6 +106,9 @@ jobs:
           name: dependency-wasm-files
           path: temp-deps/
       
+      - name: List all downloaded artifacts
+        run: find temp-deps/
+      
       - name: Copy dependency WASM files
         run: |
           mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
@@ -171,6 +123,24 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/hvym_collective.wasm
+      
+      - name: Upload HVYM Collective WASM
+        uses: actions/upload-artifact@v4
+        with:
+          name: hvym-collective-wasm
+          path: hvym-collective/target/wasm32v1-none/release/hvym_collective.optimized.wasm
+
+  release-hvym-collective:
+    needs: build-hvym-collective
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download HVYM Collective WASM
+        uses: actions/download-artifact@v4
+        with:
+          name: hvym-collective-wasm
+          path: hvym-collective/target/wasm32v1-none/release/
       
       - name: Create GitHub Release
         uses: actions/create-release@v1
