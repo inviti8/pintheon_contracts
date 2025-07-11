@@ -31,14 +31,7 @@ jobs:
           sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
       
       - name: Install Stellar CLI
-        run: |
-          if curl -fsSL https://cli.stellar.org/install.sh | bash; then
-            export PATH="$HOME/.stellar/bin:$PATH"
-          else
-            echo "Falling back to cargo install for Stellar CLI"
-            cargo install --locked --version 0.0.19 stellar
-            export PATH="$HOME/.cargo/bin:$PATH"
-          fi
+        uses: stellar/stellar-cli@v22.8.2
 
       - name: List files in Node Token directory
         run: ls -l
@@ -47,8 +40,6 @@ jobs:
       - name: Build Pintheon Node Token
         working-directory: pintheon-node-deployer/pintheon-node-token
         run: |
-          export PATH="$HOME/.stellar/bin:$PATH"
-          export PATH="$HOME/.cargo/bin:$PATH"
           stellar contract build
 
       - name: List files in IPFS Token directory
@@ -58,8 +49,6 @@ jobs:
       - name: Build Pintheon IPFS Token
         working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
         run: |
-          export PATH="$HOME/.stellar/bin:$PATH"
-          export PATH="$HOME/.cargo/bin:$PATH"
           stellar contract build
 
       - name: List files in Opus Token directory
@@ -69,8 +58,6 @@ jobs:
       - name: Build Opus Token
         working-directory: opus_token
         run: |
-          export PATH="$HOME/.stellar/bin:$PATH"
-          export PATH="$HOME/.cargo/bin:$PATH"
           stellar contract build
       
       - name: Upload dependency artifacts
@@ -103,22 +90,13 @@ jobs:
           sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
       
       - name: Install Stellar CLI
-        run: |
-          curl -fsSL https://cli.stellar.org/install.sh | bash
-          export PATH="$HOME/.stellar/bin:$PATH"
+        uses: stellar/stellar-cli@v22.8.2
 
       - name: Check network connectivity
         run: nslookup cli.stellar.org
 
       - name: Install Stellar CLI
-        run: |
-          if curl -fsSL https://cli.stellar.org/install.sh | bash; then
-            export PATH="$HOME/.stellar/bin:$PATH"
-          else
-            echo "Falling back to cargo install for Stellar CLI"
-            cargo install --locked --version 0.0.19 stellar
-            export PATH="$HOME/.cargo/bin:$PATH"
-          fi
+        uses: stellar/stellar-cli@v22.8.2
 
       - name: Download dependency artifacts
         uses: actions/download-artifact@v4
@@ -138,7 +116,6 @@ jobs:
       - name: Build HVYM Collective
         working-directory: hvym-collective
         run: |
-          export PATH="$HOME/.stellar/bin:$PATH"
           stellar contract build
 
   release-hvym-collective:
