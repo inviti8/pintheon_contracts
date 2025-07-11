@@ -98,9 +98,6 @@ jobs:
       - name: Add wasm32v1-none target
         run: rustup target add wasm32v1-none
 
-      - name: Check network connectivity
-        run: nslookup cli.stellar.org
-
       - name: Install Stellar CLI
         uses: stellar/stellar-cli@v22.8.2
 
