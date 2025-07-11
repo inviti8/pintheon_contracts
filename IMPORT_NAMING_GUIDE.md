@@ -10,12 +10,14 @@ The `hvym-collective` contract imports other contracts using `contractimport!` s
 
 ### Workflow Build Process
 1. **Dependencies are built first** in the `build-dependencies` job
-2. **WASM files are created with the new naming convention**: `pintheon-node-token_v0.0.6.wasm`
-3. **The hvym-collective imports reference these new named files**
+2. **Package versions are dynamically detected** from each contract's `Cargo.toml`
+3. **WASM files are created with the new naming convention**: `pintheon-node-token_v0.0.6.wasm`
+4. **The hvym-collective imports are automatically updated** to match the actual versions
+5. **The hvym-collective imports reference these new named files**
 
 ### Import Statements in hvym-collective/src/lib.rs
 
-**For Workflow Builds (Active):**
+**For Workflow Builds (Active - automatically updated):**
 ```rust
 mod pintheon_node_token {
     soroban_sdk::contractimport!(
@@ -36,7 +38,7 @@ mod opus_token {
 }
 ```
 
-**For Local Development (Commented):**
+**For Local Development (Commented - manual):**
 ```rust
 //LOCAL BUILD
 // mod pintheon_node_token {
@@ -48,6 +50,23 @@ mod opus_token {
 ```
 
 ## How to Determine Import Names
+
+### Dynamic Version Detection (Workflow)
+
+The workflow automatically detects versions from `Cargo.toml` files:
+
+```bash
+# For each dependency contract
+PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
+WASM_FILE_NAME="${PACKAGE_NAME}_v${PACKAGE_VERSION}.wasm"
+```
+
+The workflow then automatically updates the hvym-collective imports:
+
+```bash
+# Update import statements with actual versions
+sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
+```
 
 ### Step 1: Check Package Names and Versions
 Look at the `Cargo.toml` file for each dependency contract:

@@ -45,8 +45,11 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/pintheon_node_token.wasm
-          # Create the properly named file for releases
-          cp target/wasm32v1-none/release/pintheon_node_token.optimized.wasm target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm
+          # Get package version dynamically
+          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
+          # Rename to match the import convention
+          cp target/wasm32v1-none/release/pintheon_node_token.optimized.wasm target/wasm32v1-none/release/pintheon-node-token_v${PACKAGE_VERSION}.wasm
+          echo "Built pintheon-node-token_v${PACKAGE_VERSION}.wasm"
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -57,8 +60,11 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/pintheon_ipfs_token.wasm
-          # Create the properly named file for releases
-          cp target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm
+          # Get package version dynamically
+          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
+          # Rename to match the import convention
+          cp target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm target/wasm32v1-none/release/pintheon-ipfs-token_v${PACKAGE_VERSION}.wasm
+          echo "Built pintheon-ipfs-token_v${PACKAGE_VERSION}.wasm"
 
       - name: List files in Opus Token directory
         run: ls -l
@@ -69,8 +75,11 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/opus_token.wasm
-          # Create the properly named file for releases
-          cp target/wasm32v1-none/release/opus_token.optimized.wasm target/wasm32v1-none/release/opus-token_v0.0.6.wasm
+          # Get package version dynamically
+          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
+          # Rename to match the import convention
+          cp target/wasm32v1-none/release/opus_token.optimized.wasm target/wasm32v1-none/release/opus-token_v${PACKAGE_VERSION}.wasm
+          echo "Built opus-token_v${PACKAGE_VERSION}.wasm"
       
       - name: List built WASM files
         run: |
@@ -83,9 +92,9 @@ jobs:
         with:
           name: dependency-wasm-files
           path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm
-            opus_token/target/wasm32v1-none/release/opus-token_v0.0.6.wasm
+            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm
+            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm
+            opus_token/target/wasm32v1-none/release/opus-token_v*.wasm
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
@@ -121,10 +130,29 @@ jobs:
           mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
           mkdir -p opus_token/target/wasm32v1-none/release/
           # Copy the new named files for hvym-collective imports
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          cp temp-deps/opus_token/target/wasm32v1-none/release/opus-token_v0.0.6.wasm opus_token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          cp temp-deps/opus_token/target/wasm32v1-none/release/opus-token_v*.wasm opus_token/target/wasm32v1-none/release/
       
+      - name: Update hvym-collective imports with actual versions
+        working-directory: hvym-collective
+        run: |
+          # Get actual versions from Cargo.toml files
+          NODE_TOKEN_VERSION=$(grep -m1 '^version =' ../pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2)
+          IPFS_TOKEN_VERSION=$(grep -m1 '^version =' ../pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2)
+          OPUS_TOKEN_VERSION=$(grep -m1 '^version =' ../opus_token/Cargo.toml | cut -d '"' -f2)
+          
+          echo "Node Token Version: $NODE_TOKEN_VERSION"
+          echo "IPFS Token Version: $IPFS_TOKEN_VERSION"
+          echo "Opus Token Version: $OPUS_TOKEN_VERSION"
+          
+          # Update the import statements in lib.rs
+          sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
+          sed -i "s|pintheon-ipfs-token_v[0-9.]*\.wasm|pintheon-ipfs-token_v${IPFS_TOKEN_VERSION}.wasm|g" src/lib.rs
+          sed -i "s|opus-token_v[0-9.]*\.wasm|opus-token_v${OPUS_TOKEN_VERSION}.wasm|g" src/lib.rs
+          
+          echo "Updated import statements with actual versions"
+
       - name: Build HVYM Collective
         working-directory: hvym-collective
         run: |
