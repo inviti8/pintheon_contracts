@@ -33,6 +33,9 @@ jobs:
       - name: Install Stellar CLI
         uses: stellar/stellar-cli@v22.8.2
 
+      - name: Add wasm32v1-none target
+        run: rustup target add wasm32v1-none
+
       - name: List files in Node Token directory
         run: ls -l
         working-directory: pintheon-node-deployer/pintheon-node-token
@@ -91,6 +94,9 @@ jobs:
       
       - name: Install Stellar CLI
         uses: stellar/stellar-cli@v22.8.2
+
+      - name: Add wasm32v1-none target
+        run: rustup target add wasm32v1-none
 
       - name: Check network connectivity
         run: nslookup cli.stellar.org
