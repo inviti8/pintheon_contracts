@@ -172,16 +172,34 @@ jobs:
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/hvym_collective.wasm
       
-      - name: Create Release
-        uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tag_name: ${{ github.ref_name }}
           release_name: ${{ github.ref_name }}
-          release_description: 'HVYM Collective contract release'
-          home_domain: 'pintheon.contracts'
-          relative_path: 'hvym-collective'
-          package: 'hvym-collective'
-        secrets:
-          release_token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            HVYM Collective contract release
+            
+            ## Contract Details
+            - **Package**: hvym-collective
+            - **Home Domain**: pintheon.contracts
+            
+            ## Files
+            - `hvym_collective.optimized.wasm`: Optimized WASM contract
+          draft: false
+          prerelease: false
+      
+      - name: Upload WASM to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: hvym-collective/target/wasm32v1-none/release/hvym_collective.optimized.wasm
+          asset_name: hvym_collective.optimized.wasm
+          asset_content_type: application/octet-stream
 
   # Build other contracts using the standard workflow
   release-opus-token:
