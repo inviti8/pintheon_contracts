@@ -154,7 +154,7 @@ jobs:
       release_description: 'Opus Token contract release'
       home_domain: 'pintheon.contracts'
       relative_path: opus_token
-      package: 'opus_token'
+      package: 'opus-token'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -166,7 +166,7 @@ jobs:
       release_description: 'Pintheon Node Token contract release'
       home_domain: 'pintheon.contracts'
       relative_path: pintheon-node-deployer/pintheon-node-token
-      package: 'pintheon_node_token'
+      package: 'pintheon-node-token'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -178,6 +178,6 @@ jobs:
       release_description: 'Pintheon IPFS Token contract release'
       home_domain: 'pintheon.contracts'
       relative_path: pintheon-ipfs-deployer/pintheon-ipfs-token
-      package: 'pintheon_ipfs_token'
+      package: 'pintheon-ipfs-token'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }} 
