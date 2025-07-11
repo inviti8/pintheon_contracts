@@ -87,6 +87,19 @@ jobs:
           curl -fsSL https://cli.stellar.org/install.sh | bash
           export PATH="$HOME/.stellar/bin:$PATH"
 
+      - name: Check network connectivity
+        run: nslookup cli.stellar.org
+
+      - name: Install Stellar CLI
+        run: |
+          if curl -fsSL https://cli.stellar.org/install.sh | bash; then
+            export PATH="$HOME/.stellar/bin:$PATH"
+          else
+            echo "Falling back to cargo install for Stellar CLI"
+            cargo install --locked --version 0.0.19 stellar
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+
       - name: Download dependency artifacts
         uses: actions/download-artifact@v4
         with:
