@@ -83,7 +83,7 @@ jobs:
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
-    needs: build-dependencies
+    needs: [release-opus-token, release-pintheon-node-token, release-pintheon-ipfs-token]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
