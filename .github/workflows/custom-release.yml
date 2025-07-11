@@ -32,25 +32,45 @@ jobs:
       
       - name: Install Stellar CLI
         run: |
-          curl -fsSL https://cli.stellar.org/install.sh | bash
-          export PATH="$HOME/.stellar/bin:$PATH"
+          if curl -fsSL https://cli.stellar.org/install.sh | bash; then
+            export PATH="$HOME/.stellar/bin:$PATH"
+          else
+            echo "Falling back to cargo install for Stellar CLI"
+            cargo install --locked --version 0.0.19 stellar
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+
+      - name: List files in Node Token directory
+        run: ls -l
+        working-directory: pintheon-node-deployer/pintheon-node-token
 
       - name: Build Pintheon Node Token
         working-directory: pintheon-node-deployer/pintheon-node-token
         run: |
           export PATH="$HOME/.stellar/bin:$PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
           stellar contract build
+
+      - name: List files in IPFS Token directory
+        run: ls -l
+        working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
 
       - name: Build Pintheon IPFS Token
         working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
         run: |
           export PATH="$HOME/.stellar/bin:$PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
           stellar contract build
+
+      - name: List files in Opus Token directory
+        run: ls -l
+        working-directory: opus_token
 
       - name: Build Opus Token
         working-directory: opus_token
         run: |
           export PATH="$HOME/.stellar/bin:$PATH"
+          export PATH="$HOME/.cargo/bin:$PATH"
           stellar contract build
       
       - name: Upload dependency artifacts
