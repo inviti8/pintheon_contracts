@@ -45,6 +45,8 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/pintheon_node_token.wasm
+          # Create the properly named file for releases
+          cp target/wasm32v1-none/release/pintheon_node_token.optimized.wasm target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -55,6 +57,8 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/pintheon_ipfs_token.wasm
+          # Create the properly named file for releases
+          cp target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm
 
       - name: List files in Opus Token directory
         run: ls -l
@@ -65,6 +69,8 @@ jobs:
         run: |
           stellar contract build
           stellar contract optimize --wasm target/wasm32v1-none/release/opus_token.wasm
+          # Create the properly named file for releases
+          cp target/wasm32v1-none/release/opus_token.optimized.wasm target/wasm32v1-none/release/opus-token_v0.0.6.wasm
       
       - name: List built WASM files
         run: |
@@ -77,9 +83,9 @@ jobs:
         with:
           name: dependency-wasm-files
           path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm
-            opus_token/target/wasm32v1-none/release/opus_token.optimized.wasm
+            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm
+            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm
+            opus_token/target/wasm32v1-none/release/opus-token_v0.0.6.wasm
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
@@ -114,9 +120,10 @@ jobs:
           mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
           mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
           mkdir -p opus_token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          cp temp-deps/opus_token/target/wasm32v1-none/release/opus_token.optimized.wasm opus_token/target/wasm32v1-none/release/
+          # Copy the new named files for hvym-collective imports
+          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          cp temp-deps/opus_token/target/wasm32v1-none/release/opus-token_v0.0.6.wasm opus_token/target/wasm32v1-none/release/
       
       - name: Build HVYM Collective
         working-directory: hvym-collective
@@ -129,17 +136,33 @@ jobs:
         run: |
           PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
           PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
+          # Convert package name to use hyphens instead of underscores for consistency
+          PACKAGE_NAME_DISPLAY=$(echo "$PACKAGE_NAME" | sed 's/_/-/g')
+          # Create WASM file name matching the reusable workflow pattern
+          WASM_FILE_NAME="${PACKAGE_NAME_DISPLAY}_v${PACKAGE_VERSION}.wasm"
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
+          echo "PACKAGE_NAME_DISPLAY=$PACKAGE_NAME_DISPLAY" >> $GITHUB_ENV
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+          echo "WASM_FILE_NAME=$WASM_FILE_NAME" >> $GITHUB_ENV
           echo "Package: $PACKAGE_NAME"
+          echo "Package Display: $PACKAGE_NAME_DISPLAY"
           echo "Version: $PACKAGE_VERSION"
+          echo "WASM File Name: $WASM_FILE_NAME"
+      
+      - name: Rename optimized WASM file
+        working-directory: hvym-collective
+        run: |
+          # Copy the optimized WASM file with the correct name
+          cp target/wasm32v1-none/release/hvym_collective.optimized.wasm target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }}
+          echo "Renamed WASM file to: ${{ env.WASM_FILE_NAME }}"
       
       - name: Calculate WASM hash
         working-directory: hvym-collective
         run: |
-          WASM_HASH=$(sha256sum target/wasm32v1-none/release/hvym_collective.optimized.wasm | cut -d ' ' -f1)
+          WASM_HASH=$(sha256sum target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }} | cut -d ' ' -f1)
           echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
           echo "WASM Hash: $WASM_HASH"
+          echo "WASM File: ${{ env.WASM_FILE_NAME }}"
       
       - name: Create GitHub Release
         id: create_release
@@ -153,13 +176,13 @@ jobs:
             HVYM Collective contract release
             
             ## Contract Details
-            - **Package**: ${{ env.PACKAGE_NAME }}
+            - **Package**: ${{ env.PACKAGE_NAME_DISPLAY }}
             - **Version**: ${{ env.PACKAGE_VERSION }}
             - **Home Domain**: pintheon.contracts
             - **WASM Hash**: ${{ env.WASM_HASH }}
             
             ## Files
-            - `hvym_collective.optimized.wasm`: Optimized WASM contract
+            - `${{ env.WASM_FILE_NAME }}`: Optimized WASM contract
             
             ## Attestation
             This contract has been built and verified for the Stellar network.
@@ -172,15 +195,40 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: hvym-collective/target/wasm32v1-none/release/hvym_collective.optimized.wasm
-          asset_name: hvym_collective.optimized.wasm
+          asset_path: hvym-collective/target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }}
+          asset_name: ${{ env.WASM_FILE_NAME }}
           asset_content_type: application/octet-stream
+      
+      - name: Generate attestation JSON
+        working-directory: hvym-collective
+        run: |
+          cat > .attestation.json <<EOF
+          {
+            "package": "${{ env.PACKAGE_NAME_DISPLAY }}",
+            "version": "${{ env.PACKAGE_VERSION }}",
+            "wasm_hash": "${{ env.WASM_HASH }}",
+            "home_domain": "pintheon.contracts",
+            "release": "${{ github.ref_name }}-hvym-collective",
+            "repository": "${{ github.repository }}",
+            "commit": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Upload attestation JSON to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: hvym-collective/.attestation.json
+          asset_name: .attestation.json
+          asset_content_type: application/json
       
       - name: Create Contract Attestation
         run: |
-          echo "Creating contract attestation for ${{ env.PACKAGE_NAME }}"
+          echo "Creating contract attestation for ${{ env.PACKAGE_NAME_DISPLAY }}"
           echo "WASM Hash: ${{ env.WASM_HASH }}"
-          echo "Package: ${{ env.PACKAGE_NAME }}"
+          echo "Package: ${{ env.PACKAGE_NAME_DISPLAY }}"
           echo "Version: ${{ env.PACKAGE_VERSION }}"
           echo "Home Domain: pintheon.contracts"
           echo "Release: ${{ github.ref_name }}"

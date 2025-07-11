@@ -15,6 +15,8 @@ This repository is configured with a GitHub Actions workflow that automatically 
 
 This means the standard stellar-expert workflow won't work because it builds contracts in isolation. **You must use the custom workflow.**
 
+📖 **See [IMPORT_NAMING_GUIDE.md](IMPORT_NAMING_GUIDE.md)** for detailed instructions on how to determine the correct import file names when updating contract dependencies.
+
 ### Workflow
 
 - Use `.github/workflows/custom-release.yml` 

@@ -17,19 +17,19 @@ const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 
 mod pintheon_node_token {
     soroban_sdk::contractimport!(
-        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm"
+        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm"
     );
 }
 
 mod pintheon_ipfs_token {
     soroban_sdk::contractimport!(
-        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm"
+        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm"
     );
 }
 
 mod opus_token {
     soroban_sdk::contractimport!(
-        file = "../opus_token/target/wasm32v1-none/release/opus_token.optimized.wasm"
+        file = "../opus_token/target/wasm32v1-none/release/opus-token_v0.0.6.wasm"
     );
 }
 
