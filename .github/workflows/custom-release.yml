@@ -63,14 +63,20 @@ jobs:
         run: |
           stellar contract build
       
+      - name: List built WASM files
+        run: |
+          ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
+          ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          ls -l opus_token/target/wasm32v1-none/release/
+
       - name: Upload dependency artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dependency-wasm-files
           path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm
-            opus_token/target/wasm32-unknown-unknown/release/opus_token.optimized.wasm
+            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm
+            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm
+            opus_token/target/wasm32v1-none/release/opus_token.optimized.wasm
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
