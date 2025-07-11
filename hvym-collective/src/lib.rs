@@ -15,6 +15,24 @@ const PUBLISH: Symbol = symbol_short!("PUBLISH");
 const ADD_ADMIN: Symbol = symbol_short!("ADD_ADMIN");
 const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 
+// mod pintheon_node_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
+//     );
+// }
+
+// mod pintheon_ipfs_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
+//     );
+// }
+
+// mod opus_token {
+//     soroban_sdk::contractimport!(
+//         file = "../opus_token/target/wasm32-unknown-unknown/release/opus_token.optimized.wasm"
+//     );
+// }
+
 mod pintheon_node_token {
     soroban_sdk::contractimport!(
         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm"
