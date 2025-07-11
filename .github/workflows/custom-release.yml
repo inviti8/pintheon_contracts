@@ -115,15 +115,18 @@ jobs:
         with:
           name: dependency-wasm-files
           path: temp-deps/
-      
+
+      - name: List all downloaded artifacts
+        run: find temp-deps/
+
       - name: Copy dependency WASM files
         run: |
           mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
           mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
           mkdir -p opus_token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon_node_token.optimized.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon_ipfs_token.optimized.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          cp temp-deps/opus_token.optimized.wasm opus_token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.optimized.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.optimized.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          cp temp-deps/opus_token/target/wasm32v1-none/release/opus_token.optimized.wasm opus_token/target/wasm32v1-none/release/
       
       - name: Build HVYM Collective
         working-directory: hvym-collective
