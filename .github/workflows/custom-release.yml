@@ -1,0 +1,154 @@
+name: Custom Build and Release Soroban Contracts
+
+on:
+  push: 
+    tags:
+      - 'v*'  # triggered whenever a new tag (prefixed with "v") is pushed to the repository
+
+permissions:
+  id-token: write
+  contents: write
+  attestations: write
+
+jobs:
+  # First, build the dependency contracts
+  build-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+      
+      - name: Install wasm-opt
+        run: |
+          wget https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
+          tar xzf binaryen-version_116-x86_64-linux.tar.gz
+          sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
+      
+      - name: Install Stellar CLI
+        run: |
+          curl -fsSL https://cli.stellar.org/install.sh | bash
+          export PATH="$HOME/.stellar/bin:$PATH"
+
+      - name: Build Pintheon Node Token
+        working-directory: pintheon-node-deployer/pintheon-node-token
+        run: |
+          export PATH="$HOME/.stellar/bin:$PATH"
+          stellar contract build
+
+      - name: Build Pintheon IPFS Token
+        working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
+        run: |
+          export PATH="$HOME/.stellar/bin:$PATH"
+          stellar contract build
+
+      - name: Build Opus Token
+        working-directory: opus_token
+        run: |
+          export PATH="$HOME/.stellar/bin:$PATH"
+          stellar contract build
+      
+      - name: Upload dependency artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-wasm-files
+          path: |
+            pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm
+            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm
+            opus_token/target/wasm32-unknown-unknown/release/opus_token.optimized.wasm
+
+  # Now build hvym-collective with dependencies available
+  build-hvym-collective:
+    needs: build-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+      
+      - name: Install wasm-opt
+        run: |
+          wget https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
+          tar xzf binaryen-version_116-x86_64-linux.tar.gz
+          sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
+      
+      - name: Install Stellar CLI
+        run: |
+          curl -fsSL https://cli.stellar.org/install.sh | bash
+          export PATH="$HOME/.stellar/bin:$PATH"
+
+      - name: Download dependency artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dependency-wasm-files
+          path: temp-deps/
+      
+      - name: Copy dependency WASM files
+        run: |
+          mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
+          mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
+          mkdir -p opus_token/target/wasm32-unknown-unknown/release/
+          cp temp-deps/pintheon_node_token.optimized.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
+          cp temp-deps/pintheon_ipfs_token.optimized.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
+          cp temp-deps/opus_token.optimized.wasm opus_token/target/wasm32-unknown-unknown/release/
+      
+      - name: Build HVYM Collective
+        working-directory: hvym-collective
+        run: |
+          export PATH="$HOME/.stellar/bin:$PATH"
+          stellar contract build
+      
+      - name: Create Release
+        uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+        with:
+          release_name: ${{ github.ref_name }}
+          release_description: 'HVYM Collective contract release'
+          home_domain: 'pintheon.contracts'
+          relative_path: '["hvym-collective"]'
+          package: 'hvym-collective'
+        secrets:
+          release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Build other contracts using the standard workflow
+  release-opus-token:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: 'Opus Token contract release'
+      home_domain: 'pintheon.contracts'
+      relative_path: '["opus_token"]'
+      package: 'opus_token'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-pintheon-node-token:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: 'Pintheon Node Token contract release'
+      home_domain: 'pintheon.contracts'
+      relative_path: '["pintheon-node-deployer/pintheon-node-token"]'
+      package: 'pintheon_node_token'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-pintheon-ipfs-token:
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}
+      release_description: 'Pintheon IPFS Token contract release'
+      home_domain: 'pintheon.contracts'
+      relative_path: '["pintheon-ipfs-deployer/pintheon-ipfs-token"]'
+      package: 'pintheon_ipfs_token'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }} 
