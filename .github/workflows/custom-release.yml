@@ -128,7 +128,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: 'HVYM Collective contract release'
       home_domain: 'pintheon.contracts'
-      relative_path: '["hvym-collective"]'
+      relative_path: hvym-collective
       package: 'hvym-collective'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
@@ -140,7 +140,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: 'Opus Token contract release'
       home_domain: 'pintheon.contracts'
-      relative_path: '["opus_token"]'
+      relative_path: opus_token
       package: 'opus_token'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
@@ -151,7 +151,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: 'Pintheon Node Token contract release'
       home_domain: 'pintheon.contracts'
-      relative_path: '["pintheon-node-deployer/pintheon-node-token"]'
+      relative_path: pintheon-node-deployer/pintheon-node-token
       package: 'pintheon_node_token'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }}
@@ -162,7 +162,7 @@ jobs:
       release_name: ${{ github.ref_name }}
       release_description: 'Pintheon IPFS Token contract release'
       home_domain: 'pintheon.contracts'
-      relative_path: '["pintheon-ipfs-deployer/pintheon-ipfs-token"]'
+      relative_path: pintheon-ipfs-deployer/pintheon-ipfs-token
       package: 'pintheon_ipfs_token'
     secrets:
       release_token: ${{ secrets.GITHUB_TOKEN }} 
