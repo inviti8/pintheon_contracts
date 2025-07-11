@@ -44,6 +44,7 @@ jobs:
         working-directory: pintheon-node-deployer/pintheon-node-token
         run: |
           stellar contract build
+          stellar contract optimize --wasm target/wasm32v1-none/release/pintheon_node_token.wasm
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -53,6 +54,7 @@ jobs:
         working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
         run: |
           stellar contract build
+          stellar contract optimize --wasm target/wasm32v1-none/release/pintheon_ipfs_token.wasm
 
       - name: List files in Opus Token directory
         run: ls -l
@@ -62,6 +64,7 @@ jobs:
         working-directory: opus_token
         run: |
           stellar contract build
+          stellar contract optimize --wasm target/wasm32v1-none/release/opus_token.wasm
       
       - name: List built WASM files
         run: |
