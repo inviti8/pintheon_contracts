@@ -14,6 +14,14 @@ CONTRACTS = {
 }
 CONTRACT_ORDER = list(CONTRACTS.keys())
 
+# Official release contracts mapping (using wasm_release folder)
+OFFICIAL_CONTRACTS = {
+    "pintheon-ipfs-token": "wasm_release/pintheon-ipfs-token",
+    "pintheon-node-token": "wasm_release/pintheon-node-token",
+    "opus_token": "wasm_release/opus-token",
+    "hvym-collective": "wasm_release/hvym-collective",
+}
+
 DEPLOYMENTS_FILE = "deployments.json"
 DEPLOYMENTS_MD = "deployments.md"
 
@@ -26,19 +34,30 @@ DEPLOY_ONLY_CONTRACTS = [
     "hvym-collective"
 ]
 
-def find_optimized_wasm(contract_dir):
-    wasm_dir = os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")
-    if not os.path.isdir(wasm_dir):
-        return None
-    wasm_files = glob.glob(os.path.join(wasm_dir, "*.optimized.wasm"))
-    if not wasm_files:
-        return None
-    # Prefer the one matching the contract dir name if possible
-    base = os.path.basename(contract_dir).replace("-", "_")
-    for f in wasm_files:
-        if base in os.path.basename(f):
-            return f
-    return wasm_files[0]
+def find_optimized_wasm(contract_dir, official_release=False):
+    if official_release:
+        # For official releases, look for WASM files in the wasm_release directory
+        if not os.path.isdir(contract_dir):
+            return None
+        wasm_files = glob.glob(os.path.join(contract_dir, "*.wasm"))
+        if not wasm_files:
+            return None
+        # Return the first WASM file found (should be the only one)
+        return wasm_files[0]
+    else:
+        # For development, look in the target directory
+        wasm_dir = os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")
+        if not os.path.isdir(wasm_dir):
+            return None
+        wasm_files = glob.glob(os.path.join(wasm_dir, "*.optimized.wasm"))
+        if not wasm_files:
+            return None
+        # Prefer the one matching the contract dir name if possible
+        base = os.path.basename(contract_dir).replace("-", "_")
+        for f in wasm_files:
+            if base in os.path.basename(f):
+                return f
+        return wasm_files[0]
 
 def run_cmd(cmd, cwd=None, capture_output=True):
     try:
@@ -75,11 +94,17 @@ def save_deployments_md(data):
     with open(DEPLOYMENTS_MD, "w") as f:
         f.write("\n".join(lines) + "\n")
 
-def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deployments, constructor_args=None):
-    print(f"\n=== Uploading and deploying {contract_key} ({contract_dir}) ===")
-    wasm_file = find_optimized_wasm(contract_dir)
+def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deployments, constructor_args=None, official_release=False):
+    mode = "OFFICIAL RELEASE" if official_release else "DEVELOPMENT"
+    print(f"\n=== Uploading and deploying {contract_key} ({contract_dir}) [{mode}] ===")
+    wasm_file = find_optimized_wasm(contract_dir, official_release)
     if not wasm_file:
-        print(f"No optimized .wasm file found in {contract_dir}")
+        if official_release:
+            print(f"No WASM file found in {contract_dir}")
+            print(f"Expected file pattern: {contract_dir}/*.wasm")
+        else:
+            print(f"No optimized .wasm file found in {contract_dir}")
+            print(f"Expected file pattern: {contract_dir}/target/wasm32-unknown-unknown/release/*.optimized.wasm")
         sys.exit(1)
     wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
     # Upload
@@ -135,11 +160,17 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
     save_deployments(deployments)
     print(f"Updated {DEPLOYMENTS_FILE} with {contract_key}")
 
-def upload_only(contract_key, contract_dir, deployer_acct, network, deployments):
-    print(f"\n=== Uploading {contract_key} ({contract_dir}) (upload only, no deploy) ===")
-    wasm_file = find_optimized_wasm(contract_dir)
+def upload_only(contract_key, contract_dir, deployer_acct, network, deployments, official_release=False):
+    mode = "OFFICIAL RELEASE" if official_release else "DEVELOPMENT"
+    print(f"\n=== Uploading {contract_key} ({contract_dir}) (upload only, no deploy) [{mode}] ===")
+    wasm_file = find_optimized_wasm(contract_dir, official_release)
     if not wasm_file:
-        print(f"No optimized .wasm file found in {contract_dir}")
+        if official_release:
+            print(f"No WASM file found in {contract_dir}")
+            print(f"Expected file pattern: {contract_dir}/*.wasm")
+        else:
+            print(f"No optimized .wasm file found in {contract_dir}")
+            print(f"Expected file pattern: {contract_dir}/target/wasm32-unknown-unknown/release/*.optimized.wasm")
         sys.exit(1)
     wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
     print(f"Uploading {wasm_file_rel} ...")
@@ -214,7 +245,21 @@ def main():
         nargs=argparse.REMAINDER,
         help="Arguments to pass to the contract constructor (everything after this flag is passed to the deploy command after --). If not provided, arguments will be loaded from <contract>_args.json.",
     )
+    parser.add_argument(
+        "--official-release",
+        action="store_true",
+        help="Use official release WASM files from the 'wasm_release' directory.",
+    )
     args = parser.parse_args()
+    
+    # Validate official release mode
+    if args.official_release:
+        if not os.path.exists("wasm_release"):
+            print("Error: --official-release specified but 'wasm_release' directory not found.")
+            print("Please run download_wasm_releases.py first to download the official release files.")
+            sys.exit(1)
+        print("Using official release WASM files from 'wasm_release' directory")
+    
     deployments = load_deployments()
     if args.constructor_args is not None:
         constructor_args = args.constructor_args
@@ -234,23 +279,27 @@ def main():
                 print(f"  {c}")
             sys.exit(1)
         contract_dir = CONTRACTS[args.contract]
+        if args.official_release:
+            contract_dir = OFFICIAL_CONTRACTS[args.contract]
         if args.contract in UPLOAD_ONLY_CONTRACTS:
-            upload_only(args.contract, contract_dir, args.deployer_acct, args.network, deployments)
+            upload_only(args.contract, contract_dir, args.deployer_acct, args.network, deployments, args.official_release)
         elif args.contract in DEPLOY_ONLY_CONTRACTS:
-            upload_and_deploy(args.contract, contract_dir, args.deployer_acct, args.network, deployments, constructor_args)
+            upload_and_deploy(args.contract, contract_dir, args.deployer_acct, args.network, deployments, constructor_args, args.official_release)
         else:
             print(f"Contract '{args.contract}' is not configured for upload or deploy.")
             sys.exit(1)
     else:
         for contract_key in CONTRACT_ORDER:
             contract_dir = CONTRACTS[contract_key]
+            if args.official_release:
+                contract_dir = OFFICIAL_CONTRACTS[contract_key]
             if contract_key in UPLOAD_ONLY_CONTRACTS:
-                upload_only(contract_key, contract_dir, args.deployer_acct, args.network, deployments)
+                upload_only(contract_key, contract_dir, args.deployer_acct, args.network, deployments, args.official_release)
             elif contract_key in DEPLOY_ONLY_CONTRACTS:
                 per_contract_args = constructor_args if constructor_args is not None else load_args_from_json(contract_key)
                 if '--admin' not in per_contract_args:
                     per_contract_args = per_contract_args + ['--admin', args.deployer_acct]
-                upload_and_deploy(contract_key, contract_dir, args.deployer_acct, args.network, deployments, per_contract_args)
+                upload_and_deploy(contract_key, contract_dir, args.deployer_acct, args.network, deployments, per_contract_args, args.official_release)
 
 if __name__ == "__main__":
     main() 
