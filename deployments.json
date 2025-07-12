@@ -11,12 +11,12 @@
   },
   "opus_token": {
     "contract_dir": "wasm_release/opus-token",
-    "wasm_hash": "01fa219121ee234c65a6f6d6db268ba2dcd6302a12633c60dfa76c646440d5b9",
-    "contract_id": "\"CCGTRCGAZ37LNZIFC5BFV6WRQ6W7ONMB6QNGE5JMAWAX4DQFS3SSBKQR\""
+    "wasm_hash": "57ad5561b724ddc6c0cdfb65958df6b7755cb4961e9394970ba116bb5b13656b",
+    "contract_id": "\"CADCAXOVHH5RBMIKDLWLOJNRDYAET3AXAYM7P5MOR57WRSRGPMPFTWMN\""
   },
   "hvym-collective": {
     "contract_dir": "wasm_release/hvym-collective",
-    "wasm_hash": "1ebd4d3736ae26358569847f85f04b082a5217691ce080d501c0643f6bcf8255",
-    "contract_id": "CAHZO6YRPSLNLPT32EAPVDQ3EPZ5Y37B4FH5T533XM2Z5YK6J7TPQHVF"
+    "wasm_hash": "a740e806a6a545474ddfdcb0613c823df5ed8616ad828f18201ebbf3e064b7a7",
+    "contract_id": "CBQ5GYGKVCZDHFPMSHRWYEOT6WTLQBJGGOZGHMLDI5JNCWBDM6KMOTMU"
   }
 }
