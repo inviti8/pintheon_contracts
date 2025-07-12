@@ -1,4 +1,4 @@
-# Philos Contracts - Soroban Smart Contracts
+# Pintheon Contracts - Soroban Smart Contracts
 
 This repository contains Soroban smart contracts for the Philos ecosystem, including HVYM Collective, Opus Token, and Pintheon tokens.
 

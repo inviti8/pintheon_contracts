@@ -333,8 +333,9 @@ impl CollectiveContract{
 
         Self::require_admin_auth(e.clone(), caller.clone());
         let wasm_hash = e.deployer().upload_contract_wasm(opus_token::WASM);
-        let str_addr = Address::to_string(&caller);
-        let salt = hash_string(&e, &str_addr);
+        // Use empty salt (all zeros) to ensure consistent contract address
+        // This matches the attested contract hash from GitHub workflow
+        let salt = BytesN::from_array(&e, &[0u8; 32]);
         let this_contract = &e.current_contract_address();
         let constructor_args: Vec<Val> = (this_contract.clone(),).into_val(&e);
 
