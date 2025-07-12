@@ -54,6 +54,8 @@ jobs:
           # Then optimize (like stellar-expert workflow)
           stellar contract optimize --wasm target/wasm32v1-none/release/${WASM_FILE_NAME} --wasm-out target/wasm32v1-none/release/${WASM_FILE_NAME}
           echo "Built ${WASM_FILE_NAME}"
+          echo "WASM file: ${WASM_FILE_NAME}"
+          ls -la target/wasm32v1-none/release/
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -73,6 +75,8 @@ jobs:
           # Then optimize (like stellar-expert workflow)
           stellar contract optimize --wasm target/wasm32v1-none/release/${WASM_FILE_NAME} --wasm-out target/wasm32v1-none/release/${WASM_FILE_NAME}
           echo "Built ${WASM_FILE_NAME}"
+          echo "WASM file: ${WASM_FILE_NAME}"
+          ls -la target/wasm32v1-none/release/
 
       - name: List files in Opus Token directory
         run: ls -l
@@ -92,6 +96,8 @@ jobs:
           # Then optimize (like stellar-expert workflow)
           stellar contract optimize --wasm target/wasm32v1-none/release/${WASM_FILE_NAME} --wasm-out target/wasm32v1-none/release/${WASM_FILE_NAME}
           echo "Built ${WASM_FILE_NAME}"
+          echo "WASM file: ${WASM_FILE_NAME}"
+          ls -la target/wasm32v1-none/release/
       
       - name: List built WASM files
         run: |
@@ -104,9 +110,9 @@ jobs:
         with:
           name: dependency-wasm-files
           path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token_v*.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token_v*.wasm
-            opus_token/target/wasm32v1-none/release/opus_token_v*.wasm
+            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm
+            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm
+            opus_token/target/wasm32v1-none/release/opus-token_v*.wasm
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
@@ -142,9 +148,9 @@ jobs:
           mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
           mkdir -p opus_token/target/wasm32v1-none/release/
           # Copy the files with exact same naming as stellar-expert workflow
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          cp temp-deps/opus_token/target/wasm32v1-none/release/opus_token_v*.wasm opus_token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
+          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          cp temp-deps/opus_token/target/wasm32v1-none/release/opus-token_v*.wasm opus_token/target/wasm32v1-none/release/
       
       - name: Update hvym-collective imports with actual versions
         working-directory: hvym-collective
@@ -159,9 +165,9 @@ jobs:
           echo "Opus Token Version: $OPUS_TOKEN_VERSION"
           
           # Update the import statements in lib.rs
-          sed -i "s|pintheon_node_token_v[0-9.]*\.wasm|pintheon_node_token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
-          sed -i "s|pintheon_ipfs_token_v[0-9.]*\.wasm|pintheon_ipfs_token_v${IPFS_TOKEN_VERSION}.wasm|g" src/lib.rs
-          sed -i "s|opus_token_v[0-9.]*\.wasm|opus_token_v${OPUS_TOKEN_VERSION}.wasm|g" src/lib.rs
+          sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
+          sed -i "s|pintheon-ipfs-token_v[0-9.]*\.wasm|pintheon-ipfs-token_v${IPFS_TOKEN_VERSION}.wasm|g" src/lib.rs
+          sed -i "s|opus-token_v[0-9.]*\.wasm|opus-token_v${OPUS_TOKEN_VERSION}.wasm|g" src/lib.rs
           
           echo "Updated import statements with actual versions"
 
