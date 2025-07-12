@@ -26,7 +26,7 @@ impl Token {
     pub fn __constructor(e: Env, admin: Address) {
 
         let decimal: u32 = 7_u32;
-        let name: String = String::from_str(&e, "META OPUS TOKEN TESTNET 0");
+        let name: String = String::from_str(&e, "__META OPUS TOKEN TESTNET__");
         let symbol: String = String::from_str(&e, "OPUS");
  
         if decimal > 18 {
