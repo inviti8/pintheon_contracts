@@ -7,6 +7,32 @@ use soroban_sdk::{
     Symbol, Address, Env, String, FromVal, TryFromVal, symbol_short
 };
 
+// =============================================================================
+// GITHUB WORKFLOW IMPORTS (for production releases)
+// =============================================================================
+// Uncomment these when pushing to GitHub for releases
+// Comment out LOCAL BUILD section below
+
+// mod pintheon_node_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm"
+//     );
+// }
+
+// mod pintheon_ipfs_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-node-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm"
+//     );
+// }
+
+// Note: opus_token is deployed separately and set via set_opus_token method
+
+// =============================================================================
+// LOCAL BUILD IMPORTS (for local development and testing)
+// =============================================================================
+// Uncomment these when developing locally
+// Comment out GITHUB WORKFLOW section above
+
 mod pintheon_node_token {
     soroban_sdk::contractimport!(
         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
@@ -19,11 +45,7 @@ mod pintheon_ipfs_token {
     );
 }
 
-mod opus_token {
-    soroban_sdk::contractimport!(
-        file = "../opus_token/target/wasm32-unknown-unknown/release/opus_token.optimized.wasm"
-    );
-}
+// Note: opus_token is deployed separately and set via set_opus_token method
 
 fn create_token_contract<'a>(
     e: &Env,
@@ -133,37 +155,50 @@ fn test_fund_and_withdraw() {
 }
 
 #[test]
-fn test_deploy_opus() {
+fn test_set_opus_token() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let (pay_token_client, _) = create_token_contract(&env, &admin);
+    
+    // Create a mock opus token contract
+    let (opus_token_client, opus_token_admin_client) = create_token_contract(&env, &admin);
 
     let collective = CollectiveContractClient::new(
         &env,
         &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 10_u32))
     );
 
-    let opus_address = collective.launch_opus(&admin, &100);
-    let opus_client = opus_token::Client::new(&env, &opus_address);
-    assert_eq!(opus_client.balance(&admin), 100);
+    // Set the opus token
+    let result = collective.set_opus_token(&admin, &opus_token_client.address, &100);
+    assert_eq!(result, true);
+    
+    // Verify the opus token is set
+    let opus_address = collective.opus_address();
+    assert_eq!(opus_address, opus_token_client.address);
+    
+    // Verify initial allocation was minted
+    assert_eq!(opus_token_client.balance(&admin), 100);
 }
 
 #[test]
-#[should_panic(expected = "opus already up")]
-fn test_deploy_opus_twice_should_fail() {
+#[should_panic(expected = "opus already set")]
+fn test_set_opus_token_twice_should_fail() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let (pay_token_client, _) = create_token_contract(&env, &admin);
+    
+    // Create a mock opus token contract
+    let (opus_token_client, _) = create_token_contract(&env, &admin);
 
     let collective = CollectiveContractClient::new(
         &env,
         &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_client.address, 10_u32))
     );
 
-    collective.launch_opus(&admin, &100);
-    collective.launch_opus(&admin, &100); // should panic
+    collective.set_opus_token(&admin, &opus_token_client.address, &100);
+    collective.set_opus_token(&admin, &opus_token_client.address, &100); // should panic
 }
 
 #[test]
@@ -197,6 +232,9 @@ fn test_deploy_ipfs_token() {
     let user = Address::generate(&env);
     let (pay_token_client, pay_token_admin_client) = create_token_contract(&env, &admin);
     pay_token_admin_client.mint(&user, &100);
+    
+    // Create a mock opus token contract
+    let (opus_token_client, _) = create_token_contract(&env, &admin);
 
     let collective = CollectiveContractClient::new(
         &env,
@@ -204,7 +242,7 @@ fn test_deploy_ipfs_token() {
     );
 
     collective.join(&user);
-    collective.launch_opus(&admin, &100);
+    collective.set_opus_token(&admin, &opus_token_client.address, &100);
 
     let name = String::from_val(&env, &"MyFile");
     let ipfs_hash = String::from_val(&env, &"QmHash");

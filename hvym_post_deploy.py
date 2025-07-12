@@ -29,10 +29,11 @@ def extract_last_nonempty_line(output):
     return lines[-1] if lines else None
 
 def main():
-    parser = argparse.ArgumentParser(description="Fund hvym-collective and launch opus token via CLI, updating deployments.json.")
+    parser = argparse.ArgumentParser(description="Fund hvym-collective and set opus token via CLI, updating deployments.json.")
     parser.add_argument("--deployer-acct", required=True, help="Stellar CLI account name or secret to use as source")
     parser.add_argument("--network", default="testnet", help="Network name (default: testnet)")
     parser.add_argument("--fund-amount", required=True, type=float, help="Amount to fund hvym-collective contract (whole number, e.g. 30 XLM)")
+    parser.add_argument("--opus-contract-id", required=True, help="Contract ID of the deployed opus-token contract")
     parser.add_argument("--initial-opus-alloc", required=True, type=float, help="Initial opus token allocation to mint to admin (whole number, e.g. 10 XLM)")
     args = parser.parse_args()
 
@@ -61,26 +62,26 @@ def main():
     fund_out = run_cmd(fund_cmd)
     print(fund_out)
 
-    # Launch opus
-    print(f"\n=== Launching opus token from hvym-collective {contract_id} ===")
-    launch_cmd = [
+    # Set opus token
+    print(f"\n=== Setting opus token in hvym-collective {contract_id} ===")
+    print(f"Using opus contract ID: {args.opus_contract_id}")
+    set_opus_cmd = [
         "stellar", "contract", "invoke",
         "--id", contract_id,
         "--source", args.deployer_acct,
         "--network", args.network,
-        "--", "launch-opus",
+        "--", "set-opus-token",
         "--caller", args.deployer_acct,
+        "--opus-contract-id", args.opus_contract_id,
         "--initial-alloc", initial_opus_alloc_stroops
     ]
-    launch_out = run_cmd(launch_cmd)
-    print(launch_out)
-    opus_id = extract_last_nonempty_line(launch_out)
-    if opus_id and len(opus_id) >= 56:
-        deployments.setdefault("opus_token", {})["contract_id"] = opus_id
-        save_deployments(deployments)
-        print(f"Updated deployments.json with opus_token contract_id: {opus_id}")
-    else:
-        print("Could not extract opus_token contract ID from output.")
+    set_opus_out = run_cmd(set_opus_cmd)
+    print(set_opus_out)
+    
+    # Update deployments.json with the opus contract ID
+    deployments.setdefault("opus_token", {})["contract_id"] = args.opus_contract_id
+    save_deployments(deployments)
+    print(f"Updated deployments.json with opus_token contract_id: {args.opus_contract_id}")
 
 if __name__ == "__main__":
     main() 

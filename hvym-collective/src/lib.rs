@@ -15,42 +15,45 @@ const PUBLISH: Symbol = symbol_short!("PUBLISH");
 const ADD_ADMIN: Symbol = symbol_short!("ADD_ADMIN");
 const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 
-mod pintheon_node_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm"
-    );
-}
+// =============================================================================
+// GITHUB WORKFLOW IMPORTS (for production releases)
+// =============================================================================
+// Uncomment these when pushing to GitHub for releases
+// Comment out LOCAL BUILD section below
 
-mod pintheon_ipfs_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm"
-    );
-}
-
-mod opus_token {
-    soroban_sdk::contractimport!(
-        file = "../opus_token/target/wasm32v1-none/release/opus-token_v0.0.6.wasm"
-    );
-}
-
-//LOCAL BUILD
 // mod pintheon_node_token {
 //     soroban_sdk::contractimport!(
-//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
+//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm"
 //     );
 // }
 
 // mod pintheon_ipfs_token {
 //     soroban_sdk::contractimport!(
-//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
+//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm"
 //     );
 // }
 
-// mod opus_token {
-//     soroban_sdk::contractimport!(
-//         file = "../opus_token/target/wasm32-unknown-unknown/release/opus_token.optimized.wasm"
-//     );
-// }
+// Note: opus_token is deployed separately and set via set_opus_token method
+
+// =============================================================================
+// LOCAL BUILD IMPORTS (for local development and testing)
+// =============================================================================
+// Uncomment these when developing locally
+// Comment out GITHUB WORKFLOW section above
+
+mod pintheon_node_token {
+    soroban_sdk::contractimport!(
+        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
+    );
+}
+
+mod pintheon_ipfs_token {
+    soroban_sdk::contractimport!(
+        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
+    );
+}
+
+// Note: opus_token is deployed separately and set via set_opus_token method
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -325,29 +328,25 @@ impl CollectiveContract{
         e.events().publish((PUBLISH, symbol_short!("encrypted")), (publisher, recipient, ipfs_hash));
     }
 
-    pub fn launch_opus(e:Env, caller: Address, initial_alloc: u32)-> Address{
-
+    pub fn set_opus_token(e: Env, caller: Address, opus_contract_id: Address, initial_alloc: u32) -> bool {
         if Self::is_launched(e.clone()) {
-            panic!("opus already up");
+            panic!("opus already set");
         }
 
         Self::require_admin_auth(e.clone(), caller.clone());
-        let wasm_hash = e.deployer().upload_contract_wasm(opus_token::WASM);
-        // Use empty salt (all zeros) to ensure consistent contract address
-        // This matches the attested contract hash from GitHub workflow
-        let salt = BytesN::from_array(&e, &[0u8; 32]);
-        let this_contract = &e.current_contract_address();
-        let constructor_args: Vec<Val> = (this_contract.clone(),).into_val(&e);
-
-        let contract_id = Self::deploy_contract(e.clone(), this_contract.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
+        
+        // Set the opus token contract ID
+        e.storage().instance().set(&OPUS, &opus_contract_id);
+        
+        // Transfer ownership to the collective contract so it can mint rewards
+        let opus_client = token::StellarAssetClient::new(&e, &opus_contract_id);
+        opus_client.set_admin(&e.current_contract_address());
+        
+        // Mint initial allocation to the caller
         let allocation = initial_alloc as i128;
-        e.storage().instance().set(&OPUS, &contract_id);
-        let token = opus_token::Client::new(&e, &contract_id);
-
-        token.mint(&caller, &allocation);
-
-        contract_id
-
+        opus_client.mint(&caller, &allocation);
+        
+        true
     }
 
     pub fn is_launched(e: Env) -> bool {

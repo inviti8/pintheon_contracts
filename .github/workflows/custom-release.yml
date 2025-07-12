@@ -78,32 +78,13 @@ jobs:
           echo "WASM file: ${WASM_FILE_NAME}"
           ls -la target/wasm32v1-none/release/
 
-      - name: List files in Opus Token directory
-        run: ls -l
-        working-directory: opus_token
-
-      - name: Build Opus Token
-        working-directory: opus_token
-        run: |
-          stellar contract build
-          # Get package metadata
-          PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
-          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
-          # Use exact same naming convention as stellar-expert workflow
-          WASM_FILE_NAME="${PACKAGE_NAME}_v${PACKAGE_VERSION}.wasm"
-          # Copy unoptimized WASM first (like stellar-expert workflow)
-          cp target/wasm32v1-none/release/opus_token.wasm target/wasm32v1-none/release/${WASM_FILE_NAME}
-          # Then optimize (like stellar-expert workflow)
-          stellar contract optimize --wasm target/wasm32v1-none/release/${WASM_FILE_NAME} --wasm-out target/wasm32v1-none/release/${WASM_FILE_NAME}
-          echo "Built ${WASM_FILE_NAME}"
-          echo "WASM file: ${WASM_FILE_NAME}"
-          ls -la target/wasm32v1-none/release/
+      # Opus token will be deployed separately using the stellar-expert workflow
+      # This ensures it uses the exact attested hash from the workflow
       
       - name: List built WASM files
         run: |
           ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
           ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          ls -l opus_token/target/wasm32v1-none/release/
 
       - name: Upload dependency artifacts
         uses: actions/upload-artifact@v4
@@ -112,7 +93,6 @@ jobs:
           path: |
             pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm
             pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm
-            opus_token/target/wasm32v1-none/release/opus-token_v*.wasm
 
   # Now build hvym-collective with dependencies available
   build-hvym-collective:
@@ -150,7 +130,6 @@ jobs:
           # Copy the files with exact same naming as stellar-expert workflow
           cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
           cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          cp temp-deps/opus_token/target/wasm32v1-none/release/opus-token_v*.wasm opus_token/target/wasm32v1-none/release/
       
       - name: Update hvym-collective imports with actual versions
         working-directory: hvym-collective
@@ -158,16 +137,13 @@ jobs:
           # Get actual versions from Cargo.toml files
           NODE_TOKEN_VERSION=$(grep -m1 '^version =' ../pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2)
           IPFS_TOKEN_VERSION=$(grep -m1 '^version =' ../pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2)
-          OPUS_TOKEN_VERSION=$(grep -m1 '^version =' ../opus_token/Cargo.toml | cut -d '"' -f2)
           
           echo "Node Token Version: $NODE_TOKEN_VERSION"
           echo "IPFS Token Version: $IPFS_TOKEN_VERSION"
-          echo "Opus Token Version: $OPUS_TOKEN_VERSION"
           
-          # Update the import statements in lib.rs
+          # Update the import statements in lib.rs (opus-token removed since it's deployed separately)
           sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
           sed -i "s|pintheon-ipfs-token_v[0-9.]*\.wasm|pintheon-ipfs-token_v${IPFS_TOKEN_VERSION}.wasm|g" src/lib.rs
-          sed -i "s|opus-token_v[0-9.]*\.wasm|opus-token_v${OPUS_TOKEN_VERSION}.wasm|g" src/lib.rs
           
           echo "Updated import statements with actual versions"
 
