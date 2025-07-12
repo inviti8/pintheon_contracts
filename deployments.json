@@ -2,12 +2,12 @@
   "pintheon-ipfs-token": {
     "contract_dir": "wasm_release/pintheon-ipfs-token",
     "wasm_hash": "3f34569f5e27a7bb63bbeb54c40ae51d43246422693a8fc15e02583d7364d4b5",
-    "contract_id": null
+    "contract_id": "CCO4WW2WIH2SMZYJQY2YVMRXZZYUWMQCV57G5T5MLZTASUITAQW3AC26"
   },
   "pintheon-node-token": {
     "contract_dir": "wasm_release/pintheon-node-token",
     "wasm_hash": "f90ec333ed4fac5ee8e1f6eb27c25c168779b12f2e0f0ae4164c8a15bd6e7ffd",
-    "contract_id": null
+    "contract_id": "CAA3UWZMJ44B4APULEYER5EMHMI7YXD63ZOYF7VHKWQ3XNLM34YKIIW2"
   },
   "opus_token": {
     "contract_dir": "wasm_release/opus-token",
