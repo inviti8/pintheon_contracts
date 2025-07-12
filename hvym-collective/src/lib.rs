@@ -21,17 +21,17 @@ const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 // Uncomment these when pushing to GitHub for releases
 // Comment out LOCAL BUILD section below
 
-// mod pintheon_node_token {
-//     soroban_sdk::contractimport!(
-//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm"
-//     );
-// }
+mod pintheon_node_token {
+    soroban_sdk::contractimport!(
+        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v0.0.6.wasm"
+    );
+}
 
-// mod pintheon_ipfs_token {
-//     soroban_sdk::contractimport!(
-//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm"
-//     );
-// }
+mod pintheon_ipfs_token {
+    soroban_sdk::contractimport!(
+        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v0.0.6.wasm"
+    );
+}
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
@@ -41,17 +41,17 @@ const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 // Uncomment these when developing locally
 // Comment out GITHUB WORKFLOW section above
 
-mod pintheon_node_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
-    );
-}
+// mod pintheon_node_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
+//     );
+// }
 
-mod pintheon_ipfs_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
-    );
-}
+// mod pintheon_ipfs_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm"
+//     );
+// }
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
