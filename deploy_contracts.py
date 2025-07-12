@@ -27,10 +27,10 @@ DEPLOYMENTS_MD = "deployments.md"
 
 UPLOAD_ONLY_CONTRACTS = [
     "pintheon-ipfs-token",
-    "pintheon-node-token",
-    "opus_token"
+    "pintheon-node-token"
 ]
 DEPLOY_ONLY_CONTRACTS = [
+    "opus_token",
     "hvym-collective"
 ]
 
@@ -201,7 +201,12 @@ def upload_only(contract_key, contract_dir, deployer_acct, network, deployments,
 
 def load_args_from_json(contract_key):
     import json
-    json_file = f"{contract_key}_args.json"
+    # Handle naming mismatch for opus_token
+    if contract_key == "opus_token":
+        json_file = "opus-token_args.json"
+    else:
+        json_file = f"{contract_key}_args.json"
+    
     if not os.path.isfile(json_file):
         print(f"Warning: No argument file found for {contract_key} (expected {json_file}), no constructor args will be used.")
         return []

@@ -33,7 +33,6 @@ def main():
     parser.add_argument("--deployer-acct", required=True, help="Stellar CLI account name or secret to use as source")
     parser.add_argument("--network", default="testnet", help="Network name (default: testnet)")
     parser.add_argument("--fund-amount", required=True, type=float, help="Amount to fund hvym-collective contract (whole number, e.g. 30 XLM)")
-    parser.add_argument("--opus-contract-id", required=True, help="Contract ID of the deployed opus-token contract")
     parser.add_argument("--initial-opus-alloc", required=True, type=float, help="Initial opus token allocation to mint to admin (whole number, e.g. 10 XLM)")
     args = parser.parse_args()
 
@@ -42,10 +41,20 @@ def main():
     initial_opus_alloc_stroops = str(int(args.initial_opus_alloc * 10**7))
 
     deployments = load_deployments()
+    
+    # Get hvym-collective contract ID
     hvym = deployments.get("hvym-collective", {})
     contract_id = hvym.get("contract_id")
     if not contract_id:
         print("hvym-collective contract_id not found in deployments.json")
+        sys.exit(1)
+    
+    # Get opus-token contract ID from deployments.json
+    opus = deployments.get("opus_token", {})
+    opus_contract_id = opus.get("contract_id")
+    if not opus_contract_id:
+        print("opus_token contract_id not found in deployments.json")
+        print("Please run deploy_contracts.py first to deploy opus-token")
         sys.exit(1)
 
     # Fund contract
@@ -64,7 +73,7 @@ def main():
 
     # Set opus token
     print(f"\n=== Setting opus token in hvym-collective {contract_id} ===")
-    print(f"Using opus contract ID: {args.opus_contract_id}")
+    print(f"Using opus contract ID: {opus_contract_id}")
     set_opus_cmd = [
         "stellar", "contract", "invoke",
         "--id", contract_id,
@@ -72,16 +81,13 @@ def main():
         "--network", args.network,
         "--", "set-opus-token",
         "--caller", args.deployer_acct,
-        "--opus-contract-id", args.opus_contract_id,
+        "--opus-contract-id", opus_contract_id,
         "--initial-alloc", initial_opus_alloc_stroops
     ]
     set_opus_out = run_cmd(set_opus_cmd)
     print(set_opus_out)
     
-    # Update deployments.json with the opus contract ID
-    deployments.setdefault("opus_token", {})["contract_id"] = args.opus_contract_id
-    save_deployments(deployments)
-    print(f"Updated deployments.json with opus_token contract_id: {args.opus_contract_id}")
+    print(f"Successfully set opus token in hvym-collective")
 
 if __name__ == "__main__":
     main() 

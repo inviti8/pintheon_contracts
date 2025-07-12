@@ -9,14 +9,12 @@ import glob
 CONTRACTS = {
     "pintheon-ipfs-token": "pintheon-ipfs-deployer/pintheon-ipfs-token",
     "pintheon-node-token": "pintheon-node-deployer/pintheon-node-token",
-    "opus-token": "opus-deployer/opus-token",
 }
 
 # Official release contracts mapping (using wasm_release folder)
 OFFICIAL_CONTRACTS = {
     "pintheon-ipfs-token": "wasm_release/pintheon-ipfs-token",
     "pintheon-node-token": "wasm_release/pintheon-node-token",
-    "opus-token": "wasm_release/opus-token",
 }
 
 DEPLOYMENTS_FILE = "deployments.json"
@@ -204,7 +202,7 @@ def deploy_contract_from_deployments(contract_key, contract_dir, deployer_acct, 
     return contract_id
 
 def main():
-    parser = argparse.ArgumentParser(description="Deploy pintheon-ipfs-token, pintheon-node-token, and opus-token contracts")
+    parser = argparse.ArgumentParser(description="Deploy pintheon-ipfs-token and pintheon-node-token contracts")
     parser.add_argument(
         "--deployer-acct",
         required=True,
