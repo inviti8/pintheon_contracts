@@ -263,6 +263,41 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Commit: ${{ github.sha }}"
 
+      - name: Send release info to StellarExpert
+        run: |
+          JSON_OBJECT=$(node -e "console.log(JSON.stringify({
+            repository: process.env.REPOSITORY,
+            commitHash: process.env.COMMIT_HASH,
+            jobId: process.env.JOB_ID,
+            runId: process.env.RUN_ID,
+            contractHash: process.env.CONTRACT_HASH,
+            relativePath: process.env.RELATIVE_PATH || undefined,
+            packageName: process.env.PACKAGE_NAME || undefined,
+            makeTarget: process.env.MAKE_TARGET || undefined
+          }))")
+      
+          echo "JSON to send: $JSON_OBJECT"
+      
+          curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
+               -H "Content-Type: application/json" \
+               -d "$JSON_OBJECT" \
+               --max-time 15
+        env:
+          REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
+          COMMIT_HASH: ${{ github.sha }}
+          JOB_ID: ${{ github.job }}
+          RUN_ID: ${{ github.run_id }}
+          CONTRACT_HASH: ${{ env.WASM_HASH }}
+          RELATIVE_PATH: hvym-collective
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME_DISPLAY }}
+          MAKE_TARGET: undefined
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'hvym-collective/target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }}'
+          subject-name: '${{ env.WASM_FILE_NAME }}'
+
   # Build other contracts using the standard workflow
   release-opus-token:
     needs: build-dependencies

@@ -49,6 +49,7 @@ The `custom-release.yml` workflow:
 5. **Builds hvym-collective** with all dependencies available
 
 6. **Creates releases** for all contracts
+7. **Submits validation data** to StellarExpert API
 
 ## Usage
 
@@ -67,7 +68,7 @@ git push origin v1.0.0
 
 ## Validation on stellar.expert
 
-After deployment, contracts will be validated on stellar.expert because:
-- Contracts are built from GitHub releases
-- Contract hashes match release artifacts
+After deployment, contracts are automatically validated on stellar.expert because:
+- The workflow submits binary hash, repository name, and commit SHA to StellarExpert's validation API
+- Contracts are built from GitHub releases with matching hashes
 - Source code is available for display 

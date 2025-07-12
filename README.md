@@ -38,6 +38,7 @@ This means the standard stellar-expert workflow won't work because it builds con
    - Generate GitHub releases with build artifacts
    - Include SHA256 hashes for verification
    - Generate build attestations
+   - Submit contract validation data to StellarExpert
 
 ### Contract Structure
 
@@ -48,11 +49,11 @@ This means the standard stellar-expert workflow won't work because it builds con
 
 ### Validation Process
 
-After deployment, contracts can be validated on stellar.expert by:
+After deployment, contracts are automatically validated on stellar.expert because:
 
-1. Deploying contracts directly from GitHub releases (recommended)
-2. The contract hash will match the release artifacts
-3. Source code will be displayed on stellar.expert explorer
+1. The workflow submits binary hash, repository name, and commit SHA to StellarExpert's validation API
+2. Contracts are built from GitHub releases with matching hashes
+3. Source code is available for display on stellar.expert explorer
 
 ### Manual Workflow Trigger
 
