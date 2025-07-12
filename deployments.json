@@ -12,7 +12,7 @@
   "opus_token": {
     "contract_dir": "wasm_release/opus-token",
     "wasm_hash": "01fa219121ee234c65a6f6d6db268ba2dcd6302a12633c60dfa76c646440d5b9",
-    "contract_id": null
+    "contract_id": "\"CCGTRCGAZ37LNZIFC5BFV6WRQ6W7ONMB6QNGE5JMAWAX4DQFS3SSBKQR\""
   },
   "hvym-collective": {
     "contract_dir": "wasm_release/hvym-collective",
