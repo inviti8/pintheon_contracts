@@ -283,7 +283,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           CONTRACT_HASH: ${{ env.WASM_HASH }}
           RELATIVE_PATH: hvym-collective
-          PACKAGE_NAME: ${{ env.PACKAGE_NAME_DISPLAY }}
+          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
           MAKE_TARGET: undefined
 
       - name: Attest
