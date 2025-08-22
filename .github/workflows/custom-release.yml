@@ -152,7 +152,7 @@ jobs:
         run: |
           cargo build --target wasm32-unknown-unknown --release
           ls -l target/wasm32-unknown-unknown/release/
-          stellar contract optimize --wasm-opt-opts "--enable-bulk-memory" --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm --wasm-out target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm || { echo "Optimization failed"; exit 1; }
+          stellar contract optimize --wasm-opt-opts --enable-bulk-memory --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm --wasm-out target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm || exit 1
           echo "Checking env-meta for hvym_collective.wasm"
           stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for hvym_collective.wasm, continuing anyway"
           cat env-meta-output.txt >> debug_output.json
@@ -301,4 +301,30 @@ jobs:
       release_description: 'Opus Token contract release'
       home_domain: 'pintheon.contracts'
       relative_path: opus_token
-      package: 'opus-token
+      package: 'opus-token'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-pintheon-node-token:
+    needs: build-dependencies
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}-pintheon-node-token
+      release_description: 'Pintheon Node Token contract release'
+      home_domain: 'pintheon.contracts'
+      relative_path: pintheon-node-deployer/pintheon-node-token
+      package: 'pintheon-node-token'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
+
+  release-pintheon-ipfs-token:
+    needs: build-dependencies
+    uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
+    with:
+      release_name: ${{ github.ref_name }}-pintheon-ipfs-token
+      release_description: 'Pintheon IPFS Token contract release'
+      home_domain: 'pintheon.contracts'
+      relative_path: pintheon-ipfs-deployer/pintheon-ipfs-token
+      package: 'pintheon-ipfs-token'
+    secrets:
+      release_token: ${{ secrets.GITHUB_TOKEN }}
