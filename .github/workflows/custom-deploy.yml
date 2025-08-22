@@ -30,6 +30,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
+          sudo apt install -y pkg-config libusb-1.0-0-dev libftdi1-dev
+          sudo apt-get install libudev-dev
 
       - name: Install Stellar CLI
         run: |
