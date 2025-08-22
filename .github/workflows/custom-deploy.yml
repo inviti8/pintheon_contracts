@@ -24,6 +24,11 @@ jobs:
       - name: Install Stellar CLI
         uses: stellar/stellar-cli@v22.8.2
 
+      - name: Install jq
+        run: |
+          wget https://github.com/jqlang/jq/releases/latest/download/jq-linux-amd64 -O /usr/local/bin/jq
+          chmod +x /usr/local/bin/jq
+
       - name: Extract version and network from tag
         id: extract
         run: |
@@ -36,6 +41,11 @@ jobs:
             exit 1
           fi
 
+      - name: Debug version and network
+        run: |
+          echo "Version: ${{ env.VERSION }}"
+          echo "Network: ${{ env.NETWORK }}"
+
       - name: Create release-wasm directory
         run: mkdir -p release-wasm
 
@@ -44,26 +54,48 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASES=(
-            "${{ env.VERSION }}-pintheon-ipfs-token"
-            "${{ env.VERSION }}-pintheon-node-token"
-            "${{ env.VERSION }}-opus-token"
-            "${{ env.VERSION }}-hvym-collective"
+            "v${{ env.VERSION }}-pintheon-ipfs-token_pintheon_ipfs_deployer_pintheon_ipfs_token_pintheon-ipfs-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-pintheon-node-token_pintheon_node_deployer_pintheon_node_token_pintheon-node-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-opus-token_opus_token_opus-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-hvym-collective"
           )
+          CONTRACTS=(
+            "pintheon-ipfs-token"
+            "pintheon-node-token"
+            "opus-token"
+            "hvym-collective"
+          )
+          i=0
           for RELEASE in "${RELEASES[@]}"; do
-            echo "Downloading assets for release $RELEASE"
+            CONTRACT=${CONTRACTS[$i]}
+            echo "Downloading assets for release $RELEASE (contract: $CONTRACT)"
             # Get release info
             RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
+            echo "$RELEASE_INFO" > release-wasm/release_info_$CONTRACT.json
+            # Check if release exists
+            if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "null"')" = "Not Found" ]; then
+              echo "Error: Release $RELEASE not found"
+              exit 1
+            fi
+            # Check if assets exist
+            ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length')
+            if [ "$ASSET_COUNT" -eq 0 ]; then
+              echo "Error: No assets found for release $RELEASE"
+              exit 1
+            fi
+            # Extract WASM asset (match any .wasm file)
             ASSET_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .url')
             ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .name')
             if [ -z "$ASSET_URL" ]; then
-              echo "No WASM asset found for release $RELEASE"
+              echo "Error: No WASM asset found for release $RELEASE"
               exit 1
             fi
-            echo "Downloading $ASSET_NAME from $ASSET_URL"
+            echo "Downloading $ASSET_NAME from $ASSET_URL for contract $CONTRACT"
             curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
                  -H "Accept: application/octet-stream" \
                  "$ASSET_URL" -o "release-wasm/$ASSET_NAME"
+            i=$((i + 1))
           done
 
       - name: List downloaded WASM files
@@ -78,11 +110,23 @@ jobs:
             --network "${{ env.NETWORK }}" \
             --release-dir release-wasm
 
+      - name: Upload deployments.md as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployments-md
+          path: deployments.md
+
       - name: Update release notes with deployments
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for RELEASE in "${{ env.VERSION }}-pintheon-ipfs-token" "${{ env.VERSION }}-pintheon-node-token" "${{ env.VERSION }}-opus-token" "${{ env.VERSION }}-hvym-collective"; do
+          RELEASES=(
+            "v${{ env.VERSION }}-pintheon-ipfs-token_pintheon_ipfs_deployer_pintheon_ipfs_token_pintheon-ipfs-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-pintheon-node-token_pintheon_node_deployer_pintheon_node_token_pintheon-node-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-opus-token_opus_token_opus-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-hvym-collective"
+          )
+          for RELEASE in "${RELEASES[@]}"; do
             echo "Updating release notes for $RELEASE"
             RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
