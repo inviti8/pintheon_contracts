@@ -37,7 +37,7 @@ jobs:
       - name: Install system dependencies for stellar-cli
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev
+          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev libssl-dev
 
       - name: Install Stellar CLI
         run: |
@@ -56,11 +56,14 @@ jobs:
           PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
           WASM_FILE_NAME="${PACKAGE_NAME}_v${PACKAGE_VERSION}.wasm"
           cp target/wasm32-unknown-unknown/release/pintheon_node_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
-          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} --wasm-out target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
+          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} --wasm-out target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} || { echo "Optimization failed"; exit 1; }
           echo "Built ${WASM_FILE_NAME}"
           echo "WASM file: ${WASM_FILE_NAME}"
           ls -la target/wasm32-unknown-unknown/release/
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
+          echo "Checking env-meta for ${WASM_FILE_NAME}"
+          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for ${WASM_FILE_NAME}, continuing anyway"
+          cat env-meta-output.txt >> ../../debug_output.json
+          cat env-meta-output.txt
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -74,11 +77,14 @@ jobs:
           PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
           WASM_FILE_NAME="${PACKAGE_NAME}_v${PACKAGE_VERSION}.wasm"
           cp target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
-          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} --wasm-out target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
+          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} --wasm-out target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} || { echo "Optimization failed"; exit 1; }
           echo "Built ${WASM_FILE_NAME}"
           echo "WASM file: ${WASM_FILE_NAME}"
           ls -la target/wasm32-unknown-unknown/release/
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
+          echo "Checking env-meta for ${WASM_FILE_NAME}"
+          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for ${WASM_FILE_NAME}, continuing anyway"
+          cat env-meta-output.txt >> ../../debug_output.json
+          cat env-meta-output.txt
 
       - name: List built WASM files
         run: |
@@ -142,8 +148,11 @@ jobs:
         working-directory: hvym-collective
         run: |
           cargo build --target wasm32-unknown-unknown --release
-          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm >> debug_output.json 2>&1
+          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm || { echo "Optimization failed"; exit 1; }
+          echo "Checking env-meta for hvym_collective.wasm"
+          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for hvym_collective.wasm, continuing anyway"
+          cat env-meta-output.txt >> debug_output.json
+          cat env-meta-output.txt
       
       - name: Get package metadata
         working-directory: hvym-collective

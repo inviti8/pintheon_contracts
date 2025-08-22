@@ -29,11 +29,11 @@ jobs:
       - name: Install system dependencies for stellar-cli
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev
+          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev libssl-dev
 
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 22.0.0 stellar-cli --features opt
+          cargo install --locked --version 22.8.2 stellar-cli --features opt
           stellar --version
 
       - name: Install jq
@@ -133,8 +133,10 @@ jobs:
           fi
           for wasm in "${WASM_FILES[@]}"; do
             echo "Checking env-meta for $wasm"
-            stellar contract env-meta --wasm "$wasm" >> debug_output.json 2>&1 || echo "Failed to check env-meta for $wasm"
+            stellar contract env-meta --wasm "$wasm" > env-meta-output.txt 2>&1 || { echo "env-meta failed for $wasm"; cat env-meta-output.txt; exit 1; }
+            cat env-meta-output.txt >> debug_output.json
           done
+          cat debug_output.json
 
       - name: Run deployment script with debug output
         env:
