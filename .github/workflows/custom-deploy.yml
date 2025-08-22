@@ -1,0 +1,98 @@
+name: Deploy Soroban Contracts
+
+on:
+  push:
+    tags:
+      - 'deploy-v*-{testnet,mainnet,futurenet}'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Stellar CLI
+        uses: stellar/stellar-cli@v22.8.2
+
+      - name: Extract version and network from tag
+        id: extract
+        run: |
+          TAG_NAME=${{ github.ref_name }}
+          if [[ $TAG_NAME =~ ^deploy-v([0-9.]+)-([a-z]+)$ ]]; then
+            echo "VERSION=${BASH_REMATCH[1]}" >> $GITHUB_ENV
+            echo "NETWORK=${BASH_REMATCH[2]}" >> $GITHUB_ENV
+          else
+            echo "Invalid tag format: $TAG_NAME. Expected deploy-vX.Y.Z-{network}"
+            exit 1
+          fi
+
+      - name: Create release-wasm directory
+        run: mkdir -p release-wasm
+
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASES=(
+            "${{ env.VERSION }}-pintheon-ipfs-token"
+            "${{ env.VERSION }}-pintheon-node-token"
+            "${{ env.VERSION }}-opus-token"
+            "${{ env.VERSION }}-hvym-collective"
+          )
+          for RELEASE in "${RELEASES[@]}"; do
+            echo "Downloading assets for release $RELEASE"
+            # Get release info
+            RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
+            ASSET_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .url')
+            ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .name')
+            if [ -z "$ASSET_URL" ]; then
+              echo "No WASM asset found for release $RELEASE"
+              exit 1
+            fi
+            echo "Downloading $ASSET_NAME from $ASSET_URL"
+            curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
+                 -H "Accept: application/octet-stream" \
+                 "$ASSET_URL" -o "release-wasm/$ASSET_NAME"
+          done
+
+      - name: List downloaded WASM files
+        run: ls -l release-wasm/
+
+      - name: Run deployment script
+        env:
+          DEPLOYER_ACCT: ${{ secrets.ACCT_SECRET }}
+        run: |
+          python3 deploy_released_contracts.py \
+            --deployer-acct "$DEPLOYER_ACCT" \
+            --network "${{ env.NETWORK }}" \
+            --release-dir release-wasm
+
+      - name: Update release notes with deployments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for RELEASE in "${{ env.VERSION }}-pintheon-ipfs-token" "${{ env.VERSION }}-pintheon-node-token" "${{ env.VERSION }}-opus-token" "${{ env.VERSION }}-hvym-collective"; do
+            echo "Updating release notes for $RELEASE"
+            RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
+            RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
+            CURRENT_BODY=$(echo "$RELEASE_INFO" | jq -r '.body')
+            DEPLOYMENTS_MD=$(cat deployments.md)
+            NEW_BODY="$CURRENT_BODY\n\n## Deployment Details\n$DEPLOYMENTS_MD"
+            curl -s -X PATCH \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              -d "{\"body\": $(jq -R -s <<< \"$NEW_BODY\")}"
+          done
