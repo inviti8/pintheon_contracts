@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 22.8.2 stellar-cli --features opt
+          cargo install --locked --version 22.0.0 stellar-cli --features opt
           stellar --version
 
       - name: Install jq
@@ -46,10 +46,14 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref_name }}
           if [[ $TAG_NAME =~ ^deploy-v([0-9.]+)-([a-z]+)$ ]]; then
-            echo "VERSION=${BASH_REMATCH[1]}" >> $GITHUB_ENV
-            echo "NETWORK=${BASH_REMATCH[2]}" >> $GITHUB_ENV
-            if [[ ! "${BASH_REMATCH[2]}" =~ ^(testnet|mainnet|futurenet)$ ]]; then
-              echo "Invalid network: ${BASH_REMATCH[2]}. Must be testnet, mainnet, or futurenet"
+            VERSION=${BASH_REMATCH[1]}
+            NETWORK=${BASH_REMATCH[2]}
+            echo "VERSION=$VERSION" >> $GITHUB_ENV
+            echo "NETWORK=$NETWORK" >> $GITHUB_ENV
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "NETWORK=$NETWORK" >> $GITHUB_OUTPUT
+            if [[ ! "$NETWORK" =~ ^(testnet|mainnet|futurenet)$ ]]; then
+              echo "Invalid network: $NETWORK. Must be testnet, mainnet, or futurenet"
               exit 1
             fi
           else
@@ -175,13 +179,13 @@ jobs:
             "v${{ env.VERSION }}-opus-token"
             "v${{ env.VERSION }}-hvym-collective"
           )
+          DEPLOYMENTS_MD=$(cat deployments.md)
           for RELEASE in "${RELEASES[@]}"; do
             echo "Updating release notes for $RELEASE"
             RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
             RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
             CURRENT_BODY=$(echo "$RELEASE_INFO" | jq -r '.body')
-            DEPLOYMENTS_MD=$(cat deployments.md)
             NEW_BODY="$CURRENT_BODY\n\n## Deployment Details\n$DEPLOYMENTS_MD"
             curl -s -X PATCH \
               -H "Authorization: Bearer $GITHUB_TOKEN" \

@@ -166,16 +166,21 @@ jobs:
           ls -l target/wasm32-unknown-unknown/release/
       
       - name: Get package metadata
+        id: metadata
         working-directory: hvym-collective
         run: |
           PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
-          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
           PACKAGE_NAME_DISPLAY=$(echo "$PACKAGE_NAME" | sed 's/_/-/g')
+          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
           WASM_FILE_NAME="${PACKAGE_NAME_DISPLAY}_v${PACKAGE_VERSION}.wasm"
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
           echo "PACKAGE_NAME_DISPLAY=$PACKAGE_NAME_DISPLAY" >> $GITHUB_ENV
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
           echo "WASM_FILE_NAME=$WASM_FILE_NAME" >> $GITHUB_ENV
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_OUTPUT
+          echo "PACKAGE_NAME_DISPLAY=$PACKAGE_NAME_DISPLAY" >> $GITHUB_OUTPUT
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "WASM_FILE_NAME=$WASM_FILE_NAME" >> $GITHUB_OUTPUT
           echo "Package: $PACKAGE_NAME"
           echo "Package Display: $PACKAGE_NAME_DISPLAY"
           echo "Version: $PACKAGE_VERSION"
@@ -195,14 +200,11 @@ jobs:
           echo "WASM Hash: $WASM_HASH"
           echo "WASM File: ${{ env.WASM_FILE_NAME }}"
       
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}-hvym-collective
-          release_name: ${{ github.ref_name }}-hvym-collective
+          name: ${{ github.ref_name }}-hvym-collective
           body: |
             HVYM Collective contract release
             
@@ -214,21 +216,15 @@ jobs:
             
             ## Files
             - `${{ env.WASM_FILE_NAME }}`: Optimized WASM contract
+            - `.attestation.json`: Contract attestation metadata
             
             ## Attestation
             This contract has been built and verified for the Stellar network.
           draft: false
           prerelease: false
-      
-      - name: Upload WASM to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
-          asset_name: ${{ env.WASM_FILE_NAME }}
-          asset_content_type: application/octet-stream
+          files: |
+            hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
+            hvym-collective/.attestation.json
       
       - name: Generate attestation JSON
         working-directory: hvym-collective
@@ -245,16 +241,6 @@ jobs:
           }
           EOF
 
-      - name: Upload attestation JSON to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: hvym-collective/.attestation.json
-          asset_name: .attestation.json
-          asset_content_type: application/json
-      
       - name: Create Contract Attestation
         run: |
           echo "Creating contract attestation for ${{ env.PACKAGE_NAME_DISPLAY }}"
