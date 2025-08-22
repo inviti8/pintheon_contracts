@@ -40,22 +40,33 @@ def deploy_contract(wasm_file, deployer_acct, network, debug=False):
         "futurenet": "Test SDF Future Network ; October 2022"
     }.get(network, "Test SDF Network ; September 2015")
     
-    # Perform upload with explicit fee and RPC URL
+    # Perform upload with higher fee and RPC URL
     upload_command = (
         f"stellar contract upload --source-account {deployer_acct} "
         f"--wasm {wasm_file} --network {network} "
         f"--network-passphrase \"{network_passphrase}\" "
         f"--rpc-url https://soroban-testnet.stellar.org "
-        f"--fee 10000"
+        f"--fee 100000"  # Increased to 0.01 XLM
     )
     try:
         output = run_command(upload_command, debug)
         print(f"Uploaded {contract_name}: {output}")
-        # Save contract hash for debugging
         with open("deployments.md", "a") as f:
             f.write(f"\n- {contract_name}: {output}")
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
         print(f"Failed to upload {contract_name}")
+        # Log transaction XDR for debugging
+        if debug and "Signing transaction" in e.stderr:
+            tx_id = e.stderr.split("Signing transaction: ")[1].split("\n")[0]
+            tx_command = (
+                f"stellar transaction read --id {tx_id} "
+                f"--network {network} --rpc-url https://soroban-testnet.stellar.org"
+            )
+            try:
+                tx_output = run_command(tx_command, debug)
+                print(f"Transaction details for {tx_id}: {tx_output}")
+            except subprocess.CalledProcessError:
+                print(f"Failed to fetch transaction details for {tx_id}")
         raise
 
 def main():

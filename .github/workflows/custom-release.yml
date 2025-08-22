@@ -11,7 +11,6 @@ permissions:
   attestations: write
 
 jobs:
-  # First, build the dependency contracts
   build-dependencies:
     runs-on: ubuntu-latest
     steps:
@@ -38,21 +37,12 @@ jobs:
       - name: Install system dependencies for stellar-cli
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config
-          sudo apt install -y pkg-config libusb-1.0-0-dev libftdi1-dev
-          sudo apt-get install libudev-dev
+          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev
 
       - name: Install Stellar CLI
         run: |
-          # Try v22.8.2 first
-          if ! cargo install --locked --version 22.8.2 stellar-cli; then
-            echo "Failed to install stellar-cli@v22.8.2, falling back to v20.3.4"
-            cargo install --locked --version 20.3.4 stellar-cli
-          fi
+          cargo install --locked --version 20.3.4 stellar-cli
           stellar --version
-
-      - name: Add wasm32v1-none target
-        run: rustup target add wasm32v1-none
 
       - name: List files in Node Token directory
         run: ls -l
@@ -61,19 +51,16 @@ jobs:
       - name: Build Pintheon Node Token
         working-directory: pintheon-node-deployer/pintheon-node-token
         run: |
-          stellar contract build
-          # Get package metadata
+          cargo build --target wasm32-unknown-unknown --release
           PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
           PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
-          # Use exact same naming convention as stellar-expert workflow
           WASM_FILE_NAME="${PACKAGE_NAME}_v${PACKAGE_VERSION}.wasm"
-          # Copy unoptimized WASM first (like stellar-expert workflow)
-          cp target/wasm32v1-none/release/pintheon_node_token.wasm target/wasm32v1-none/release/${WASM_FILE_NAME}
-          # Then optimize (like stellar-expert workflow)
-          stellar contract optimize --wasm target/wasm32v1-none/release/${WASM_FILE_NAME} --wasm-out target/wasm32v1-none/release/${WASM_FILE_NAME}
+          cp target/wasm32-unknown-unknown/release/pintheon_node_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
+          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} --wasm-out target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
           echo "Built ${WASM_FILE_NAME}"
           echo "WASM file: ${WASM_FILE_NAME}"
-          ls -la target/wasm32v1-none/release/
+          ls -la target/wasm32-unknown-unknown/release/
+          stellar contract info env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -82,37 +69,30 @@ jobs:
       - name: Build Pintheon IPFS Token
         working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
         run: |
-          stellar contract build
-          # Get package metadata
+          cargo build --target wasm32-unknown-unknown --release
           PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
           PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
-          # Use exact same naming convention as stellar-expert workflow
           WASM_FILE_NAME="${PACKAGE_NAME}_v${PACKAGE_VERSION}.wasm"
-          # Copy unoptimized WASM first (like stellar-expert workflow)
-          cp target/wasm32v1-none/release/pintheon_ipfs_token.wasm target/wasm32v1-none/release/${WASM_FILE_NAME}
-          # Then optimize (like stellar-expert workflow)
-          stellar contract optimize --wasm target/wasm32v1-none/release/${WASM_FILE_NAME} --wasm-out target/wasm32v1-none/release/${WASM_FILE_NAME}
+          cp target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
+          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} --wasm-out target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
           echo "Built ${WASM_FILE_NAME}"
           echo "WASM file: ${WASM_FILE_NAME}"
-          ls -la target/wasm32v1-none/release/
+          ls -la target/wasm32-unknown-unknown/release/
+          stellar contract info env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
 
-      # Opus token will be deployed separately using the stellar-expert workflow
-      # This ensures it uses the exact attested hash from the workflow
-      
       - name: List built WASM files
         run: |
-          ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
+          ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
 
       - name: Upload dependency artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dependency-wasm-files
           path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm
+            pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token_v*.wasm
+            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token_v*.wasm
 
-  # Now build hvym-collective with dependencies available
   build-hvym-collective:
     needs: build-dependencies
     runs-on: ubuntu-latest
@@ -123,14 +103,14 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: wasm32-unknown-unknown
           override: true
       
-      - name: Add wasm32v1-none target
-        run: rustup target add wasm32v1-none
-      
       - name: Install Stellar CLI
-        uses: stellar/stellar-cli@v22.8.2
-      
+        run: |
+          cargo install --locked --version 20.3.4 stellar-cli
+          stellar --version
+
       - name: Download dependency artifacts
         uses: actions/download-artifact@v4
         with:
@@ -142,43 +122,35 @@ jobs:
       
       - name: Copy dependency WASM files
         run: |
-          mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
-          mkdir -p opus_token/target/wasm32v1-none/release/
-          # Copy the files with exact same naming as stellar-expert workflow
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/
+          mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
+          mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
+          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
+          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
       
       - name: Update hvym-collective imports with actual versions
         working-directory: hvym-collective
         run: |
-          # Get actual versions from Cargo.toml files
           NODE_TOKEN_VERSION=$(grep -m1 '^version =' ../pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2)
           IPFS_TOKEN_VERSION=$(grep -m1 '^version =' ../pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2)
-          
           echo "Node Token Version: $NODE_TOKEN_VERSION"
           echo "IPFS Token Version: $IPFS_TOKEN_VERSION"
-          
-          # Update the import statements in lib.rs (opus-token removed since it's deployed separately)
           sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
           sed -i "s|pintheon-ipfs-token_v[0-9.]*\.wasm|pintheon-ipfs-token_v${IPFS_TOKEN_VERSION}.wasm|g" src/lib.rs
-          
           echo "Updated import statements with actual versions"
 
       - name: Build HVYM Collective
         working-directory: hvym-collective
         run: |
-          stellar contract build
-          stellar contract optimize --wasm target/wasm32v1-none/release/hvym_collective.wasm
+          cargo build --target wasm32-unknown-unknown --release
+          stellar contract optimize --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm
+          stellar contract info env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm >> debug_output.json 2>&1
       
       - name: Get package metadata
         working-directory: hvym-collective
         run: |
           PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
           PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
-          # Convert package name to use hyphens instead of underscores for consistency
           PACKAGE_NAME_DISPLAY=$(echo "$PACKAGE_NAME" | sed 's/_/-/g')
-          # Create WASM file name matching the reusable workflow pattern
           WASM_FILE_NAME="${PACKAGE_NAME_DISPLAY}_v${PACKAGE_VERSION}.wasm"
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
           echo "PACKAGE_NAME_DISPLAY=$PACKAGE_NAME_DISPLAY" >> $GITHUB_ENV
@@ -192,14 +164,13 @@ jobs:
       - name: Rename optimized WASM file
         working-directory: hvym-collective
         run: |
-          # Copy the optimized WASM file with the correct name
-          cp target/wasm32v1-none/release/hvym_collective.optimized.wasm target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }}
+          cp target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
           echo "Renamed WASM file to: ${{ env.WASM_FILE_NAME }}"
       
       - name: Calculate WASM hash
         working-directory: hvym-collective
         run: |
-          WASM_HASH=$(sha256sum target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }} | cut -d ' ' -f1)
+          WASM_HASH=$(sha256sum target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} | cut -d ' ' -f1)
           echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
           echo "WASM Hash: $WASM_HASH"
           echo "WASM File: ${{ env.WASM_FILE_NAME }}"
@@ -235,7 +206,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: hvym-collective/target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }}
+          asset_path: hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
           asset_name: ${{ env.WASM_FILE_NAME }}
           asset_content_type: application/octet-stream
       
@@ -283,13 +254,11 @@ jobs:
             jobId: process.env.JOB_ID,
             runId: process.env.RUN_ID,
             contractHash: process.env.CONTRACT_HASH,
-            relativePath: process.env.RELATIVE_PATH || undefined,
-            packageName: process.env.PACKAGE_NAME || undefined,
-            makeTarget: process.env.MAKE_TARGET || undefined
+            relativePath: process.env.RELATIVE_PATH,
+            packageName: process.env.PACKAGE_NAME,
+            makeTarget: process.env.MAKE_TARGET
           }))")
-      
           echo "JSON to send: $JSON_OBJECT"
-      
           curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
                -H "Content-Type: application/json" \
                -d "$JSON_OBJECT" \
@@ -307,10 +276,9 @@ jobs:
       - name: Attest
         uses: actions/attest-build-provenance@v1
         with:
-          subject-path: 'hvym-collective/target/wasm32v1-none/release/${{ env.WASM_FILE_NAME }}'
+          subject-path: 'hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}'
           subject-name: '${{ env.WASM_FILE_NAME }}'
 
-  # Build other contracts using the standard workflow
   release-opus-token:
     needs: build-dependencies
     uses: stellar-expert/soroban-build-workflow/.github/workflows/release.yml@main
@@ -345,4 +313,4 @@ jobs:
       relative_path: pintheon-ipfs-deployer/pintheon-ipfs-token
       package: 'pintheon-ipfs-token'
     secrets:
-      release_token: ${{ secrets.GITHUB_TOKEN }} 
+      release_token: ${{ secrets.GITHUB_TOKEN }}

@@ -29,17 +29,11 @@ jobs:
       - name: Install system dependencies for stellar-cli
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config
-          sudo apt install -y pkg-config libusb-1.0-0-dev libftdi1-dev
-          sudo apt-get install libudev-dev
+          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev
 
       - name: Install Stellar CLI
         run: |
-          # Try v22.8.2 first
-          if ! cargo install --locked --version 22.8.2 stellar-cli; then
-            echo "Failed to install stellar-cli@v22.8.2, falling back to v20.3.4"
-            cargo install --locked --version 20.3.4 stellar-cli
-          fi
+          cargo install --locked --version 20.3.4 stellar-cli
           stellar --version
 
       - name: Install jq
@@ -80,9 +74,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASES=(
-            "v${{ env.VERSION }}-pintheon-ipfs-token_pintheon_ipfs_deployer_pintheon_ipfs_token_pintheon-ipfs-token_pkg0.0.6_cli22.8.1"
-            "v${{ env.VERSION }}-pintheon-node-token_pintheon_node_deployer_pintheon_node_token_pintheon-node-token_pkg0.0.6_cli22.8.1"
-            "v${{ env.VERSION }}-opus-token_opus_token_opus-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-pintheon-ipfs-token"
+            "v${{ env.VERSION }}-pintheon-node-token"
+            "v${{ env.VERSION }}-opus-token"
             "v${{ env.VERSION }}-hvym-collective"
           )
           CONTRACTS=(
@@ -151,7 +145,6 @@ jobs:
             --network "${{ env.NETWORK }}" \
             --release-dir release-wasm \
             --debug
-          # Save debug output
           if [ -f debug_output.json ]; then
             cat debug_output.json
           fi
@@ -174,9 +167,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASES=(
-            "v${{ env.VERSION }}-pintheon-ipfs-token_pintheon_ipfs_deployer_pintheon_ipfs_token_pintheon-ipfs-token_pkg0.0.6_cli22.8.1"
-            "v${{ env.VERSION }}-pintheon-node-token_pintheon_node_deployer_pintheon_node_token_pintheon-node-token_pkg0.0.6_cli22.8.1"
-            "v${{ env.VERSION }}-opus-token_opus_token_opus-token_pkg0.0.6_cli22.8.1"
+            "v${{ env.VERSION }}-pintheon-ipfs-token"
+            "v${{ env.VERSION }}-pintheon-node-token"
+            "v${{ env.VERSION }}-opus-token"
             "v${{ env.VERSION }}-hvym-collective"
           )
           for RELEASE in "${RELEASES[@]}"; do
