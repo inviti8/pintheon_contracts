@@ -77,45 +77,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASES=(
-            "v${{ env.VERSION }}-pintheon-ipfs-token"
-            "v${{ env.VERSION }}-pintheon-node-token"
-            "v${{ env.VERSION }}-opus-token"
-            "v${{ env.VERSION }}-hvym-collective"
-          )
+          RELEASE="v${{ env.VERSION }}"
           CONTRACTS=(
             "pintheon-ipfs-token"
             "pintheon-node-token"
             "opus-token"
             "hvym-collective"
           )
-          i=0
-          for RELEASE in "${RELEASES[@]}"; do
-            CONTRACT=${CONTRACTS[$i]}
-            echo "Downloading assets for release $RELEASE (contract: $CONTRACT)"
-            RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
-            echo "$RELEASE_INFO" > release-wasm/release_info_$CONTRACT.json
-            if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "null"')" = "Not Found" ]; then
-              echo "Error: Release $RELEASE not found"
-              exit 1
-            fi
-            ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length')
-            if [ "$ASSET_COUNT" -eq 0 ]; then
-              echo "Error: No assets found for release $RELEASE"
-              exit 1
-            fi
-            ASSET_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name == "${CONTRACT}.wasm") | .url')
-            ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name == "${CONTRACT}.wasm") | .name')
+          echo "Downloading assets for release $RELEASE"
+          RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
+          echo "$RELEASE_INFO" > release-wasm/release_info.json
+          if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "null"')" = "Not Found" ]; then
+            echo "Error: Release $RELEASE not found"
+            exit 1
+          fi
+          ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length')
+          if [ "$ASSET_COUNT" -eq 0 ]; then
+            echo "Error: No assets found for release $RELEASE"
+            exit 1
+          fi
+          for CONTRACT in "${CONTRACTS[@]}"; do
+            ASSET_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"${CONTRACT}.wasm\") | .url")
+            ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"${CONTRACT}.wasm\") | .name")
             if [ -z "$ASSET_URL" ]; then
-              echo "Error: No WASM asset found for release $RELEASE"
+              echo "Error: No WASM asset found for contract $CONTRACT in release $RELEASE"
               exit 1
             fi
             echo "Downloading $ASSET_NAME from $ASSET_URL for contract $CONTRACT"
             curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
                  -H "Accept: application/octet-stream" \
                  "$ASSET_URL" -o "release-wasm/$ASSET_NAME"
-            i=$((i + 1))
           done
 
       - name: List downloaded WASM files
@@ -173,23 +165,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASES=(
-            "v${{ env.VERSION }}-pintheon-ipfs-token"
-            "v${{ env.VERSION }}-pintheon-node-token"
-            "v${{ env.VERSION }}-opus-token"
-            "v${{ env.VERSION }}-hvym-collective"
-          )
+          RELEASE="v${{ env.VERSION }}"
+          echo "Updating release notes for $RELEASE"
+          RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
+          RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
+          CURRENT_BODY=$(echo "$RELEASE_INFO" | jq -r '.body')
           DEPLOYMENTS_MD=$(cat deployments.md)
-          for RELEASE in "${RELEASES[@]}"; do
-            echo "Updating release notes for $RELEASE"
-            RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
-            RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
-            CURRENT_BODY=$(echo "$RELEASE_INFO" | jq -r '.body')
-            NEW_BODY="$CURRENT_BODY\n\n## Deployment Details\n$DEPLOYMENTS_MD"
-            curl -s -X PATCH \
-              -H "Authorization: Bearer $GITHUB_TOKEN" \
-              -H "Content-Type: application/json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
-              -d "{\"body\": $(jq -R -s <<< \"$NEW_BODY\")}"
-          done
+          NEW_BODY="$CURRENT_BODY\n\n## Deployment Details\n$DEPLOYMENTS_MD"
+          curl -s -X PATCH \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -d "{\"body\": $(jq -R -s <<< \"$NEW_BODY\")}"
