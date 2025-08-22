@@ -105,8 +105,8 @@ jobs:
               echo "Error: No assets found for release $RELEASE"
               exit 1
             fi
-            ASSET_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .url')
-            ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .name')
+            ASSET_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name == "${CONTRACT}.wasm") | .url')
+            ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name == "${CONTRACT}.wasm") | .name')
             if [ -z "$ASSET_URL" ]; then
               echo "Error: No WASM asset found for release $RELEASE"
               exit 1
@@ -130,7 +130,7 @@ jobs:
       - name: Verify WASM file compatibility
         run: |
           shopt -s nullglob
-          WASM_FILES=(release-wasm/*_v*.wasm)
+          WASM_FILES=(release-wasm/*.wasm)
           if [ ${#WASM_FILES[@]} -eq 0 ]; then
             echo "Error: No WASM files found in release-wasm/"
             exit 1

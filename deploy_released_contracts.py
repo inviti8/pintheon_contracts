@@ -31,7 +31,7 @@ def run_command(command, debug=False):
 
 def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
     """Upload a WASM file to the Stellar network."""
-    contract_name = re.sub(r"_v\d+\.\d+\.\d+\.wasm$", "", os.path.basename(wasm_file))
+    contract_name = os.path.splitext(os.path.basename(wasm_file))[0]
     print(f"=== Uploading {contract_name} (upload only, no deploy) ===")
     print(f"Uploading {os.path.basename(wasm_file)} ...")
     
@@ -102,7 +102,7 @@ def main():
         print("Error: DEPLOYER_ACCT is empty")
         exit(1)
 
-    wasm_files = sorted(glob.glob(os.path.join(args.release_dir, "*_v*.wasm")))
+    wasm_files = sorted(glob.glob(os.path.join(args.release_dir, "*.wasm")))
     if not wasm_files:
         print(f"No WASM files found in {args.release_dir}")
         exit(1)
