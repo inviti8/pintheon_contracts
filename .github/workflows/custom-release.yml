@@ -41,7 +41,7 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 22.0.0 stellar-cli
+          cargo install --locked --version 22.0.0 stellar-cli --features opt
           stellar --version
 
       - name: List files in Node Token directory
@@ -108,7 +108,7 @@ jobs:
       
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 22.0.0 stellar-cli
+          cargo install --locked --version 22.0.0 stellar-cli --features opt
           stellar --version
 
       - name: Download dependency artifacts
