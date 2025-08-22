@@ -72,6 +72,13 @@ jobs:
           echo "Network: ${{ env.NETWORK }}"
           echo "Stellar CLI version: $(stellar --version)"
 
+      - name: Verify WASM file compatibility
+        run: |
+          for wasm in release-wasm/*_v*.wasm; do
+            echo "Checking env-meta for $wasm"
+            stellar contract info env-meta --wasm "$wasm" >> debug_output.json
+          done
+
       - name: Create release-wasm directory
         run: mkdir -p release-wasm
 

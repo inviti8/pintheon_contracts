@@ -29,7 +29,7 @@ def run_command(command, debug=False):
 
 def deploy_contract(wasm_file, deployer_acct, network, debug=False):
     """Upload a WASM file to the Stellar network."""
-    contract_name = os.path.basename(wasm_file).replace("_v0.0.6.wasm", "")
+    contract_name = os.path.basename(wasm_file).replace("_v0.0.6.wasm", "").replace("_v0.0.1.wasm", "")
     print(f"=== Uploading {contract_name} (upload only, no deploy) ===")
     print(f"Uploading {os.path.basename(wasm_file)} ...")
     
@@ -40,31 +40,20 @@ def deploy_contract(wasm_file, deployer_acct, network, debug=False):
         "futurenet": "Test SDF Future Network ; October 2022"
     }.get(network, "Test SDF Network ; September 2015")
     
-    # Simulate transaction first to capture diagnostics
-    sim_command = (
-        f"stellar contract upload --source {deployer_acct} "
-        f"--wasm {wasm_file} --network {network} "
-        f"--network-passphrase \"{network_passphrase}\" "
-        f"--simulate"
-    )
-    try:
-        sim_output = run_command(sim_command, debug)
-        if debug:
-            with open("debug_output.json", "a") as f:
-                json.dump({"simulation_output": sim_output}, f)
-    except subprocess.CalledProcessError:
-        print("Simulation failed, proceeding to upload anyway...")
-
-    # Perform actual upload with ledger bounds
+    # Perform upload with explicit fee and RPC URL
     upload_command = (
-        f"stellar contract upload --source {deployer_acct} "
+        f"stellar contract upload --source-account {deployer_acct} "
         f"--wasm {wasm_file} --network {network} "
         f"--network-passphrase \"{network_passphrase}\" "
-        f"--max-ledger-bounds 1000"
+        f"--rpc-url https://soroban-testnet.stellar.org "
+        f"--fee 10000"
     )
     try:
         output = run_command(upload_command, debug)
         print(f"Uploaded {contract_name}: {output}")
+        # Save contract hash for debugging
+        with open("deployments.md", "a") as f:
+            f.write(f"\n- {contract_name}: {output}")
     except subprocess.CalledProcessError:
         print(f"Failed to upload {contract_name}")
         raise
