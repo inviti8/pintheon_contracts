@@ -27,7 +27,13 @@ jobs:
           pip install requests
 
       - name: Install Stellar CLI
-        uses: stellar/stellar-cli@v22.8.2
+        run: |
+          # Try v22.8.2 first
+          if ! cargo install --locked --version 22.8.2 stellar-cli; then
+            echo "Failed to install stellar-cli@v22.8.2, falling back to v20.3.0"
+            cargo install --locked --version 20.3.0 stellar-cli
+          fi
+          stellar --version
 
       - name: Install jq
         run: |
@@ -57,6 +63,7 @@ jobs:
           echo "Tag: ${{ github.ref_name }}"
           echo "Version: ${{ env.VERSION }}"
           echo "Network: ${{ env.NETWORK }}"
+          echo "Stellar CLI version: $(stellar --version)"
 
       - name: Create release-wasm directory
         run: mkdir -p release-wasm
@@ -81,22 +88,18 @@ jobs:
           for RELEASE in "${RELEASES[@]}"; do
             CONTRACT=${CONTRACTS[$i]}
             echo "Downloading assets for release $RELEASE (contract: $CONTRACT)"
-            # Get release info
             RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
             echo "$RELEASE_INFO" > release-wasm/release_info_$CONTRACT.json
-            # Check if release exists
             if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "null"')" = "Not Found" ]; then
               echo "Error: Release $RELEASE not found"
               exit 1
             fi
-            # Check if assets exist
             ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length')
             if [ "$ASSET_COUNT" -eq 0 ]; then
               echo "Error: No assets found for release $RELEASE"
               exit 1
             fi
-            # Extract WASM asset (match any .wasm file)
             ASSET_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .url')
             ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | endswith(".wasm")) | .name')
             if [ -z "$ASSET_URL" ]; then
@@ -113,20 +116,32 @@ jobs:
       - name: List downloaded WASM files
         run: ls -l release-wasm/
 
-      - name: Run deployment script
+      - name: Run deployment script with debug output
         env:
           DEPLOYER_ACCT: ${{ secrets.ACCT_SECRET }}
         run: |
           python3 deploy_released_contracts.py \
             --deployer-acct "$DEPLOYER_ACCT" \
             --network "${{ env.NETWORK }}" \
-            --release-dir release-wasm
+            --release-dir release-wasm \
+            --debug
+          # Save debug output
+          if [ -f debug_output.json ]; then
+            cat debug_output.json
+          fi
 
       - name: Upload deployments.md as artifact
         uses: actions/upload-artifact@v4
         with:
           name: deployments-md
           path: deployments.md
+
+      - name: Upload debug output as artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-output
+          path: debug_output.json
 
       - name: Update release notes with deployments
         env:
