@@ -416,7 +416,7 @@ impl CollectiveContract{
     pub fn remove_admin(e: Env, caller: Address, admin_to_remove: Address) -> bool {
         Self::require_admin_auth(e.clone(), caller.clone());
         
-        let mut admin_list: Vec<Address> = e.storage().persistent().get(&Datakey::AdminList).unwrap();
+        let admin_list: Vec<Address> = e.storage().persistent().get(&Datakey::AdminList).unwrap();
         let initial_admin: Address = e.storage().instance().get(&ADMIN).unwrap();
         
         // Prevent removing the initial admin
