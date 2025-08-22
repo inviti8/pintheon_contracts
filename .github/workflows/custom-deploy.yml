@@ -3,7 +3,7 @@ name: Deploy Soroban Contracts
 on:
   push:
     tags:
-      - 'deploy-v*-{testnet,mainnet,futurenet}'
+      - 'deploy-v*'
 
 permissions:
   contents: write
