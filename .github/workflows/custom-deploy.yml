@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 20.3.4 stellar-cli
+          cargo install --locked --version 22.0.0 stellar-cli
           stellar --version
 
       - name: Install jq
@@ -53,7 +53,7 @@ jobs:
               exit 1
             fi
           else
-            echo "Invalid tag format: $TAG_NAME. Expected deploy-vX.Y.Z-{testnet,mainnet,futurenet}"
+            echo "Invalid tag format: $TAG_NAME. Expected deploy-vX.Y.Z-{testnet|mainnet|futurenet}"
             exit 1
           fi
 
@@ -133,7 +133,7 @@ jobs:
           fi
           for wasm in "${WASM_FILES[@]}"; do
             echo "Checking env-meta for $wasm"
-            stellar contract info env-meta --wasm "$wasm" >> debug_output.json 2>&1 || echo "Failed to check env-meta for $wasm"
+            stellar contract env-meta --wasm "$wasm" >> debug_output.json 2>&1 || echo "Failed to check env-meta for $wasm"
           done
 
       - name: Run deployment script with debug output
@@ -144,6 +144,7 @@ jobs:
             --deployer-acct "$DEPLOYER_ACCT" \
             --network "${{ env.NETWORK }}" \
             --release-dir release-wasm \
+            --rpc-url https://soroban-testnet.stellar.org \
             --debug
           if [ -f debug_output.json ]; then
             cat debug_output.json

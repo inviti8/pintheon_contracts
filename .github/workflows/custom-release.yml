@@ -41,7 +41,7 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 20.3.4 stellar-cli
+          cargo install --locked --version 22.0.0 stellar-cli
           stellar --version
 
       - name: List files in Node Token directory
@@ -60,7 +60,7 @@ jobs:
           echo "Built ${WASM_FILE_NAME}"
           echo "WASM file: ${WASM_FILE_NAME}"
           ls -la target/wasm32-unknown-unknown/release/
-          stellar contract info env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
+          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
 
       - name: List files in IPFS Token directory
         run: ls -l
@@ -78,7 +78,7 @@ jobs:
           echo "Built ${WASM_FILE_NAME}"
           echo "WASM file: ${WASM_FILE_NAME}"
           ls -la target/wasm32-unknown-unknown/release/
-          stellar contract info env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
+          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} >> ../../debug_output.json 2>&1
 
       - name: List built WASM files
         run: |
@@ -108,7 +108,7 @@ jobs:
       
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 20.3.4 stellar-cli
+          cargo install --locked --version 22.0.0 stellar-cli
           stellar --version
 
       - name: Download dependency artifacts
@@ -143,7 +143,7 @@ jobs:
         run: |
           cargo build --target wasm32-unknown-unknown --release
           stellar contract optimize --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm
-          stellar contract info env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm >> debug_output.json 2>&1
+          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.wasm >> debug_output.json 2>&1
       
       - name: Get package metadata
         working-directory: hvym-collective
