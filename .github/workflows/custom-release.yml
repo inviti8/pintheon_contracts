@@ -130,8 +130,10 @@ jobs:
         run: |
           mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
           mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
+          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token_v*.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/ || echo "Warning: Failed to copy pintheon-node-token WASM"
+          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token_v*.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/ || echo "Warning: Failed to copy pintheon-ipfs-token WASM"
+          ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
+          ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
       
       - name: Update hvym-collective imports with actual versions
         working-directory: hvym-collective
@@ -143,7 +145,8 @@ jobs:
           sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token_v${NODE_TOKEN_VERSION}.wasm|g" src/lib.rs
           sed -i "s|pintheon-ipfs-token_v[0-9.]*\.wasm|pintheon-ipfs-token_v${IPFS_TOKEN_VERSION}.wasm|g" src/lib.rs
           echo "Updated import statements with actual versions"
-
+          cat src/lib.rs
+      
       - name: Build HVYM Collective
         working-directory: hvym-collective
         run: |
