@@ -21,6 +21,11 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
       - name: Install Stellar CLI
         uses: stellar/stellar-cli@v22.8.2
 
@@ -36,13 +41,20 @@ jobs:
           if [[ $TAG_NAME =~ ^deploy-v([0-9.]+)-([a-z]+)$ ]]; then
             echo "VERSION=${BASH_REMATCH[1]}" >> $GITHUB_ENV
             echo "NETWORK=${BASH_REMATCH[2]}" >> $GITHUB_ENV
+            if [[ ! "${BASH_REMATCH[2]}" =~ ^(testnet|mainnet|futurenet)$ ]]; then
+              echo "Invalid network: ${BASH_REMATCH[2]}. Must be testnet, mainnet, or futurenet"
+              exit 1
+            fi
           else
-            echo "Invalid tag format: $TAG_NAME. Expected deploy-vX.Y.Z-{network}"
+            echo "Invalid tag format: $TAG_NAME. Expected deploy-vX.Y.Z-{testnet,mainnet,futurenet}"
             exit 1
           fi
 
       - name: Debug version and network
         run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Tag: ${{ github.ref_name }}"
           echo "Version: ${{ env.VERSION }}"
           echo "Network: ${{ env.NETWORK }}"
 
