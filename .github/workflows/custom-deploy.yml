@@ -72,13 +72,6 @@ jobs:
           echo "Network: ${{ env.NETWORK }}"
           echo "Stellar CLI version: $(stellar --version)"
 
-      - name: Verify WASM file compatibility
-        run: |
-          for wasm in release-wasm/*_v*.wasm; do
-            echo "Checking env-meta for $wasm"
-            stellar contract info env-meta --wasm "$wasm" >> debug_output.json
-          done
-
       - name: Create release-wasm directory
         run: mkdir -p release-wasm
 
@@ -128,7 +121,26 @@ jobs:
           done
 
       - name: List downloaded WASM files
-        run: ls -l release-wasm/
+        run: |
+          echo "Listing files in release-wasm/"
+          ls -l release-wasm/ || echo "No files found in release-wasm/"
+          if [ -z "$(ls -A release-wasm/)" ]; then
+            echo "Error: release-wasm/ is empty"
+            exit 1
+          fi
+
+      - name: Verify WASM file compatibility
+        run: |
+          shopt -s nullglob
+          WASM_FILES=(release-wasm/*_v*.wasm)
+          if [ ${#WASM_FILES[@]} -eq 0 ]; then
+            echo "Error: No WASM files found in release-wasm/"
+            exit 1
+          fi
+          for wasm in "${WASM_FILES[@]}"; do
+            echo "Checking env-meta for $wasm"
+            stellar contract info env-meta --wasm "$wasm" >> debug_output.json 2>&1 || echo "Failed to check env-meta for $wasm"
+          done
 
       - name: Run deployment script with debug output
         env:
@@ -151,7 +163,7 @@ jobs:
           path: deployments.md
 
       - name: Upload debug output as artifact
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-output
