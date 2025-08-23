@@ -2,6 +2,12 @@
 
 This repository contains Soroban smart contracts for the Philos ecosystem, including HVYM Collective, Opus Token, and Pintheon tokens.
 
+## Requirements
+
+- **Soroban SDK**: 22.0.8
+- **Stellar CLI**: 22.0.0
+- **Rust**: Latest stable with `wasm32-unknown-unknown` target
+
 ## Contract Validation on stellar.expert
 
 This repository is configured with a GitHub Actions workflow that automatically builds and releases contracts for validation on [stellar.expert](https://stellar.expert/explorer/testnet/contract/validation).

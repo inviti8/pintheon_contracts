@@ -14,7 +14,7 @@ use soroban_sdk::{
 mod contract {
     soroban_sdk::contractimport!(
         file =
-            "../hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm"
+            "../hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.wasm"
     );
 }
 

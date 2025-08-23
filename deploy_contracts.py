@@ -45,19 +45,31 @@ def find_optimized_wasm(contract_dir, official_release=False):
         # Return the first WASM file found (should be the only one)
         return wasm_files[0]
     else:
-        # For development, look in the target directory
-        wasm_dir = os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")
-        if not os.path.isdir(wasm_dir):
-            return None
-        wasm_files = glob.glob(os.path.join(wasm_dir, "*.optimized.wasm"))
-        if not wasm_files:
-            return None
-        # Prefer the one matching the contract dir name if possible
-        base = os.path.basename(contract_dir).replace("-", "_")
-        for f in wasm_files:
-            if base in os.path.basename(f):
-                return f
-        return wasm_files[0]
+        # For development, look in the target directory (try both old and new CLI build paths)
+        wasm_dirs = [
+            os.path.join(contract_dir, "target", "wasm32v1-none", "release"),  # New stellar CLI build
+            os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")  # Old cargo build
+        ]
+        
+        for wasm_dir in wasm_dirs:
+            if not os.path.isdir(wasm_dir):
+                continue
+            
+            # Try optimized files first, then regular .wasm files
+            wasm_files = glob.glob(os.path.join(wasm_dir, "*.optimized.wasm"))
+            if not wasm_files:
+                wasm_files = glob.glob(os.path.join(wasm_dir, "*.wasm"))
+            
+            if wasm_files:
+                # Prefer the one matching the contract dir name if possible
+                base = os.path.basename(contract_dir).replace("-", "_")
+                for f in wasm_files:
+                    if base in os.path.basename(f):
+                        return f
+                # Return the first one if no name match
+                return wasm_files[0]
+        
+        return None
 
 def run_cmd(cmd, cwd=None, capture_output=True):
     try:
@@ -287,7 +299,8 @@ def main():
         if args.official_release:
             contract_dir = OFFICIAL_CONTRACTS[args.contract]
         if args.contract in UPLOAD_ONLY_CONTRACTS:
-            upload_only(args.contract, contract_dir, args.deployer_acct, args.network, deployments, args.official_release)
+            wasm_path = find_optimized_wasm(contract_dir, args.official_release)
+            upload_only(contract_key=args.contract, contract_dir=contract_dir, deployer_acct=args.deployer_acct, network=args.network, deployments=deployments, official_release=args.official_release)
         elif args.contract in DEPLOY_ONLY_CONTRACTS:
             upload_and_deploy(args.contract, contract_dir, args.deployer_acct, args.network, deployments, constructor_args, args.official_release)
         else:

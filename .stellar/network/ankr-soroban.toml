@@ -1,0 +1,3 @@
+rpc_url = "https://rpc.ankr.com/premium-http/stellar_testnet_soroban/8861c8922e2acba51be0e67a63e88fd578c1bf54e966eb549cc4b03e8bb55895"
+rpc_headers = []
+network_passphrase = "Test SDF Network ; September 2015"

@@ -48,7 +48,7 @@ def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
     
     # Use Stellar CLI install command (upload may not be available in this version)
     upload_command = (
-        f"stellar contract install --source-account {deployer_acct} "
+        f"stellar contract upload --source-account {deployer_acct} "
         f"--wasm {wasm_file} --network {network} "
         f"--network-passphrase \"{network_passphrase}\" "
         f"--rpc-url {rpc_url} "
