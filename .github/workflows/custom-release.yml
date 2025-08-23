@@ -131,11 +131,13 @@ jobs:
             git \
             libdbus-1-dev \
             libssl-dev \
+            libudev-dev \
             pkg-config \
             protobuf-compiler \
             llvm-dev \
             libclang-dev \
-            clang
+            clang \
+            libusb-1.0-0-dev
       
       - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
