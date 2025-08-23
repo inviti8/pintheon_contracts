@@ -46,9 +46,9 @@ def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
         "futurenet": "Test SDF Future Network ; October 2022"
     }.get(network, "Test SDF Network ; September 2015")
     
-    # Use Stellar CLI v22.0.0 upload command
+    # Use Stellar CLI install command (upload may not be available in this version)
     upload_command = (
-        f"stellar contract upload --source-account {deployer_acct} "
+        f"stellar contract install --source-account {deployer_acct} "
         f"--wasm {wasm_file} --network {network} "
         f"--network-passphrase \"{network_passphrase}\" "
         f"--rpc-url {rpc_url} "
@@ -95,12 +95,15 @@ def main():
         exit(1)
 
     deployments = []
+    failed_count = 0
+    
     for wasm_file in wasm_files:
         try:
-            deploy_contract(wasm_file, args.deployer_acct, args.network, args.rpc_url, args.debug)
-            deployments.append(f"Successfully uploaded {os.path.basename(wasm_file)}")
-        except subprocess.CalledProcessError:
-            deployments.append(f"Failed to upload {os.path.basename(wasm_file)}")
+            result = deploy_contract(wasm_file, args.deployer_acct, args.network, args.rpc_url, args.debug)
+            deployments.append(f"✅ Successfully uploaded {os.path.basename(wasm_file)}: {result}")
+        except subprocess.CalledProcessError as e:
+            failed_count += 1
+            deployments.append(f"❌ Failed to upload {os.path.basename(wasm_file)}: {e}")
             if args.debug:
                 print("Check debug_output.json for details")
             continue
@@ -108,6 +111,14 @@ def main():
     with open("deployments.md", "w") as f:
         f.write("# Deployment Results\n\n")
         f.write("\n".join(deployments))
+        f.write(f"\n\n**Summary**: {len(wasm_files) - failed_count}/{len(wasm_files)} deployments successful")
+    
+    # Exit with error code if any deployments failed
+    if failed_count > 0:
+        print(f"\n❌ {failed_count}/{len(wasm_files)} deployments failed")
+        exit(1)
+    else:
+        print(f"\n✅ All {len(wasm_files)} deployments successful")
 
 if __name__ == "__main__":
     main()
