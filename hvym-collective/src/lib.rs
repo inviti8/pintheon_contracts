@@ -22,17 +22,17 @@ const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 // Uncomment these when pushing to GitHub for releases
 // Comment out LOCAL BUILD section below
 
-mod pintheon_node_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm"
-    );
-}
+// mod pintheon_node_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm"
+//     );
+// }
 
-mod pintheon_ipfs_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm"
-    );
-}
+// mod pintheon_ipfs_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm"
+//     );
+// }
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
@@ -42,17 +42,17 @@ mod pintheon_ipfs_token {
 // Uncomment these when developing locally
 // Comment out GITHUB WORKFLOW section above
 
-// mod pintheon_node_token {
-//     soroban_sdk::contractimport!(
-//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm"
-//     );
-// }
+mod pintheon_node_token {
+    soroban_sdk::contractimport!(
+        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm"
+    );
+}
 
-// mod pintheon_ipfs_token {
-//     soroban_sdk::contractimport!(
-//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm"
-//     );
-// }
+mod pintheon_ipfs_token {
+    soroban_sdk::contractimport!(
+        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm"
+    );
+}
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
