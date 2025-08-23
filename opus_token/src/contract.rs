@@ -6,11 +6,10 @@ use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::metadata::{read_decimal, read_name, read_symbol, write_metadata};
 #[cfg(test)]
 use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
+use crate::event::Events;
 use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
 use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
-use soroban_token_sdk::metadata::TokenMetadata;
-use soroban_token_sdk::TokenUtils;
+use soroban_sdk::{contract, contractimpl, Address, Env, String as SorobanString};
 
 fn check_nonnegative_amount(amount: i128) {
     if amount < 0 {
@@ -24,23 +23,15 @@ pub struct Token;
 #[contractimpl]
 impl Token {
     pub fn __constructor(e: Env, admin: Address) {
-
         let decimal: u32 = 7_u32;
-        let name: String = String::from_str(&e, "__META OPUS TOKEN TESTNET__");
-        let symbol: String = String::from_str(&e, "OPUS");
+        let name: SorobanString = SorobanString::from_str(&e, "__META OPUS TOKEN TESTNET__");
+        let symbol: SorobanString = SorobanString::from_str(&e, "OPUS");
  
         if decimal > 18 {
             panic!("Decimal must not be greater than 18");
         }
         write_administrator(&e, &admin);
-        write_metadata(
-            &e,
-            TokenMetadata {
-                decimal,
-                name,
-                symbol,
-            },
-        )
+        write_metadata(&e, decimal, name, symbol);
     }
 
     pub fn mint(e: Env, to: Address, amount: i128) {
@@ -53,7 +44,7 @@ impl Token {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().mint(admin, to, amount);
+        Events::new(&e).mint(admin, to, amount);
     }
 
     pub fn set_admin(e: Env, new_admin: Address) {
@@ -65,7 +56,7 @@ impl Token {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         write_administrator(&e, &new_admin);
-        TokenUtils::new(&e).events().set_admin(admin, new_admin);
+        Events::new(&e).set_admin(admin, new_admin);
     }
 
     #[cfg(test)]
@@ -95,9 +86,7 @@ impl token::Interface for Token {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger);
-        TokenUtils::new(&e)
-            .events()
-            .approve(from, spender, amount, expiration_ledger);
+        Events::new(&e).approve(from, spender, amount, expiration_ledger);
     }
 
     fn balance(e: Env, id: Address) -> i128 {
@@ -118,7 +107,7 @@ impl token::Interface for Token {
 
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().transfer(from, to, amount);
+        Events::new(&e).transfer(from, to, amount);
     }
 
     fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
@@ -133,7 +122,7 @@ impl token::Interface for Token {
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
         receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().transfer(from, to, amount)
+        Events::new(&e).transfer(from, to, amount)
     }
 
     fn burn(e: Env, from: Address, amount: i128) {
@@ -146,7 +135,7 @@ impl token::Interface for Token {
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
         spend_balance(&e, from.clone(), amount);
-        TokenUtils::new(&e).events().burn(from, amount);
+        Events::new(&e).burn(from, amount);
     }
 
     fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
@@ -160,18 +149,18 @@ impl token::Interface for Token {
 
         spend_allowance(&e, from.clone(), spender, amount);
         spend_balance(&e, from.clone(), amount);
-        TokenUtils::new(&e).events().burn(from, amount)
+        Events::new(&e).burn(from, amount)
     }
 
     fn decimals(e: Env) -> u32 {
         read_decimal(&e)
     }
 
-    fn name(e: Env) -> String {
+    fn name(e: Env) -> SorobanString {
         read_name(&e)
     }
 
-    fn symbol(e: Env) -> String {
+    fn symbol(e: Env) -> SorobanString {
         read_symbol(&e)
     }
 }

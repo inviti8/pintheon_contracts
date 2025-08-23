@@ -9,7 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 soroban-sdk = { version = "22.0.8" }
-soroban-token-sdk = { version = "22.0.8" }
 hvym-node-token = { version = "0.0.5" }
 
 [dev-dependencies]

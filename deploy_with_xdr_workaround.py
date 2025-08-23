@@ -394,15 +394,16 @@ def main():
     deployments = []
     
     # Step 1: Deploy dependency contracts (upload only - these are imported by hvym-collective)
+    # Order matches GitHub Actions build order: node-token first, then ipfs-token
     dependency_contracts = [
         {
-            "name": "pintheon-ipfs-token",
-            "wasm": "pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32v1-none/release/pintheon_ipfs_token.wasm",
+            "name": "pintheon-node-token", 
+            "wasm": "pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm",
             "upload_only": True
         },
         {
-            "name": "pintheon-node-token", 
-            "wasm": "pintheon-node-deployer/pintheon-node-token/target/wasm32v1-none/release/pintheon_node_token.wasm",
+            "name": "pintheon-ipfs-token",
+            "wasm": "pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm",
             "upload_only": True
         }
     ]
@@ -425,7 +426,7 @@ def main():
     
     # Step 2: Deploy Opus Token
     opus_result = None
-    opus_wasm = "opus_token/target/wasm32v1-none/release/opus_token.wasm"
+    opus_wasm = "opus_token/target/wasm32-unknown-unknown/release/opus_token.wasm"
     if os.path.exists(opus_wasm):
         opus_result = deploy_contract_with_workaround(
             "opus_token",
@@ -436,20 +437,9 @@ def main():
         if opus_result:
             deployments.append(opus_result)
     
-    # Step 3: Deploy HVYM Collective Factory
-    factory_result = None
-    factory_wasm = "hvym-collective-factory/target/wasm32v1-none/release/hvym_collective_factory.wasm"
-    if os.path.exists(factory_wasm):
-        factory_result = deploy_contract_with_workaround(
-            "hvym-collective-factory",
-            factory_wasm,
-            source_account=source_account
-        )
-        if factory_result:
-            deployments.append(factory_result)
-    
-    # Step 4: Deploy HVYM Collective (final contract with all dependencies)
-    collective_wasm = "hvym-collective/target/wasm32v1-none/release/hvym_collective.wasm"
+    # Step 3: Deploy HVYM Collective (final contract with all dependencies)
+    # Note: hvym-collective-factory is not built by GitHub Actions, so skipping it
+    collective_wasm = "hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.wasm"
     if os.path.exists(collective_wasm) and opus_result:
         # Load constructor arguments from JSON file if available
         constructor_args = load_hvym_collective_args(opus_result['address'], source_account)
@@ -485,7 +475,10 @@ def main():
         print("📄 Results saved to xdr_workaround_deployments.json")
         
         for deployment in deployments:
-            print(f"  • {deployment['name']}: {deployment['address']}")
+            if 'upload_only' in deployment and deployment['upload_only']:
+                print(f"  • {deployment['name']}: WASM uploaded (upload only)")
+            else:
+                print(f"  • {deployment['name']}: {deployment.get('address', 'Deployment failed')}")
     else:
         print("\n❌ No contracts were successfully deployed")
         sys.exit(1)

@@ -621,7 +621,6 @@ version = "0.0.1"
 dependencies = [
  "hvym-file-token",
  "soroban-sdk",
- "soroban-token-sdk",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ use soroban_sdk::{
     TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, Bytes, token
 };
 
+const ID: Symbol = symbol_short!("COLLECTIV");
 const ADMIN: Symbol = symbol_short!("admin");
 const HEAVYMETA: Symbol = symbol_short!("HVYM");
 const OPUS: Symbol = symbol_short!("OPUS");

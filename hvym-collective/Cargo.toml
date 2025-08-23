@@ -8,9 +8,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = { version = "22.0.8" }
-soroban-token-sdk = { version = "22.0.8" }
-hvym-file-token = { version = "0.0.4" }
+soroban-sdk = { version = "22.0.8", default-features = false }
+hvym-file-token = { version = "0.0.4", default-features = false }
 
 [dev-dependencies]
 soroban-sdk = { version = "22.0.8", features = ["testutils"] }
@@ -24,6 +23,13 @@ debug-assertions = false
 panic = "abort"
 codegen-units = 1
 lto = true
+
+# Ensure we don't emit reference types in the wasm target
+[profile.release.package]
+wasm-bindgen = { opt-level = "s" }
+
+[profile.release.build-override]
+opt-level = 3
 
 [profile.release-with-logs]
 inherits = "release"
