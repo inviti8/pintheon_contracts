@@ -208,13 +208,27 @@ jobs:
           cp target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
           echo "Renamed WASM file to: ${{ env.WASM_FILE_NAME }}"
       
-      - name: Calculate WASM hash
+      - name: Calculate WASM hash and get dependency versions
         working-directory: hvym-collective
         run: |
           WASM_HASH=$(sha256sum target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} | cut -d ' ' -f1)
           echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
           echo "WASM Hash: $WASM_HASH"
           echo "WASM File: ${{ env.WASM_FILE_NAME }}"
+          
+          # Get dependency versions
+          PINTHEON_NODE_VERSION=$(grep -m1 '^version =' ../pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2)
+          PINTHEON_IPFS_VERSION=$(grep -m1 '^version =' ../pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2)
+          OPUS_TOKEN_VERSION=$(grep -m1 '^version =' ../opus_token/Cargo.toml | cut -d '"' -f2)
+          
+          echo "PINTHEON_NODE_VERSION=$PINTHEON_NODE_VERSION" >> $GITHUB_ENV
+          echo "PINTHEON_IPFS_VERSION=$PINTHEON_IPFS_VERSION" >> $GITHUB_ENV
+          echo "OPUS_TOKEN_VERSION=$OPUS_TOKEN_VERSION" >> $GITHUB_ENV
+          
+          echo "Dependency versions:"
+          echo "- pintheon-node-token: $PINTHEON_NODE_VERSION"
+          echo "- pintheon-ipfs-token: $PINTHEON_IPFS_VERSION"
+          echo "- opus-token: $OPUS_TOKEN_VERSION"
       
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
@@ -225,9 +239,9 @@ jobs:
             Soroban Contracts Release
             
             ## Contracts
-            - **pintheon-node-token** (Version: $(grep -m1 '^version =' pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2))
-            - **pintheon-ipfs-token** (Version: $(grep -m1 '^version =' pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2))
-            - **opus-token** (Version: $(grep -m1 '^version =' opus_token/Cargo.toml | cut -d '"' -f2))
+            - **pintheon-node-token** (Version: ${{ env.PINTHEON_NODE_VERSION }})
+            - **pintheon-ipfs-token** (Version: ${{ env.PINTHEON_IPFS_VERSION }})
+            - **opus-token** (Version: ${{ env.OPUS_TOKEN_VERSION }})
             - **hvym-collective** (Version: ${{ env.PACKAGE_VERSION }}, WASM Hash: ${{ env.WASM_HASH }})
             
             ## Files
@@ -251,25 +265,30 @@ jobs:
       - name: Generate attestation JSON
         working-directory: hvym-collective
         run: |
+          # Calculate dependency WASM hashes
+          PINTHEON_NODE_HASH=$(sha256sum ../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm | cut -d ' ' -f1)
+          PINTHEON_IPFS_HASH=$(sha256sum ../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
+          OPUS_TOKEN_HASH=$(sha256sum ../opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1)
+          
           cat > .attestation.json <<EOF
           {
             "contracts": [
               {
                 "package": "pintheon-node-token",
-                "version": "$(grep -m1 '^version =' ../pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2)",
-                "wasm_hash": "$(sha256sum ../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm | cut -d ' ' -f1)",
+                "version": "${{ env.PINTHEON_NODE_VERSION }}",
+                "wasm_hash": "${PINTHEON_NODE_HASH}",
                 "home_domain": "pintheon.contracts"
               },
               {
                 "package": "pintheon-ipfs-token",
-                "version": "$(grep -m1 '^version =' ../pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2)",
-                "wasm_hash": "$(sha256sum ../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1)",
+                "version": "${{ env.PINTHEON_IPFS_VERSION }}",
+                "wasm_hash": "${PINTHEON_IPFS_HASH}",
                 "home_domain": "pintheon.contracts"
               },
               {
                 "package": "opus-token",
-                "version": "$(grep -m1 '^version =' ../opus_token/Cargo.toml | cut -d '"' -f2)",
-                "wasm_hash": "$(sha256sum ../opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1)",
+                "version": "${{ env.OPUS_TOKEN_VERSION }}",
+                "wasm_hash": "${OPUS_TOKEN_HASH}",
                 "home_domain": "pintheon.contracts"
               },
               {
@@ -289,9 +308,12 @@ jobs:
         run: |
           echo "Creating contract attestation for multiple contracts"
           echo "Contracts:"
-          echo "- pintheon-node-token (WASM Hash: $(sha256sum pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm | cut -d ' ' -f1))"
-          echo "- pintheon-ipfs-token (WASM Hash: $(sha256sum pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1))"
-          echo "- opus-token (WASM Hash: $(sha256sum opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1))"
+          PINTHEON_NODE_HASH=$(sha256sum pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm | cut -d ' ' -f1)
+          PINTHEON_IPFS_HASH=$(sha256sum pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
+          OPUS_TOKEN_HASH=$(sha256sum opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1)
+          echo "- pintheon-node-token (WASM Hash: $PINTHEON_NODE_HASH)"
+          echo "- pintheon-ipfs-token (WASM Hash: $PINTHEON_IPFS_HASH)"
+          echo "- opus-token (WASM Hash: $OPUS_TOKEN_HASH)"
           echo "- ${{ env.PACKAGE_NAME_DISPLAY }} (WASM Hash: ${{ env.WASM_HASH }})"
           echo "Release: ${{ github.ref_name }}"
           echo "Repository: ${{ github.repository }}"
