@@ -1,0 +1,20 @@
+{
+  "network": "testnet",
+  "timestamp": 1755921296,
+  "cli_version": "22.8.2",
+  "note": "Deployed with XDR workaround - transactions succeeded despite CLI errors",
+  "contracts": [
+    {
+      "name": "opus_token",
+      "address": "CCLIXTSDZOGSJCGUL7PD7EMVSLNDFZLBZTPTGTQZD4NHCKIAAAAABLZD",
+      "wasm_hash": "c68ac2a6caad09df0801c3047d8a9e55f6b9064b3a811b63bcabcbb0a298eecb",
+      "tx_hash": "dc19705cda504ef8c73d15968480b694237587b922469c2760783dd78ffc7a5a"
+    },
+    {
+      "name": "hvym-collective",
+      "address": "CCLVBFFPCPCPNRJVIHVUXMH7DVA77CU57LEWBC6RVSSTLEIAAAAAAFJB",
+      "wasm_hash": "618992a055e4fd63b8df9019547182cfcde671d2904f891c8d9951857fa95759",
+      "tx_hash": "83bb4dbfbb018b2faa9b458569d2f6db48af4fb44f1e3848e60c507103d351e8"
+    }
+  ]
+}

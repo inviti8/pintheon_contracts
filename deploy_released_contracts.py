@@ -4,33 +4,195 @@ import subprocess
 import glob
 import json
 import re
+import requests
+import time
+import base64
 
-def run_command(command, debug=False):
-    """Run a shell command and return the output, optionally saving debug info."""
+def extract_transaction_hash(output):
+    """Extract transaction hash from CLI output."""
+    import re
+    # Look for transaction hash patterns
+    hash_patterns = [
+        r'Transaction hash is ([a-f0-9]{64})',
+        r'Signing transaction: ([a-f0-9]{64})',
+        r'hash ([a-f0-9]{64})'
+    ]
+    
+    for pattern in hash_patterns:
+        match = re.search(pattern, output)
+        if match:
+            return match.group(1)
+    return None
+
+def check_transaction_success(tx_hash, network="testnet", max_retries=10):
+    """Check if transaction succeeded using Stellar Expert API."""
+    url = f"https://api.stellar.expert/explorer/{network}/tx/{tx_hash}"
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                tx_data = response.json()
+                return tx_data.get('successful', False), tx_data
+            else:
+                print(f"⚠️ API error {response.status_code}, retrying...")
+                time.sleep(2)
+        except Exception as e:
+            print(f"⚠️ Error checking transaction: {e}, retrying...")
+            time.sleep(2)
+    
+    print(f"❌ Transaction {tx_hash} not confirmed after {max_retries} attempts")
+    return False, None
+
+def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
+    """Extract contract address from Stellar Expert API transaction data."""
+    try:
+        from stellar_sdk import StrKey
+        
+        # Get transaction data from Stellar Expert API
+        url = f"https://api.stellar.expert/explorer/{network}/tx/{tx_hash}"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code != 200:
+            print(f"⚠️ Failed to fetch transaction from Stellar Expert: {response.status_code}")
+            return None
+            
+        tx_data = response.json()
+        
+        # Extract contract address from result XDR
+        result_xdr = tx_data.get('result')
+        if not result_xdr:
+            print("⚠️ No result XDR found in transaction")
+            return None
+            
+        try:
+            # Decode the XDR result
+            decoded_result = base64.b64decode(result_xdr)
+            hex_data = decoded_result.hex()
+            
+            # Look for contract address pattern in the result
+            if len(hex_data) >= 64:
+                potential_addresses = []
+                
+                # Look for 32-byte sequences that could be contract addresses
+                for i in range(0, len(hex_data) - 63, 2):
+                    candidate = hex_data[i:i+64]
+                    if candidate != '0' * 64 and not candidate.startswith('0000000000000000'):
+                        potential_addresses.append(candidate)
+                
+                # Try the most likely candidates (usually near the end)
+                for candidate in reversed(potential_addresses[-3:]):
+                    try:
+                        contract_bytes = bytes.fromhex(candidate)
+                        contract_address = StrKey.encode_contract(contract_bytes)
+                        if contract_address.startswith('C') and len(contract_address) == 56:
+                            return contract_address
+                    except:
+                        continue
+                        
+        except Exception as e:
+            print(f"⚠️ Error decoding transaction result: {e}")
+            
+        return None
+        
+    except Exception as e:
+        print(f"⚠️ Error extracting contract address from Stellar Expert: {e}")
+        return None
+
+def run_command_with_xdr_workaround(command, debug=False, network="testnet"):
+    """Run a shell command with XDR error handling and contract address extraction."""
     try:
         result = subprocess.run(
             command,
             shell=True,
-            check=True,
             capture_output=True,
             text=True
         )
+        
+        output = result.stdout + result.stderr
+        
         if debug:
             with open("debug_output.json", "a") as f:
                 json.dump({"command": command, "stdout": result.stdout, "stderr": result.stderr}, f)
                 f.write("\n")
-        return result.stdout.strip()
+        
+        # Check for XDR processing error
+        if "xdr processing error" in output.lower():
+            print("⚠️ XDR processing error detected, checking transaction status...")
+            
+            # Extract transaction hash
+            tx_hash = extract_transaction_hash(output)
+            if tx_hash:
+                print(f"🔍 Found transaction hash: {tx_hash}")
+                
+                # Check if transaction actually succeeded
+                success, tx_data = check_transaction_success(tx_hash, network)
+                if success:
+                    print("✅ Transaction succeeded despite XDR error!")
+                    
+                    # Try to extract contract address if this was a deployment
+                    if "deploy" in command.lower():
+                        contract_address = extract_contract_address_from_stellar_expert(tx_hash, network)
+                        if contract_address:
+                            print(f"📍 Contract deployed at: {contract_address}")
+                            return {
+                                'success': True,
+                                'tx_hash': tx_hash,
+                                'contract_address': contract_address,
+                                'output': output
+                            }
+                    
+                    # For upload operations, extract WASM hash from output
+                    if "upload" in command.lower():
+                        wasm_hash = extract_wasm_hash_from_output(output)
+                        if wasm_hash:
+                            return {
+                                'success': True,
+                                'tx_hash': tx_hash,
+                                'wasm_hash': wasm_hash,
+                                'output': output
+                            }
+                    
+                    return {
+                        'success': True,
+                        'tx_hash': tx_hash,
+                        'output': output
+                    }
+                else:
+                    print("❌ Transaction failed")
+                    raise subprocess.CalledProcessError(1, command, output)
+            else:
+                print("⚠️ Could not extract transaction hash from output")
+                raise subprocess.CalledProcessError(1, command, output)
+        
+        # Normal success case
+        if result.returncode == 0:
+            return {
+                'success': True,
+                'output': result.stdout.strip()
+            }
+        else:
+            raise subprocess.CalledProcessError(result.returncode, command, output)
+            
     except subprocess.CalledProcessError as e:
         if debug:
             with open("debug_output.json", "a") as f:
-                json.dump({"command": command, "stdout": e.stdout, "stderr": e.stderr}, f)
+                json.dump({"command": command, "stdout": getattr(e, 'stdout', ''), "stderr": getattr(e, 'stderr', '')}, f)
                 f.write("\n")
         print(f"Error running command: {command}")
-        print(f"Error: {e.stderr}")
+        print(f"Error: {e}")
         raise
 
+def extract_wasm_hash_from_output(output):
+    """Extract WASM hash from CLI output."""
+    import re
+    hash_matches = re.findall(r'\b[a-f0-9]{64}\b', output)
+    if hash_matches:
+        return hash_matches[-1]  # Return the last one found
+    return None
+
 def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
-    """Upload a WASM file to the Stellar network."""
+    """Upload a WASM file to the Stellar network with XDR workaround."""
     contract_name = os.path.splitext(os.path.basename(wasm_file))[0]
     print(f"=== Uploading {contract_name} (upload only, no deploy) ===")
     print(f"Uploading {os.path.basename(wasm_file)} ...")
@@ -46,7 +208,7 @@ def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
         "futurenet": "Test SDF Future Network ; October 2022"
     }.get(network, "Test SDF Network ; September 2015")
     
-    # Use Stellar CLI install command (upload may not be available in this version)
+    # Use Stellar CLI upload command
     upload_command = (
         f"stellar contract upload --source-account {deployer_acct} "
         f"--wasm {wasm_file} --network {network} "
@@ -56,24 +218,37 @@ def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
     )
     
     try:
-        output = run_command(upload_command, debug)
-        print(f"Uploaded {contract_name}: {output}")
-        with open("deployments.md", "a") as f:
-            f.write(f"\n- {contract_name}: {output} (WASM Hash: {wasm_hash})")
-        return output
+        result = run_command_with_xdr_workaround(upload_command, debug, network)
+        
+        if result['success']:
+            # Extract WASM hash from result if available
+            extracted_hash = result.get('wasm_hash')
+            if extracted_hash:
+                print(f"Uploaded {contract_name}: {extracted_hash}")
+                with open("deployments.md", "a") as f:
+                    f.write(f"\n- {contract_name}: {extracted_hash} (TX: {result.get('tx_hash', 'N/A')})")
+                return extracted_hash
+            else:
+                # Fallback to CLI output parsing
+                output = result['output']
+                # Try to extract hash from output
+                hash_match = re.search(r'\b[a-f0-9]{64}\b', output)
+                if hash_match:
+                    extracted_hash = hash_match.group(0)
+                    print(f"Uploaded {contract_name}: {extracted_hash}")
+                    with open("deployments.md", "a") as f:
+                        f.write(f"\n- {contract_name}: {extracted_hash} (TX: {result.get('tx_hash', 'N/A')})")
+                    return extracted_hash
+                else:
+                    print(f"Uploaded {contract_name}: {output}")
+                    with open("deployments.md", "a") as f:
+                        f.write(f"\n- {contract_name}: {output} (TX: {result.get('tx_hash', 'N/A')})")
+                    return output
+        else:
+            raise subprocess.CalledProcessError(1, upload_command, result.get('output', ''))
+            
     except subprocess.CalledProcessError as e:
         print(f"Failed to upload {contract_name}")
-        if debug and "Signing transaction" in e.stderr:
-            tx_id = e.stderr.split("Signing transaction: ")[1].split("\n")[0]
-            tx_command = (
-                f"stellar tx fetch --hash {tx_id} "
-                f"--network {network} --rpc-url {rpc_url}"
-            )
-            try:
-                tx_output = run_command(tx_command, debug)
-                print(f"Transaction details for {tx_id}: {tx_output}")
-            except subprocess.CalledProcessError:
-                print(f"Failed to fetch transaction details for {tx_id}")
         raise
 
 def main():
@@ -101,7 +276,7 @@ def main():
         try:
             result = deploy_contract(wasm_file, args.deployer_acct, args.network, args.rpc_url, args.debug)
             deployments.append(f"✅ Successfully uploaded {os.path.basename(wasm_file)}: {result}")
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             failed_count += 1
             deployments.append(f"❌ Failed to upload {os.path.basename(wasm_file)}: {e}")
             if args.debug:

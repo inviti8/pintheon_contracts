@@ -33,7 +33,7 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          cargo install --locked --version 22.0.0 stellar-cli --features opt
+          cargo install --locked --version 22.8.2 stellar-cli --features opt
           stellar --version
 
       - name: Install jq

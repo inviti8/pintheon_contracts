@@ -5,7 +5,7 @@ This repository contains Soroban smart contracts for the Philos ecosystem, inclu
 ## Requirements
 
 - **Soroban SDK**: 22.0.8
-- **Stellar CLI**: 22.0.0
+- **Stellar CLI**: 22.8.2
 - **Rust**: Latest stable with `wasm32-unknown-unknown` target
 
 ## Contract Validation on stellar.expert
