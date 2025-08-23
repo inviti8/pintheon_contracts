@@ -286,17 +286,17 @@ jobs:
           echo "- opus-token: $OPUS_TOKEN_VERSION"
       
       - name: Prepare release assets
-        working-directory: hvym-collective
+        working-directory: .
         run: |
           # Create release directory
-          mkdir -p ../../release-wasm
+          mkdir -p release-wasm
           
-          # Copy optimized wasm file
-          cp target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} ../../release-wasm/
+          # Copy optimized wasm file from hvym-collective
+          cp hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} release-wasm/
           
           # Copy hvym-collective_args.json if it exists, otherwise create a default one
-          if [ -f "../../hvym-collective_args.json" ]; then
-            cp ../../hvym-collective_args.json ../../release-wasm/
+          if [ -f "hvym-collective_args.json" ]; then
+            cp hvym-collective_args.json release-wasm/
             echo "Copied hvym-collective_args.json to release artifacts"
           else
             echo "::warning::hvym-collective_args.json not found in repository root"
@@ -306,13 +306,14 @@ jobs:
               "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
               "join_fee": 1.0,
               "mint_fee": 0.5,
-              "reward": 0.1
-            }' > ../../release-wasm/hvym-collective_args.json
+              "reward": 0.1,
+              "opus_token": "REPLACE_WITH_OPUS_TOKEN_ADDRESS"
+            }' > release-wasm/hvym-collective_args.json
             echo "Created default hvym-collective_args.json in release artifacts"
           fi
           
           # List files for debugging
-          ls -la ../../release-wasm/
+          ls -la release-wasm/
       
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
