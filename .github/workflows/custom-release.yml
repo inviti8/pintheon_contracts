@@ -121,22 +121,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Rust
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            curl \
+            git \
+            libdbus-1-dev \
+            libssl-dev \
+            pkg-config \
+            protobuf-compiler \
+            llvm-dev \
+            libclang-dev \
+            clang
+      
+      - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
           override: true
+          components: rustfmt, clippy
       
       - name: Install wasm-opt
         run: |
-          wget https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
+          wget -q https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
           tar xzf binaryen-version_116-x86_64-linux.tar.gz
           sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
       
       - name: Install Stellar CLI
+        env:
+          RUSTFLAGS: '-C target-cpu=native'
+          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig
         run: |
-          cargo install --locked --version 22.8.2 stellar-cli
+          cargo install --locked --version 22.8.2 stellar-cli --force
           stellar --version
 
       - name: Download dependency artifacts
@@ -171,15 +191,49 @@ jobs:
       
       - name: Build HVYM Collective
         working-directory: hvym-collective
+        env:
+          RUSTFLAGS: '-C target-cpu=native -C link-arg=-s'
+          CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+          CARGO_TERM_COLOR: 'always'
         run: |
-          cargo build --target wasm32-unknown-unknown --release
-          ls -l target/wasm32-unknown-unknown/release/
-          wasm-opt --enable-bulk-memory -O3 target/wasm32-unknown-unknown/release/hvym_collective.wasm -o target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm || exit 1
+          # Clean previous build
+          cargo clean
+          
+          # Build with verbose output
+          echo "Building with RUSTFLAGS: $RUSTFLAGS"
+          cargo build --target wasm32-unknown-unknown --release --verbose
+          
+          # Verify wasm file was created
+          if [ ! -f "target/wasm32-unknown-unknown/release/hvym_collective.wasm" ]; then
+            echo "Error: wasm file not found after build"
+            exit 1
+          fi
+          
+          # Optimize wasm
+          echo "Optimizing wasm with wasm-opt..."
+          wasm-opt --enable-bulk-memory -O3 \
+            target/wasm32-unknown-unknown/release/hvym_collective.wasm \
+            -o target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm || {
+              echo "Error: wasm-opt failed"
+              exit 1
+            }
+          
+          # Check wasm file size
+          echo "WASM file info:"
+          ls -lh target/wasm32-unknown-unknown/release/hvym_collective*.wasm
+          
+          # Run env-meta check
           echo "Checking env-meta for hvym_collective.wasm"
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for hvym_collective.wasm, continuing anyway"
-          cat env-meta-output.txt >> debug_output.json
-          cat env-meta-output.txt
-          ls -l target/wasm32-unknown-unknown/release/
+          if ! stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm > env-meta-output.txt 2>&1; then
+            echo "Warning: env-meta check failed, but continuing..."
+            cat env-meta-output.txt
+          else
+            cat env-meta-output.txt
+          fi
+          
+          # Save output for debugging
+          mkdir -p ../../debug_output
+          cp env-meta-output.txt ../../debug_output/hvym-collective-env-meta.txt || true
       
       - name: Get package metadata
         id: metadata
