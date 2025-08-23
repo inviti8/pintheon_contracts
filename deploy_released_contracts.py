@@ -46,24 +46,14 @@ def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
         "futurenet": "Test SDF Future Network ; October 2022"
     }.get(network, "Test SDF Network ; September 2015")
     
-    # Check CLI version to determine command
-    cli_version = subprocess.check_output("soroban --version || stellar --version", shell=True, text=True).strip()
-    if "soroban-cli" in cli_version:
-        upload_command = (
-            f"soroban contract deploy --wasm {wasm_file} "
-            f"--source-account {deployer_acct} --network {network} "
-            f"--rpc-url {rpc_url} "
-            f"--network-passphrase \"{network_passphrase}\" "
-            f"--fee 100000"
-        )
-    else:
-        upload_command = (
-            f"stellar contract upload --source-account {deployer_acct} "
-            f"--wasm {wasm_file} --network {network} "
-            f"--network-passphrase \"{network_passphrase}\" "
-            f"--rpc-url {rpc_url} "
-            f"--fee 100000"
-        )
+    # Use Stellar CLI v22.0.0 upload command
+    upload_command = (
+        f"stellar contract upload --source-account {deployer_acct} "
+        f"--wasm {wasm_file} --network {network} "
+        f"--network-passphrase \"{network_passphrase}\" "
+        f"--rpc-url {rpc_url} "
+        f"--fee 100000"
+    )
     
     try:
         output = run_command(upload_command, debug)
@@ -76,10 +66,7 @@ def deploy_contract(wasm_file, deployer_acct, network, rpc_url, debug=False):
         if debug and "Signing transaction" in e.stderr:
             tx_id = e.stderr.split("Signing transaction: ")[1].split("\n")[0]
             tx_command = (
-                f"soroban transaction read --id {tx_id} "
-                f"--network {network} --rpc-url {rpc_url}"
-            ) if "soroban-cli" in cli_version else (
-                f"stellar transaction read --id {tx_id} "
+                f"stellar tx fetch --hash {tx_id} "
                 f"--network {network} --rpc-url {rpc_url}"
             )
             try:
