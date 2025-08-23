@@ -347,6 +347,8 @@ jobs:
             hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm
             release-wasm/hvym-collective_args.json
             release-wasm/.attestation.json
+
+      - name: Generate attestation file
         working-directory: hvym-collective
         run: |
           # Calculate dependency WASM hashes
@@ -354,7 +356,8 @@ jobs:
           PINTHEON_IPFS_HASH=$(sha256sum ../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
           OPUS_TOKEN_HASH=$(sha256sum ../opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1)
           
-          cat > .attestation.json <<EOF
+          mkdir -p ../../release-wasm
+          cat > ../../release-wasm/.attestation.json <<EOF
           {
             "contracts": [
               {
