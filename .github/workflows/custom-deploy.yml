@@ -29,11 +29,36 @@ jobs:
       - name: Install system dependencies for stellar-cli
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev libssl-dev
+          sudo apt-get install -y --no-install-recommends \
+            libdbus-1-dev \
+            pkg-config \
+            libusb-1.0-0-dev \
+            libftdi1-dev \
+            libudev-dev \
+            libssl-dev \
+            build-essential \
+            cmake \
+            curl \
+            git \
+            protobuf-compiler \
+            llvm-dev \
+            libclang-dev \
+            clang
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
+          override: true
 
       - name: Install Stellar CLI
+        env:
+          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig
+          RUSTFLAGS: '-C target-cpu=native'
         run: |
-          cargo install --locked --version 22.8.2 stellar-cli
+          cargo install --locked --version 22.8.2 stellar-cli --force
           stellar --version
 
       - name: Install jq
