@@ -196,7 +196,6 @@ jobs:
         env:
           RUSTFLAGS: '-C target-cpu=native -C link-arg=-s'
           CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
-          CARGO_TERM_COLOR: 'always'
         run: |
           # Clean previous build
           cargo clean
@@ -286,6 +285,35 @@ jobs:
           echo "- pintheon-ipfs-token: $PINTHEON_IPFS_VERSION"
           echo "- opus-token: $OPUS_TOKEN_VERSION"
       
+      - name: Prepare release assets
+        working-directory: hvym-collective
+        run: |
+          # Create release directory
+          mkdir -p ../../release-wasm
+          
+          # Copy optimized wasm file
+          cp target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} ../../release-wasm/
+          
+          # Copy hvym-collective_args.json if it exists, otherwise create a default one
+          if [ -f "../../hvym-collective_args.json" ]; then
+            cp ../../hvym-collective_args.json ../../release-wasm/
+            echo "Copied hvym-collective_args.json to release artifacts"
+          else
+            echo "::warning::hvym-collective_args.json not found in repository root"
+            # Create a minimal default config
+            echo '{
+              "admin": "REPLACE_WITH_DEPLOYER_ADDRESS",
+              "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+              "join_fee": 1.0,
+              "mint_fee": 0.5,
+              "reward": 0.1
+            }' > ../../release-wasm/hvym-collective_args.json
+            echo "Created default hvym-collective_args.json in release artifacts"
+          fi
+          
+          # List files for debugging
+          ls -la ../../release-wasm/
+      
       - name: Create GitHub Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
@@ -316,9 +344,9 @@ jobs:
             pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm
             opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm
             hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
-            hvym-collective/.attestation.json
-      
-      - name: Generate attestation JSON
+            hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm
+            release-wasm/hvym-collective_args.json
+            release-wasm/.attestation.json
         working-directory: hvym-collective
         run: |
           # Calculate dependency WASM hashes
