@@ -199,15 +199,19 @@ jobs:
           # Create config directory if it doesn't exist
           mkdir -p config
           
-          # Check for hvym-collective_args.json in release artifacts
-          if [ ! -f "release-wasm/hvym-collective_args.json" ]; then
-            echo "::error::Missing required file: release-wasm/hvym-collective_args.json"
+          # Check for hvym-collective_args.json in release artifacts (try both locations)
+          if [ -f "release-wasm/hvym-collective_args.json" ]; then
+            # Found in release-wasm directory
+            cp release-wasm/hvym-collective_args.json config/
+          elif [ -f "hvym-collective_args.json" ]; then
+            # Found in root of release
+            cp hvym-collective_args.json config/
+          else
+            echo "::error::Missing required file: hvym-collective_args.json"
             echo "This file must be included in the release artifacts for cloud deployment"
+            echo "Expected location: root or release-wasm/ directory"
             exit 1
           fi
-          
-          # Always use the args file from release artifacts
-          cp release-wasm/hvym-collective_args.json config/
           echo "Using hvym-collective_args.json from release artifacts"
           
           # Verify the required fields exist
