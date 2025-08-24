@@ -280,25 +280,39 @@ def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", sou
     """
     print(f"📤 Uploading {contract_name} WASM...")
     
+    # Get network passphrase
+    network_passphrases = {
+        'testnet': 'Test SDF Network ; September 2015',
+        'futurenet': 'Test SDF Future Network ; October 2022',
+        'mainnet': 'Public Global Stellar Network ; September 2015'
+    }
+    network_passphrase = network_passphrases.get(network, network_passphrases['testnet'])
+    
     # Build the upload command
     cmd = [
         'stellar', 'contract', 'deploy',
         '--wasm', wasm_path,
         '--source', source_account,
         '--network', network,
+        '--network-passphrase', network_passphrase,
         '--fee', '1000000'  # Add a higher fee to ensure transaction goes through
     ]
     
     if rpc_url:
         cmd.extend(['--rpc-url', rpc_url])
     
-    # Convert command list to string for logging
-    cmd_str = ' '.join(cmd)
+    # Convert command list to string for logging (without sensitive data)
+    safe_cmd = cmd.copy()
+    if '--source' in safe_cmd and len(safe_cmd) > safe_cmd.index('--source') + 1:
+        safe_cmd[safe_cmd.index('--source') + 1] = '***'
+    if '--network-passphrase' in safe_cmd and len(safe_cmd) > safe_cmd.index('--network-passphrase') + 1:
+        safe_cmd[safe_cmd.index('--network-passphrase') + 1] = '***'
+    cmd_str = ' '.join(safe_cmd)
     print(f"Running: {cmd_str}")
     
     # Run the command with XDR workaround
     success, result = run_stellar_command_with_xdr_workaround(
-        cmd_str, 
+        ' '.join(cmd), 
         network=network, 
         rpc_url=rpc_url
     )
@@ -450,6 +464,14 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         print(f"❌ Failed to upload WASM for {contract_name}")
         return None
     
+    # Get network passphrase
+    network_passphrases = {
+        'testnet': 'Test SDF Network ; September 2015',
+        'futurenet': 'Test SDF Future Network ; October 2022',
+        'mainnet': 'Public Global Stellar Network ; September 2015'
+    }
+    network_passphrase = network_passphrases.get(network, network_passphrases['testnet'])
+    
     # Step 2: Deploy contract
     print("🚀 Deploying contract...")
     cmd = [
@@ -457,11 +479,20 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         '--wasm-hash', wasm_hash,
         '--source', source_account,
         '--network', network,
+        '--network-passphrase', network_passphrase,
         '--fee', '1000000'  # Higher fee for better reliability
     ]
     
     if rpc_url:
         cmd.extend(['--rpc-url', rpc_url])
+        
+    # Create safe command for logging (without sensitive data)
+    safe_cmd = cmd.copy()
+    if '--source' in safe_cmd and len(safe_cmd) > safe_cmd.index('--source') + 1:
+        safe_cmd[safe_cmd.index('--source') + 1] = '***'
+    if '--network-passphrase' in safe_cmd and len(safe_cmd) > safe_cmd.index('--network-passphrase') + 1:
+        safe_cmd[safe_cmd.index('--network-passphrase') + 1] = '***'
+    print(f"Running: {' '.join(safe_cmd)}")
     
     # Add constructor arguments if provided
     if constructor_args:
