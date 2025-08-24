@@ -341,24 +341,29 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm
-            opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm
-            hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
-            hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm
-            release-wasm/hvym-collective_args.json
-            release-wasm/.attestation.json
+            release-wasm/*
 
+      - name: Copy WASM files to release directory
+        run: |
+          mkdir -p release-wasm
+          # Copy all WASM files to the release directory
+          cp pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm release-wasm/
+          cp pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm release-wasm/
+          cp opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm release-wasm/
+          cp hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} release-wasm/
+          cp hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm release-wasm/
+      
       - name: Generate attestation file
-        working-directory: hvym-collective
+        working-directory: .
         run: |
           # Calculate dependency WASM hashes
-          PINTHEON_NODE_HASH=$(sha256sum ../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm | cut -d ' ' -f1)
-          PINTHEON_IPFS_HASH=$(sha256sum ../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
-          OPUS_TOKEN_HASH=$(sha256sum ../opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1)
+          PINTHEON_NODE_HASH=$(sha256sum release-wasm/pintheon-node-token.wasm | cut -d ' ' -f1)
+          PINTHEON_IPFS_HASH=$(sha256sum release-wasm/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
+          OPUS_TOKEN_HASH=$(sha256sum release-wasm/opus-token.wasm | cut -d ' ' -f1)
           
-          mkdir -p ../../release-wasm
-          cat > ../../release-wasm/.attestation.json <<EOF
+          # Create the release-wasm directory if it doesn't exist
+          mkdir -p release-wasm
+          cat > release-wasm/.attestation.json <<EOF
           {
             "contracts": [
               {
