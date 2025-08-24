@@ -447,13 +447,12 @@ def configure_network(network: str, rpc_url: Optional[str] = None) -> bool:
         print(f"✅ Configured network: {network}")
         if rpc_url:
             print(f"   RPC URL: {rpc_url}")
-            
         return True
         
     except Exception as e:
         print(f"❌ Failed to configure network: {str(e)}")
-        return False
 
+def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Deploy Stellar contracts with XDR workaround')
     
@@ -470,17 +469,18 @@ def configure_network(network: str, rpc_url: Optional[str] = None) -> bool:
     cloud_group.add_argument('--network', type=str, choices=['testnet', 'public', 'futurenet'], default='testnet',
                            help='Network to deploy to (default: %(default)s)')
     cloud_group.add_argument('--contract', type=str, help='Specific contract to deploy')
-    cloud_group.add_argument('--wasm-path', type=str, help='Path to the WASM file to deploy')
     cloud_group.add_argument('--post-deploy-config', type=str,
                            help='Path to post-deployment configuration file')
+    
+    # Contract deployment arguments
+    contract_group = parser.add_argument_group('Contract Deployment')
+    contract_group.add_argument('--wasm-path', type=str,
+                              help='Path to the WASM file to deploy (overrides --wasm-dir)')
     
     # Local deployment arguments
     local_group = parser.add_argument_group('Local Deployment')
     local_group.add_argument('--identity-name', type=str, default=DEFAULT_IDENTITY_NAME,
                            help='Name for the identity file (default: %(default)s)')
-    
-    contract_group.add_argument('--wasm-path', type=str,
-                              help='Path to WASM file (optional)')
     
     return parser.parse_args()
 
