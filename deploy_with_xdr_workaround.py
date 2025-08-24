@@ -564,19 +564,8 @@ def main():
             source_account = "test-deployer"
             print("✅ Using existing test-deployer account")
     
-    # Build all contracts first
-    print("\n🔨 Building contracts...")
-    contracts_to_build = ["opus_token", "hvym-collective", "hvym-collective-factory"]
-    
-    for contract in contracts_to_build:
-        if os.path.exists(contract):
-            print(f"Building {contract}...")
-            build_result = run_stellar_command_with_xdr_workaround(
-                "stellar contract build",
-                cwd=contract
-            )
-            if not build_result['success']:
-                print(f"❌ Failed to build {contract}")
+    # This is a deployment-only script - all contracts should be pre-built
+    print("\n🔧 Deployment mode: Using pre-built WASM files")
     
     # Deploy contracts in dependency order
     deployments = []
