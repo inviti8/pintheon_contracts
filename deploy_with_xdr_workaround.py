@@ -660,13 +660,37 @@ def main():
             "contracts": deployments
         }
         
-        output_file = "deployments.json"
-        with open(output_file, 'w') as f:
+        # Save JSON data
+        json_file = "deployments.json"
+        with open(json_file, 'w') as f:
             json.dump(deployment_data, f, indent=2)
         
-        print(f"\n🎉 Deployment completed! {len(deployments)} contracts deployed")
-        print(f"📄 Results saved to {output_file}")
+        # Generate markdown report
+        md_file = "deployments.md"
+        with open(md_file, 'w') as f:
+            f.write("# Deployment Summary\n\n")
+            f.write(f"- **Network**: {deployment_data['network'].capitalize()}\n")
+            f.write(f"- **Deployment Time**: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+            f.write(f"- **CLI Version**: {deployment_data['cli_version']}\n\n")
+            
+            f.write("## Contracts Deployed\n\n")
+            f.write("| Contract | Address | Transaction |\n")
+            f.write("|----------|---------|-------------|\n")
+            
+            for deployment in deployments:
+                if 'upload_only' in deployment and deployment['upload_only']:
+                    f.write(f"| {deployment['name']} (WASM only) | - | - |\n")
+                else:
+                    tx_hash = deployment.get('tx_hash', '')
+                    tx_link = f"[View on Stellar Expert](https://stellar.expert/explorer/{deployment_data['network']}/tx/{tx_hash})" if tx_hash else "-"
+                    f.write(f"| {deployment['name']} | `{deployment.get('address', 'Failed')}` | {tx_link} |\n")
         
+        print(f"\n🎉 Deployment completed! {len(deployments)} contracts processed")
+        print(f"📄 JSON results saved to {json_file}")
+        print(f"📝 Markdown report saved to {md_file}")
+        
+        # Print summary to console
+        print("\n📋 Deployment Summary:")
         for deployment in deployments:
             if 'upload_only' in deployment and deployment['upload_only']:
                 print(f"  • {deployment['name']}: WASM uploaded (upload only)")
