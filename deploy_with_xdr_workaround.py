@@ -75,6 +75,7 @@ def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
     try:
         from stellar_sdk import StrKey
         import base64
+        import re
         
         # Get transaction data from Stellar Expert API
         url = f"https://api.stellar.expert/explorer/{network}/tx/{tx_hash}"
@@ -86,10 +87,17 @@ def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
             
         tx_data = response.json()
         
-        # Extract contract address from result XDR
+        # Method 1: Try to find the contract ID in the operations
+        operations = tx_data.get('operations', [])
+        for op in operations:
+            if op.get('type') == 'invokeHostFunction':
+                details = op.get('details', {})
+                if 'contractId' in details:
+                    return details['contractId']
+        
+        # Method 2: Extract from transaction result XDR
         result_xdr = tx_data.get('result')
         if not result_xdr:
-            print("⚠️ No result XDR found in transaction")
             return None
             
         try:
@@ -97,22 +105,13 @@ def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
             decoded_result = base64.b64decode(result_xdr)
             hex_data = decoded_result.hex()
             
-            # Look for contract address pattern in the result
-            # Contract addresses are typically in the last part of successful deployment results
-            if len(hex_data) >= 64:
-                # Try to extract the contract address from the result
-                # Look for the pattern that represents the contract address
-                potential_addresses = []
-                
-                # Method 1: Look for 32-byte sequences that could be contract addresses
-                for i in range(0, len(hex_data) - 63, 2):
-                    candidate = hex_data[i:i+64]
-                    # Skip if it's all zeros or has obvious non-address patterns
-                    if candidate != '0' * 64 and not candidate.startswith('0000000000000000'):
-                        potential_addresses.append(candidate)
-                
-                # Try the most likely candidates (usually near the end)
-                for candidate in reversed(potential_addresses[-3:]):
+            # Look for contract ID pattern (32 bytes)
+            # Contract IDs are 32 bytes, so we look for 64 hex chars
+            # They often start with 'cc' but not always
+            for i in range(0, len(hex_data) - 63, 2):
+                candidate = hex_data[i:i+64]
+                # Skip if it's all zeros or has obvious non-address patterns
+                if candidate != '0' * 64 and not candidate.startswith('0000000000000000'):
                     try:
                         contract_bytes = bytes.fromhex(candidate)
                         contract_address = StrKey.encode_contract(contract_bytes)
@@ -121,9 +120,20 @@ def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
                     except:
                         continue
                         
+            # Method 3: Look for contract address in the raw output
+            if 'operations' in tx_data:
+                for op in tx_data['operations']:
+                    if 'details' in op and 'contractId' in op['details']:
+                        return op['details']['contractId']
+                        
+            return None
+            
         except Exception as e:
             print(f"⚠️ Error decoding transaction result: {e}")
+            return None
             
+        # If we get here, we couldn't extract the contract address
+        print("⚠️ Could not extract contract address from transaction data")
         return None
         
     except Exception as e:
@@ -498,12 +508,41 @@ def parse_arguments():
 def get_wasm_path(contract_name, wasm_dir, cloud_mode=False):
     """Get the correct WASM path based on deployment mode."""
     if cloud_mode:
-        # In cloud mode, use the release-wasm directory with hyphenated names
-        wasm_name = contract_name.replace('_', '-') + '.wasm'
-        return os.path.join(wasm_dir, wasm_name)
+        # In cloud mode, use the standard path with .wasm extension
+        wasm_file = f"{contract_name}.wasm"
+        return os.path.join(wasm_dir, wasm_file)
     else:
-        # In local mode, use the standard target directory structure
-        return os.path.join(contract_name, 'target', 'wasm32-unknown-unknown', 'release', f"{contract_name.replace('-', '_')}.wasm")
+        # Map contract names to their specific paths
+        contract_paths = {
+            "hvym-collective": "hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.wasm",
+            "opus-token": "opus_token/target/wasm32-unknown-unknown/release/opus_token.wasm",
+            "pintheon-node-token": "pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm",
+            "pintheon-ipfs-token": "pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm"
+        }
+        
+        # Try the specific path first
+        if contract_name in contract_paths:
+            specific_path = os.path.join(wasm_dir, contract_paths[contract_name])
+            if os.path.exists(specific_path):
+                return specific_path
+        
+        # Fallback to generic paths if specific path not found
+        possible_paths = [
+            # Standard path with wasm32-unknown-unknown target
+            os.path.join(wasm_dir, f"{contract_name}/target/wasm32-unknown-unknown/release/{contract_name.replace('-', '_')}.wasm"),
+            # Path with wasm32-v1-none target (used by some toolchains)
+            os.path.join(wasm_dir, f"{contract_name}/target/wasm32-v1-none/release/{contract_name.replace('-', '_')}.wasm"),
+            # Direct path if wasm_dir already points to the file
+            os.path.join(wasm_dir, f"{contract_name.replace('-', '_')}.wasm"),
+        ]
+        
+        # Check each possible path
+        for path in possible_paths:
+            if os.path.exists(path):
+                return path
+        
+        # If no path was found, return the first one as it's the most likely
+        return possible_paths[0]
 
 def main():
     """Main deployment function."""

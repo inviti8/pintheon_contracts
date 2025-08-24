@@ -1,8 +1,14 @@
-# Soroban Contract Deployments
+# Deployment Summary
 
-| Contract Name | Contract Directory | Wasm Hash | Contract ID |
-|--------------|-------------------|--------------------------------------------------------------|----------------------------------------------------------|
-| `pintheon-ipfs-token` | `wasm_release/pintheon-ipfs-token` | `3f34569f5e27a7bb63bbeb54c40ae51d43246422693a8fc15e02583d7364d4b5` | `None` |
-| `pintheon-node-token` | `wasm_release/pintheon-node-token` | `f90ec333ed4fac5ee8e1f6eb27c25c168779b12f2e0f0ae4164c8a15bd6e7ffd` | `None` |
-| `opus_token` | `wasm_release/opus-token` | `478653e660e1e794552ff6301168912fdaeb003aba8d1fb48b6d53a2490f7a8a` | `CANXZXYPQKNUD7VAPVW4B5ZTIDYPRDHW2CFKLNQA4ZYM4UKDZRQZWEXC` |
-| `hvym-collective` | `wasm_release/hvym-collective` | `2454e4e1c7c0dc5658c2328f99aeff19e556a34c370a0e471f6749d62ddcde60` | `CC6T2LSDWVTZCDZBHEG22RPV4QL6C5KISLGAWWEDMMBXQ7AD6WYVGYRV` |
+- **Network**: Testnet
+- **Deployment Time**: 2025-08-24 13:40:55 UTC
+- **CLI Version**: 22.8.2
+
+## Contracts Deployed
+
+| Contract | Address | Transaction |
+|----------|---------|-------------|
+| pintheon-node-token (WASM only) | - | - |
+| pintheon-ipfs-token (WASM only) | - | - |
+| opus_token | `CCNR64UETUCR54OD7A37W7DMSOKS7K4ITBD3EEUZHRTQYNLNX5YDEFYO` | [View on Stellar Expert](https://stellar.expert/explorer/testnet/tx/9b1f72849d051ef1c3f837fb7c6c93952fab889847b212993c670c356dbf7032) |
+| hvym-collective | `CCHKUAMFAKKAVTLNL5OLFJUKNGNBX52C2F4BGOQTG34CWTRILFUNSR5P` | [View on Stellar Expert](https://stellar.expert/explorer/testnet/tx/8eaa018502940acd6d5f5cb2a68a699a1bf742d178133a1336f82b4e285968d9) |
