@@ -4,14 +4,15 @@ Deployment script that works around XDR processing errors by checking transactio
 Supports both local and cloud deployment modes.
 """
 
-import subprocess
+import argparse
+import datetime
 import json
-import time
+import os
 import re
 import requests
+import subprocess
 import sys
-import os
-import argparse
+import time
 import toml
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -256,19 +257,24 @@ def extract_wasm_hash_from_output(output):
     return None
 
 def load_hvym_collective_args(opus_token_address, admin_account):
-    """Load HVYM Collective constructor arguments."""
+    """Load HVYM Collective constructor arguments.
+    
+    Args:
+        opus_token_address: Address of the deployed Opus token contract
+        admin_account: The actual admin account public key to use, will override any value from file
+    """
     args_file = "hvym-collective_args.json"
     
     # Default arguments
     default_args = {
-        "admin": admin_account,
         "join_fee": 1000000,  # 0.1 XLM in stroops
-        "mint_fee": 500000,   # 0.05 XLM in stroops  
+        "mint_fee": 500000,  # 0.05 XLM in stroops  
+        "reward": 100000,    # 0.01 XLM in stroops
         "token": opus_token_address,
-        "reward": 100000     # 0.01 XLM in stroops
+        "admin": admin_account  # Always use the provided admin account
     }
     
-    # Try to load from JSON file
+    # Try to load from JSON file for other parameters
     if os.path.exists(args_file):
         try:
             with open(args_file, 'r') as f:
@@ -279,18 +285,23 @@ def load_hvym_collective_args(opus_token_address, admin_account):
                 if key in file_args:
                     try:
                         file_args[key] = int(float(file_args[key]) * 10_000_000)
-                    except:
-                        pass
+                    except (ValueError, TypeError):
+                        print(f"⚠️ Invalid value for {key} in {args_file}, using default")
             
-            # Merge with defaults
+            # Merge with defaults, but don't override admin from CLI args
+            if 'admin' in file_args:
+                print(f"ℹ️ Note: Ignoring admin from {args_file}, using CLI provided admin")
+                del file_args['admin']
+                
             default_args.update(file_args)
             print(f"📄 Loaded constructor args from {args_file}")
+            
         except Exception as e:
             print(f"⚠️ Error loading {args_file}: {e}, using defaults")
     else:
         print(f"📄 Using default constructor args (no {args_file} found)")
     
-    # Override with current values
+    # Always use the provided admin account and token address
     default_args["admin"] = admin_account
     default_args["token"] = opus_token_address
     
@@ -633,6 +644,9 @@ def main():
     # Step 3: Deploy HVYM Collective (final contract with all dependencies)
     collective_wasm = get_wasm_path("hvym-collective", wasm_dir, cloud_mode)
     if os.path.exists(collective_wasm) and opus_result:
+        # Wait a moment to ensure the WASM is fully propagated
+        print("⏳ Waiting for WASM to be fully propagated...")
+        time.sleep(5)
         # Load constructor arguments from JSON file if available
         constructor_args = load_hvym_collective_args(opus_result['address'], source_account)
         
