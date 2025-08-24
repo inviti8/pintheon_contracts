@@ -1,101 +1,25 @@
 #!/usr/bin/env python3
 """
 Deployment script that works around XDR processing errors by checking transaction success via API.
-Supports both local development and cloud deployment modes.
+Supports both local and cloud deployment modes.
 """
 
 import subprocess
 import json
 import time
 import re
-import shlex
 import requests
 import sys
 import os
 import argparse
+import toml
 from pathlib import Path
+from typing import Optional, Dict, Any
 
-# Stellar SDK imports - only import what we need for account management
-from stellar_sdk import Keypair, Network
-from stellar_sdk.exceptions import NotFoundError
-
-def get_stellar_rpc(network, rpc_url=None):
-    """Get the RPC URL for the specified network."""
-    if not rpc_url:
-        rpc_url = {
-            'testnet': 'https://soroban-testnet.stellar.org',  # Testnet RPC
-            'futurenet': 'https://rpc-futurenet.stellar.org',  # Futurenet RPC
-            'mainnet': 'https://horizon.stellar.org',         # Mainnet Horizon
-        }.get(network, 'https://soroban-testnet.stellar.org')
-    
-    return rpc_url
-
-def get_network_passphrase(network):
-    """Get the network passphrase for the specified network."""
-    return {
-        'testnet': Network.TESTNET_NETWORK_PASSPHRASE,
-        'futurenet': Network.FUTURENET_NETWORK_PASSPHRASE,
-        'mainnet': Network.PUBLIC_NETWORK_PASSPHRASE,
-    }.get(network, Network.TESTNET_NETWORK_PASSPHRASE)
-
-def setup_account(secret_key, network, rpc_url=None):
-    """Set up and fund an account using the provided secret key.
-    
-    Args:
-        secret_key: The secret key of the account to set up
-        network: The Stellar network to use (testnet, futurenet, mainnet)
-        rpc_url: Optional custom RPC URL
-        
-    Returns:
-        Keypair: The loaded keypair if successful
-        
-    Raises:
-        Exception: If account setup fails
-    """
-    try:
-        # Load the keypair from the secret key
-        keypair = Keypair.from_secret(secret_key)
-        print(f"🔑 Loaded account: {keypair.public_key}")
-        
-        # For testnet, we can try to fund the account if it doesn't exist
-        if network == 'testnet':
-            try:
-                # Try to get the account info to check if it exists
-                response = requests.get(
-                    f"https://horizon-testnet.stellar.org/accounts/{keypair.public_key}",
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    print(f"✅ Account exists and is funded: {keypair.public_key}")
-                    return keypair
-                elif response.status_code == 404:
-                    # Account doesn't exist, try to fund it using friendbot
-                    print(f"🔄 Funding new testnet account: {keypair.public_key}")
-                    response = requests.get(
-                        f"https://friendbot.stellar.org?addr={keypair.public_key}",
-                        timeout=10
-                    )
-                    
-                    if response.status_code == 200:
-                        print(f"✅ Successfully funded account: {keypair.public_key}")
-                        return keypair
-                    else:
-                        raise Exception(f"Friendbot funding failed: {response.text}")
-                else:
-                    raise Exception(f"Unexpected response from Horizon: {response.status_code}")
-                    
-            except requests.RequestException as e:
-                print(f"⚠️ Network error checking/funding account: {e}")
-                # Continue to try with the account anyway
-        
-        # For non-testnet or if funding failed, just return the keypair
-        # The actual deployment will fail if the account doesn't exist or has no funds
-        return keypair
-        
-    except Exception as e:
-        print(f"❌ Error setting up account: {e}")
-        raise
+# Cloud deployment configuration
+CLOUD_IDENTITY_DIR = os.path.expanduser("~/.stellar/identity")
+CLOUD_CONFIG_DIR = os.path.expanduser("~/.stellar")
+DEFAULT_IDENTITY_NAME = "DEPLOYER"
 
 def extract_transaction_hash(output):
     """Extract transaction hash from CLI output."""
@@ -112,64 +36,45 @@ def extract_transaction_hash(output):
             return match.group(1)
     return None
 
-def check_transaction_success(tx_hash, network="testnet", rpc_url=None, max_retries=30):
-    """Check if transaction succeeded using Stellar Horizon API.
+def check_transaction_success(tx_hash, network="testnet", max_retries=30):
+    """Check if transaction succeeded using Stellar API."""
+    if network == "testnet":
+        base_url = "https://horizon-testnet.stellar.org"
+    else:
+        base_url = "https://horizon.stellar.org"
     
-    Args:
-        tx_hash: The transaction hash to check
-        network: The Stellar network (testnet, futurenet, mainnet)
-        rpc_url: Not used, kept for backward compatibility
-        max_retries: Maximum number of retry attempts
-        
-    Returns:
-        tuple: (success, result_xdr) where success is a boolean and 
-               result_xdr is the base64-encoded result XDR if successful
-    """
-    # Determine the Horizon URL based on the network
-    horizon_url = {
-        'testnet': 'https://horizon-testnet.stellar.org',
-        'futurenet': 'https://horizon-futurenet.stellar.org',
-        'mainnet': 'https://horizon.stellar.org'
-    }.get(network, 'https://horizon-testnet.stellar.org')
+    url = f"{base_url}/transactions/{tx_hash}"
     
     for attempt in range(max_retries):
         try:
-            # Get transaction details from Horizon
-            response = requests.get(
-                f"{horizon_url}/transactions/{tx_hash}",
-                timeout=10
-            )
-            
+            response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 tx_data = response.json()
                 if tx_data.get('successful', False):
-                    print(f"✅ Transaction {tx_hash} confirmed successfully")
-                    return True, tx_data.get('result_xdr')
+                    print(f"✅ Transaction {tx_hash} confirmed as successful")
+                    return True, tx_data
                 else:
-                    print(f"❌ Transaction {tx_hash} failed")
-                    return False, None
-                    
+                    print(f"❌ Transaction {tx_hash} failed: {tx_data.get('result_xdr', 'Unknown error')}")
+                    return False, tx_data
             elif response.status_code == 404:
-                print(f"⌛ Transaction {tx_hash} not found yet, retrying... (attempt {attempt + 1}/{max_retries})")
+                print(f"⏳ Transaction {tx_hash} not found yet, waiting... ({attempt+1}/{max_retries})")
+                time.sleep(2)
             else:
-                print(f"⚠️ Unexpected response from Horizon: {response.status_code}, retrying...")
-                
-        except requests.RequestException as e:
-            print(f"⚠️ Error checking transaction status: {e}, retrying... (attempt {attempt + 1}/{max_retries})")
-        
-        time.sleep(2)  # Wait before retrying
+                print(f"⚠️ API error {response.status_code}, retrying...")
+                time.sleep(2)
+        except Exception as e:
+            print(f"⚠️ Error checking transaction: {e}, retrying...")
+            time.sleep(2)
     
     print(f"❌ Transaction {tx_hash} not confirmed after {max_retries} attempts")
     return False, None
 
 def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
-    """Extract contract address from Stellar Expert API transaction data.
-    
-    This function extracts the contract address from the transaction data
-    returned by the Stellar Expert API. It looks for the contract address
-    in the transaction operations.
-    """
+    """Extract contract address from Stellar Expert API transaction data."""
     try:
+        from stellar_sdk import StrKey
+        import base64
+        
         # Get transaction data from Stellar Expert API
         url = f"https://api.stellar.expert/explorer/{network}/tx/{tx_hash}"
         response = requests.get(url, timeout=10)
@@ -180,747 +85,572 @@ def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
             
         tx_data = response.json()
         
-        # Look for the contract address in the operations
-        operations = tx_data.get('operations', [])
-        for op in operations:
-            if op.get('type') == 'invoke' and 'contract' in op:
-                # Extract the contract ID from the operation
-                contract_id = op['contract'].split(':')[-1]
-                if contract_id:
-                    print(f"✅ Found contract address: {contract_id}")
-                    return contract_id
-        
-        # If not found in operations, check the XDR result
-        result_xdr = tx_data.get('result_xdr')
-        if result_xdr:
-            try:
-                import base64
-                # Simple extraction of contract ID from result XDR
-                # This is a simplified approach that worked before
-                decoded = base64.b64decode(result_xdr)
-                # Look for a potential contract ID in the decoded data
-                # This is a heuristic and may need adjustment
-                import re
-                matches = re.findall(b'[A-Z0-9]{56}', decoded)
-                if matches:
-                    contract_id = matches[-1].decode()
-                    print(f"✅ Extracted contract address from XDR: {contract_id}")
-                    return contract_id
-            except Exception as e:
-                print(f"⚠️ Error parsing result XDR: {e}")
-        
-        print("⚠️ Could not extract contract address from transaction data")
+        # Extract contract address from result XDR
+        result_xdr = tx_data.get('result')
+        if not result_xdr:
+            print("⚠️ No result XDR found in transaction")
+            return None
+            
+        try:
+            # Decode the XDR result
+            decoded_result = base64.b64decode(result_xdr)
+            hex_data = decoded_result.hex()
+            
+            # Look for contract address pattern in the result
+            # Contract addresses are typically in the last part of successful deployment results
+            if len(hex_data) >= 64:
+                # Try to extract the contract address from the result
+                # Look for the pattern that represents the contract address
+                potential_addresses = []
+                
+                # Method 1: Look for 32-byte sequences that could be contract addresses
+                for i in range(0, len(hex_data) - 63, 2):
+                    candidate = hex_data[i:i+64]
+                    # Skip if it's all zeros or has obvious non-address patterns
+                    if candidate != '0' * 64 and not candidate.startswith('0000000000000000'):
+                        potential_addresses.append(candidate)
+                
+                # Try the most likely candidates (usually near the end)
+                for candidate in reversed(potential_addresses[-3:]):
+                    try:
+                        contract_bytes = bytes.fromhex(candidate)
+                        contract_address = StrKey.encode_contract(contract_bytes)
+                        if contract_address.startswith('C') and len(contract_address) == 56:
+                            return contract_address
+                    except:
+                        continue
+                        
+        except Exception as e:
+            print(f"⚠️ Error decoding transaction result: {e}")
+            
         return None
         
     except Exception as e:
-        print(f"⚠️ Error extracting contract address: {e}")
+        print(f"⚠️ Error extracting contract address from Stellar Expert: {e}")
         return None
 
-def run_stellar_command_with_xdr_workaround(cmd, cwd=None, network="testnet", rpc_url=None):
+def run_stellar_command_with_xdr_workaround(cmd, cwd=None):
     """Run stellar CLI command and handle XDR errors by checking transaction success."""
-    print(f"⚡ Running: {cmd}")
+    print(f"🚀 Running: {cmd}")
     
     try:
-        # Run the command
         result = subprocess.run(
             cmd,
             shell=True,
             cwd=cwd,
-            check=False,
-            capture_output=True,
-            text=True
-        )
-        
-        # Check if command was successful
-        if result.returncode == 0:
-            print("✅ Command executed successfully")
-            return True, result.stdout
-            
-        # If command failed, try to extract transaction hash
-        print(f"❌ Command failed with code {result.returncode}")
-        print(f"Stderr: {result.stderr}")
-        
-        # Try to extract transaction hash from error output
-        tx_hash = extract_transaction_hash(result.stderr) or extract_transaction_hash(result.stdout)
-        if not tx_hash:
-            print("⚠️ Could not extract transaction hash from output")
-            return False, result.stderr
-            
-        print(f"🔍 Found transaction hash: {tx_hash}")
-        
-        # Check if transaction was successful
-        success, result_xdr = check_transaction_success(tx_hash, network, rpc_url)
-        if success:
-            print("✅ Transaction was successful")
-            # Try to extract contract address from transaction
-            contract_address = extract_contract_address_from_stellar_expert(tx_hash, network)
-            if contract_address:
-                return True, contract_address
-            return True, result_xdr or "Transaction successful but could not extract contract address"
-        else:
-            print("❌ Transaction failed")
-            return False, f"Transaction {tx_hash} failed"
-        
-    except Exception as e:
-        print(f"❌ Error running command: {e}")
-        return {'success': False, 'error': str(e)}
-
-def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", source_account="test-deployer", rpc_url=None):
-    """Upload WASM file with XDR workaround (for dependency contracts).
-    
-    Args:
-        contract_name: Name of the contract (for logging)
-        wasm_path: Path to the WASM file
-        network: Stellar network to use (testnet, futurenet, mainnet)
-        source_account: Source account to use for deployment
-        rpc_url: Optional custom RPC URL
-        
-    Returns:
-        str: Contract ID if successful, None otherwise
-    """
-    print(f"📤 Uploading {contract_name} WASM...")
-    
-    # Get network passphrase (properly quoted for command line)
-    network_passphrases = {
-        'testnet': '"Test SDF Network ; September 2015"',
-        'futurenet': '"Test SDF Future Network ; October 2022"',
-        'mainnet': '"Public Global Stellar Network ; September 2015"'
-    }
-    network_passphrase = network_passphrases.get(network, network_passphrases['testnet'])
-    
-    # Build the upload command
-    cmd = [
-        'stellar', 'contract', 'deploy',
-        '--wasm', wasm_path,
-        '--source-account', source_account,  # Changed from --source to --source-account
-        '--network', network,
-        '--network-passphrase', network_passphrase.strip('"'),  # Remove quotes for subprocess
-        '--fee', '1000000'  # Add a higher fee to ensure transaction goes through
-    ]
-    
-    if rpc_url:
-        cmd.extend(['--rpc-url', rpc_url])
-    
-    # Convert command list to string for logging (without sensitive data)
-    safe_cmd = cmd.copy()
-    if '--source' in safe_cmd and len(safe_cmd) > safe_cmd.index('--source') + 1:
-        safe_cmd[safe_cmd.index('--source') + 1] = '***'
-    if '--network-passphrase' in safe_cmd and len(safe_cmd) > safe_cmd.index('--network-passphrase') + 1:
-        safe_cmd[safe_cmd.index('--network-passphrase') + 1] = '***'
-    cmd_str = ' '.join(safe_cmd)
-    print(f"Running: {cmd_str}")
-    
-    # Run the command directly with subprocess
-    try:
-        result = subprocess.run(
-            cmd,
             capture_output=True,
             text=True,
-            check=False,
             timeout=300
         )
         
-        # Check if command was successful
-        if result.returncode == 0:
-            # Extract contract ID from output
-            output = result.stdout.strip()
-            if output and len(output) == 56 and output.startswith('C'):
-                print(f"✅ {contract_name} WASM uploaded successfully: {output}")
-                return output
+        output = result.stdout + result.stderr
+        print(f"📋 Command output:\n{output}")
         
-        # If we get here, something went wrong
-        print(f"❌ Failed to upload {contract_name} WASM")
-        print(f"Command: {' '.join(cmd[:4] + ['***'] + cmd[5:])}")
-        print(f"Exit code: {result.returncode}")
-        print(f"Stdout: {result.stdout}")
-        print(f"Stderr: {result.stderr}")
-        return None
+        # Check if we got an XDR error
+        if "xdr processing error" in output.lower():
+            print("⚠️ XDR processing error detected, checking transaction status...")
+            
+            # Extract transaction hash
+            tx_hash = extract_transaction_hash(output)
+            if tx_hash:
+                print(f"🔍 Found transaction hash: {tx_hash}")
+                
+                # Check if transaction actually succeeded
+                success, tx_data = check_transaction_success(tx_hash)
+                if success:
+                    print("✅ Transaction succeeded despite XDR error!")
+                    
+                    # Try to extract contract address if this was a deployment
+                    if "deploy" in cmd.lower():
+                        contract_address = extract_contract_address_from_stellar_expert(tx_hash)
+                        if contract_address:
+                            print(f"📍 Contract deployed at: {contract_address}")
+                            return {
+                                'success': True,
+                                'tx_hash': tx_hash,
+                                'contract_address': contract_address,
+                                'output': output
+                            }
+                    
+                    return {
+                        'success': True,
+                        'tx_hash': tx_hash,
+                        'output': output
+                    }
+                else:
+                    print("❌ Transaction actually failed")
+                    return {
+                        'success': False,
+                        'tx_hash': tx_hash,
+                        'output': output
+                    }
+            else:
+                print("❌ Could not extract transaction hash from output")
+                return {
+                    'success': False,
+                    'output': output
+                }
         
+        # No XDR error, check normal success
+        elif result.returncode == 0:
+            print("✅ Command succeeded normally")
+            return {
+                'success': True,
+                'output': output
+            }
+        else:
+            print(f"❌ Command failed with return code {result.returncode}")
+            return {
+                'success': False,
+                'output': output
+            }
+            
     except subprocess.TimeoutExpired:
-        print(f"❌ Command timed out after 300 seconds")
-        return None
+        print("❌ Command timed out")
+        return {
+            'success': False,
+            'output': 'Command timed out'
+        }
     except Exception as e:
-        print(f"❌ Error executing command: {str(e)}")
+        print(f"❌ Command execution error: {e}")
+        return {
+            'success': False,
+            'output': str(e)
+        }
+
+def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", source_account="test-deployer"):
+    """Upload WASM file with XDR workaround (for dependency contracts)."""
+    print(f"\n📤 Uploading {contract_name} WASM...")
+    
+    # Upload WASM
+    upload_cmd = f"stellar contract upload --wasm {wasm_path} --network {network} --source-account {source_account}"
+    upload_result = run_stellar_command_with_xdr_workaround(upload_cmd)
+    
+    if upload_result['success']:
+        # Extract WASM hash from output or transaction
+        wasm_hash = extract_wasm_hash_from_output(upload_result['output'])
+        if wasm_hash:
+            print(f"✅ {contract_name} WASM uploaded successfully: {wasm_hash}")
+            return {
+                'name': contract_name,
+                'wasm_hash': wasm_hash,
+                'tx_hash': upload_result.get('tx_hash')
+            }
+        else:
+            print(f"⚠️ {contract_name} uploaded but could not extract WASM hash")
+            return {
+                'name': contract_name,
+                'tx_hash': upload_result.get('tx_hash')
+            }
+    else:
+        print(f"❌ Failed to upload {contract_name} WASM")
         return None
-    
-    if success and isinstance(result, str) and len(result) == 56 and result.startswith('C'):
-        print(f"✅ {contract_name} WASM uploaded successfully: {result}")
-        return result
-    
-    print(f"❌ Failed to upload {contract_name} WASM")
-    return None
 
-def extract_wasm_hash_from_output(wasm_data):
-    """Extract WASM hash from WASM file data or CLI output.
-    
-    Args:
-        wasm_data: Either bytes (WASM file data) or str (CLI output)
-        
-    Returns:
-        str: The WASM hash if found, None otherwise
-    """
-    import hashlib
+def extract_wasm_hash_from_output(output):
+    """Extract WASM hash from CLI output."""
+    # Look for 64-character hex strings in the output
     import re
-    
-    # If input is bytes, calculate SHA256 hash of WASM
-    if isinstance(wasm_data, bytes):
-        try:
-            # Calculate SHA256 hash of the WASM file
-            sha256_hash = hashlib.sha256(wasm_data).hexdigest()
-            return sha256_hash
-        except Exception as e:
-            print(f"⚠️ Error calculating WASM hash: {e}")
-            return None
-    
-    # If input is string, try to extract hash from CLI output
-    if isinstance(wasm_data, str):
-        # Look for 64-character hex strings in the output
-        hash_matches = re.findall(r'\b[a-f0-9]{64}\b', wasm_data, re.IGNORECASE)
-        if hash_matches:
-            return hash_matches[-1].lower()  # Return the last one found in lowercase
-    
+    hash_matches = re.findall(r'\b[a-f0-9]{64}\b', output)
+    if hash_matches:
+        return hash_matches[-1]  # Return the last one found
     return None
 
-def load_hvym_collective_args(opus_token_address, admin_account, args_file=None):
-    """Load HVYM Collective constructor arguments.
+def load_hvym_collective_args(opus_token_address, admin_account):
+    """Load HVYM Collective constructor arguments."""
+    args_file = "hvym-collective_args.json"
     
-    Args:
-        opus_token_address: The OPUS token address (used for reward distribution)
-        admin_account: The admin account address (always takes precedence)
-        args_file: Optional path to args file. If None, looks for 'hvym-collective_args.json' in current dir.
-    
-    Returns:
-        list: CLI arguments for the contract deployment
-    """
-    if args_file is None:
-        args_file = "hvym-collective_args.json"
-    
-    # Default arguments (in stroops)
+    # Default arguments
     default_args = {
         "admin": admin_account,
         "join_fee": 1000000,  # 0.1 XLM in stroops
         "mint_fee": 500000,   # 0.05 XLM in stroops  
-        "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",  # Default payment token (XLM)
+        "token": opus_token_address,
         "reward": 100000     # 0.01 XLM in stroops
     }
     
-    # Try to load from JSON file if it exists
+    # Try to load from JSON file
     if os.path.exists(args_file):
         try:
             with open(args_file, 'r') as f:
                 file_args = json.load(f)
             
-            # Convert XLM values to stroops if needed (handles both string and number inputs)
+            # Convert XLM values to stroops if needed
             for key in ["join_fee", "mint_fee", "reward"]:
                 if key in file_args:
                     try:
-                        # Handle both string and numeric inputs
-                        value = file_args[key]
-                        if isinstance(value, str):
-                            # If it's a string, try to convert XLM to stroops
-                            file_args[key] = int(float(value) * 10_000_000)
-                        else:
-                            # Assume it's already in stroops if it's a number
-                            file_args[key] = int(value)
-                    except (ValueError, TypeError) as e:
-                        print(f"⚠️ Invalid value for {key} in {args_file}, using default: {e}")
-                        continue
+                        file_args[key] = int(float(file_args[key]) * 10_000_000)
+                    except:
+                        pass
             
-            # Merge file args with defaults (file args take precedence)
+            # Merge with defaults
             default_args.update(file_args)
             print(f"📄 Loaded constructor args from {args_file}")
-            
         except Exception as e:
             print(f"⚠️ Error loading {args_file}: {e}, using defaults")
     else:
         print(f"📄 Using default constructor args (no {args_file} found)")
     
-    # Always ensure admin is up-to-date from function arguments
+    # Override with current values
     default_args["admin"] = admin_account
-    
-    # The 'token' field should remain as the payment token from the args file or defaults
-    # We don't override it with opus_token_address here
-    
-    # Add opus_token as a separate argument
-    default_args["opus_token"] = opus_token_address
-    
-    # Validate required arguments
-    required_args = ["admin", "token", "join_fee", "mint_fee", "reward", "opus_token"]
-    missing = [arg for arg in required_args if arg not in default_args]
-    if missing:
-        raise ValueError(f"Missing required constructor arguments: {', '.join(missing)}")
+    default_args["token"] = opus_token_address
     
     # Convert to CLI argument format
     cli_args = []
     for key, value in default_args.items():
         cli_args.extend([f"--{key.replace('_', '-')}", str(value)])
-        
-    print(f"🔧 Using constructor args: {default_args}")
-    print(f"   - Payment Token: {default_args['token']}")
-    print(f"   - OPUS Token: {default_args['opus_token']}")
     
     return " ".join(cli_args)
 
-def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="", network="testnet", source_account="test-deployer", rpc_url=None):
+def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="", network="testnet", source_account="test-deployer"):
     """Deploy contract using the XDR workaround.
     
     Args:
-        contract_name: Name of the contract (for logging)
-        wasm_path: Path to the WASM file
-        constructor_args: Constructor arguments as a string
-        network: Network to deploy to (testnet, futurenet, mainnet)
-        source_account: Source account for deployment
-        rpc_url: Optional custom RPC URL
+        contract_name (str): Name of the contract being deployed
+        wasm_path (str): Path to the WASM file
+        constructor_args (str): Constructor arguments as a string
+        network (str): Network to deploy to (testnet/public/futurenet)
+        source_account (str): Source account to use for deployment
         
     Returns:
-        str: Contract ID if successful, None otherwise
+        dict: Deployment details or None if failed
     """
     print(f"\n🚀 Deploying {contract_name} with XDR workaround...")
+    print(f"   Network: {network}")
+    print(f"   Source: {source_account}")
     
-    # Step 1: Upload WASM
-    wasm_hash = upload_wasm_with_workaround(
-        contract_name,
-        wasm_path,
-        network=network,
-        source_account=source_account,
-        rpc_url=rpc_url
-    )
-    
-    if not wasm_hash:
-        print(f"❌ Failed to upload WASM for {contract_name}")
-        return None
-    
-    # Get network passphrase (properly quoted for command line)
-    network_passphrases = {
-        'testnet': '"Test SDF Network ; September 2015"',
-        'futurenet': '"Test SDF Future Network ; October 2022"',
-        'mainnet': '"Public Global Stellar Network ; September 2015"'
-    }
-    network_passphrase = network_passphrases.get(network, network_passphrases['testnet'])
-    
-    # Step 2: Deploy contract
-    print("🚀 Deploying contract...")
-    cmd = [
-        'stellar', 'contract', 'deploy',
-        '--wasm-hash', wasm_hash,
-        '--source-account', source_account,  
-        '--network', network,
-        '--network-passphrase', network_passphrase.strip('"'),  
-        '--fee', '1000000'  
-    ]
-    
-    if rpc_url:
-        cmd.extend(['--rpc-url', rpc_url])
-        
-    # Create safe command for logging (without sensitive data)
-    safe_cmd = cmd.copy()
-    if '--source-account' in safe_cmd and len(safe_cmd) > safe_cmd.index('--source-account') + 1:
-        safe_cmd[safe_cmd.index('--source-account') + 1] = '***'
-    if '--network-passphrase' in safe_cmd and len(safe_cmd) > safe_cmd.index('--network-passphrase') + 1:
-        safe_cmd[safe_cmd.index('--network-passphrase') + 1] = '***'
-    print(f"Running: {' '.join(safe_cmd)}")
-    
-    # Add constructor arguments if provided
-    if constructor_args:
-        import shlex
-        args_list = shlex.split(constructor_args)
-        cmd.extend(['--'] + args_list)
-    
-    # Run the command directly with subprocess
     try:
-        print(f"⚡ Running: {' '.join(cmd[:4] + ['***'] + cmd[5:])}")
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=300
-        )
-        
-        # Check if command was successful
-        if result.returncode == 0:
-            # Extract contract ID from output
-            output = result.stdout.strip()
-            if output and len(output) == 56 and output.startswith('C'):
-                print(f"✅ {contract_name} deployed successfully: {output}")
-                return output
-        
-        # If we get here, something went wrong
-        print(f"❌ Failed to deploy {contract_name}")
-        print(f"Exit code: {result.returncode}")
-        print(f"Stdout: {result.stdout}")
-        print(f"Stderr: {result.stderr}")
-        return None
-        
-    except subprocess.TimeoutExpired:
-        print(f"❌ Command timed out after 300 seconds")
-        return None
-    except Exception as e:
-        print(f"❌ Error executing command: {str(e)}")
-        return None
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Deploy contracts with XDR workaround')
-    parser.add_argument('--mode', choices=['local', 'cloud'], default='local',
-                      help='Deployment mode: local (build and deploy) or cloud (use pre-built WASM)')
-    parser.add_argument('--wasm-dir', default='./target/wasm32-unknown-unknown/release',
-                      help='Directory containing pre-built WASM files (required for cloud mode)')
-    parser.add_argument('--deployer-account', help='Account to use for deployment (required for cloud mode)')
-    parser.add_argument('--network', default='testnet', help='Network to deploy to (testnet, futurenet, mainnet)')
-    parser.add_argument('--rpc-url', help='Custom RPC URL (default: based on network)')
-    parser.add_argument('--strict', action='store_true', help='Fail on any error')
-    parser.add_argument('--post-deploy-config', default='hvym-collective_post_deploy_args.json',
-                      help='Path to post-deployment JSON config')
-    parser.add_argument('--skip-post-deploy', action='store_true',
-                      help='Skip post-deployment steps')
-    return parser.parse_args()
-
-def run_post_deployment(args, contract_id, network, deployments):
-    """Run post-deployment steps for hvym-collective contract.
-    
-    Args:
-        args: Command line arguments
-        contract_id: ID of the deployed contract
-        network: Network name (testnet/futurenet/mainnet)
-        deployments: Deployments dictionary (not used in this simplified version)
-        
-    Returns:
-        bool: True if post-deployment succeeded or was skipped, False on error
-    """
-    if args.skip_post_deploy:
-        print("ℹ️  Skipping post-deployment steps as requested")
-        return True
-        
-    config_path = args.post_deploy_config
-    if not os.path.exists(config_path):
-        print(f"⚠️  Post-deployment config not found at {config_path}, skipping")
-        return True
-        
-    try:
-        with open(config_path) as f:
-            config = json.load(f)
+        # Validate WASM file exists
+        if not os.path.exists(wasm_path):
+            print(f"❌ WASM file not found: {wasm_path}")
+            return None
             
-        if not config.get("enabled", True):
-            print("ℹ️  Post-deployment steps are disabled in config")
-            return True
+        # Step 1: Upload WASM
+        print("📤 Uploading WASM...")
+        upload_cmd = f"stellar contract upload --wasm {wasm_path} --network {network} --source-account {source_account}"
+        upload_result = run_stellar_command_with_xdr_workaround(upload_cmd)
+        
+        if not upload_result['success']:
+            print(f"❌ Failed to upload WASM for {contract_name}")
+            if 'error' in upload_result:
+                print(f"   Error: {upload_result['error']}")
+            return None
             
-        print("🚀 Starting post-deployment steps...")
+        wasm_hash = extract_wasm_hash_from_output(upload_result['output'])
+        if not wasm_hash:
+            print(f"⚠️ Could not extract WASM hash from upload output")
+            wasm_hash = "UNKNOWN"
+        else:
+            print(f"✅ WASM uploaded successfully: {wasm_hash}")
         
-        # Get opus-token contract ID from deployments
-        opus_contract_id = None
-        for dep in deployments:
-            if dep.get('name') == 'opus_token' and 'contract_id' in dep:
-                opus_contract_id = dep['contract_id']
-                break
+        # Step 2: Deploy contract
+        print("🚀 Deploying contract...")
+        deploy_cmd = f"stellar contract deploy"
+        deploy_cmd += f" --wasm-hash {wasm_hash}"
+        deploy_cmd += f" --network {network}"
+        deploy_cmd += f" --source-account {source_account}"
         
-        if not opus_contract_id:
-            print("⚠️  opus_token contract_id not found in deployments, skipping post-deployment")
-            return True
-            
-        # Build the post-deployment command
-        cmd = [
-            "python3", "hvym_post_deploy.py",
-            "--network", network,
-            "--collective-contract", contract_id,
-            "--opus-token", opus_contract_id,
-            "--deployer-secret", args.deployer_account,
-            "--fund-amount", str(config.get("fund_amount", "1000000000")),
-            "--initial-opus-alloc", str(config.get("initial_opus_alloc", "100000000000000000"))
-        ]
+        # Add constructor args after --
+        if constructor_args:
+            deploy_cmd += f" -- {constructor_args}"
         
-        # Add RPC URL if provided
-        if args.rpc_url:
-            cmd.extend(["--rpc-url", args.rpc_url])
+        print(f"Running: {deploy_cmd}")
+        deploy_result = run_stellar_command_with_xdr_workaround(deploy_cmd)
         
-        print(f"  ↳ Running: {' '.join(cmd)}")
+        if not deploy_result['success']:
+            print(f"❌ Failed to deploy {contract_name}")
+            if 'error' in deploy_result:
+                print(f"   Error: {deploy_result['error']}")
+            return None
         
-        # Run the command with timeout and capture output
-        try:
-            result = subprocess.run(
-                cmd,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
+        # Extract contract address from transaction
+        contract_address = None
+        if deploy_result.get('tx_hash'):
+            contract_address = extract_contract_address_from_stellar_expert(
+                deploy_result['tx_hash'],
+                network=network
             )
-            print(result.stdout)
-            if result.stderr:
-                print(f"⚠️  Post-deployment stderr: {result.stderr}")
-                
-            print("✅ Post-deployment steps completed successfully")
-            return True
-            
-        except subprocess.TimeoutExpired:
-            print("❌ Post-deployment timed out after 5 minutes")
-            if args.strict:
-                raise
-            return False
-            
+        
+        # Prepare result
+        result = {
+            'name': contract_name,
+            'wasm_hash': wasm_hash,
+            'tx_hash': deploy_result.get('tx_hash'),
+            'address': contract_address if contract_address else 'UNKNOWN',
+            'network': network,
+            'source_account': source_account
+        }
+        
+        # Print success message
+        print(f"✅ Successfully deployed {contract_name}")
+        print(f"   Contract Address: {result['address']}")
+        print(f"   Transaction: {result['tx_hash'] or 'Unknown'}")
+        
+        return result
+        
     except Exception as e:
-        print(f"❌ Error during post-deployment: {str(e)}")
-        if args.strict:
-            raise
+        print(f"❌ Unexpected error deploying {contract_name}: {str(e)}")
+        return None
+
+def setup_cloud_identity(secret_key: str, identity_name: str = DEFAULT_IDENTITY_NAME) -> bool:
+    """Set up Stellar CLI identity for cloud deployment."""
+    try:
+        from stellar_sdk import Keypair
+        
+        # Create identity directory if it doesn't exist
+        os.makedirs(CLOUD_IDENTITY_DIR, exist_ok=True)
+        
+        # Generate a new mnemonic phrase
+        mnemonic_phrase = Keypair.generate_mnemonic_phrase()
+        
+        # Create identity file
+        identity_file = os.path.join(CLOUD_IDENTITY_DIR, f"{identity_name}.toml")
+        with open(identity_file, 'w') as f:
+            toml.dump({'seed_phrase': mnemonic_phrase}, f)
+        
+        # Verify the identity
+        keypair = Keypair.from_mnemonic_phrase(mnemonic_phrase)
+        print(f"✅ Created Stellar identity: {identity_name}")
+        print(f"   Public key: {keypair.public_key}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to set up cloud identity: {str(e)}")
         return False
+
+def configure_network(network: str, rpc_url: Optional[str] = None) -> bool:
+    """Configure Stellar network settings."""
+    try:
+        # Create config directory if it doesn't exist
+        os.makedirs(CLOUD_CONFIG_DIR, exist_ok=True)
+        
+        config_file = os.path.join(CLOUD_CONFIG_DIR, 'config.toml')
+        config = {}
+        
+        # Load existing config if it exists
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                config = toml.load(f)
+        
+        # Update network settings
+        if 'network' not in config:
+            config['network'] = {}
+        
+        config['network']['name'] = network
+        if rpc_url:
+            config['network']['rpc_url'] = rpc_url
+        
+        # Save config
+        with open(config_file, 'w') as f:
+            toml.dump(config, f)
+        
+        print(f"✅ Configured network: {network}")
+        if rpc_url:
+            print(f"   RPC URL: {rpc_url}")
+            
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to configure network: {str(e)}")
+        return False
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Deploy Stellar contracts with XDR workaround')
+    
+    # Cloud deployment options
+    cloud_group = parser.add_argument_group('Cloud Deployment')
+    cloud_group.add_argument('--cloud', action='store_true', 
+                           help='Enable cloud deployment mode')
+    cloud_group.add_argument('--secret-key', type=str, 
+                           help='Secret key for deployment (required for cloud mode)')
+    cloud_group.add_argument('--identity-name', type=str, default=DEFAULT_IDENTITY_NAME,
+                           help=f'Name for the identity (default: {DEFAULT_IDENTITY_NAME})')
+    cloud_group.add_argument('--rpc-url', type=str, 
+                           help='Custom RPC URL (optional)')
+    
+    # Network options
+    network_group = parser.add_argument_group('Network Configuration')
+    network_group.add_argument('--network', type=str, default='testnet',
+                             choices=['testnet', 'public', 'futurenet'],
+                             help='Network to deploy to (default: testnet)')
+    
+    # Contract options
+    contract_group = parser.add_argument_group('Contract Deployment')
+    contract_group.add_argument('--contract', type=str, 
+                              help='Contract name to deploy (optional)')
+    contract_group.add_argument('--wasm-path', type=str,
+                              help='Path to WASM file (optional)')
+    
+    return parser.parse_args()
 
 def main():
     """Main deployment function."""
-    args = parse_args()
-    
     print("🔧 Stellar Contract Deployment with XDR Workaround")
-    print(f"🚀 Mode: {args.mode.upper()}")
-    print(f"🌐 Network: {args.network}")
     
-    # Set RPC URL based on network if not provided
-    if not args.rpc_url:
-        args.rpc_url = {
-            'testnet': 'https://soroban-testnet.stellar.org',  # Testnet RPC
-            'futurenet': 'https://rpc-futurenet.stellar.org',  # Futurenet RPC
-            'mainnet': 'https://horizon.stellar.org'           # Mainnet Horizon
-        }.get(args.network, 'https://soroban-testnet.stellar.org')
+    # Parse command line arguments
+    args = parse_arguments()
     
-    # Set default deployer account for local mode if not provided
-    if not args.deployer_account:
-        if args.mode == 'cloud':
-            print("❌ --deployer-account is required in cloud mode")
+    # Handle cloud deployment setup
+    if args.cloud:
+        if not args.secret_key:
+            print("❌ Error: --secret-key is required for cloud deployment")
             sys.exit(1)
-        args.deployer_account = 'test-deployer'
-    
-    # In cloud mode, verify WASM directory exists
-    if args.mode == 'cloud':
-        wasm_dir = Path(args.wasm_dir)
-        if not wasm_dir.exists() or not wasm_dir.is_dir():
-            print(f"❌ WASM directory not found: {wasm_dir}")
+            
+        print("☁️  Setting up cloud deployment...")
+        
+        # Set up identity
+        if not setup_cloud_identity(args.secret_key, args.identity_name):
             sys.exit(1)
-        print(f"📦 Using WASM files from: {wasm_dir.absolute()}")
-    
-    # Handle account setup based on mode
-    if args.mode == 'local':
-        print("💰 Setting up local test account...")
-        # For local mode, generate a new keypair if deployer_account is not provided
-        if not args.deployer_account:
-            keypair = Keypair.random()
-            print(f"🔑 Generated new test account: {keypair.public_key}")
-            print(f"   Secret Key: {keypair.secret}")
-            print("   Note: Save this key if you need to reuse this account")
+            
+        # Configure network
+        if not configure_network(args.network, args.rpc_url):
+            sys.exit(1)
+            
+        # Use the provided identity as source account
+        source_account = args.identity_name
+        print(f"✅ Cloud deployment setup complete")
+        print(f"   Using identity: {source_account}")
+        print(f"   Network: {args.network}")
+        
+        # If specific contract deployment was requested
+        if args.contract and args.wasm_path:
+            result = deploy_contract_with_workaround(
+                contract_name=args.contract,
+                wasm_path=args.wasm_path,
+                network=args.network,
+                source_account=source_account
+            )
+            if not result:
+                sys.exit(1)
+            return
+    else:
+        # Local development mode with test account
+        print("🏠 Running in local development mode")
+        print("💰 Checking test account...")
+        
+        # Try to fund existing account first
+        fund_result = run_stellar_command_with_xdr_workaround(
+            "stellar keys fund test-deployer --network testnet"
+        )
+        
+        if not fund_result['success']:
+            print("⚠️ Account funding failed, trying to create new account...")
+            setup_result = run_stellar_command_with_xdr_workaround(
+                "stellar keys generate --global --network testnet test-deployer-new --fund"
+            )
+            if setup_result['success']:
+                source_account = "test-deployer-new"
+            else:
+                print("❌ Failed to setup test account")
+                sys.exit(1)
         else:
-            keypair = Keypair.from_secret(args.deployer_account)
-            print(f"🔑 Using provided deployer account: {keypair.public_key}")
-        
-        # Setup and fund the account
-        try:
-            keypair = setup_account(
-                secret_key=keypair.secret,
-                network=args.network,
-                rpc_url=args.rpc_url
-            )
-            source_account = keypair.secret  # Use secret key for CLI compatibility
-        except Exception as e:
-            print(f"❌ Failed to set up account: {str(e)}")
-            sys.exit(1)
-    else:
-        # In cloud mode, use the provided deployer account
-        if not args.deployer_account:
-            print("❌ --deployer-account is required in cloud mode")
-            sys.exit(1)
-            
-        try:
-            keypair = Keypair.from_secret(args.deployer_account)
-            print(f"🔑 Using provided deployer account: {keypair.public_key}")
-            
-            # Verify and setup the account
-            keypair = setup_account(
-                secret_key=args.deployer_account,
-                network=args.network,
-                rpc_url=args.rpc_url
-            )
-            source_account = args.deployer_account  # Use the full secret key
-        except Exception as e:
-            print(f"❌ Failed to set up deployer account: {str(e)}")
-            sys.exit(1)
+            source_account = "test-deployer"
+            print("✅ Using existing test-deployer account")
     
-    # Build contracts if in local mode
-    if args.mode == 'local':
-        print("\n🔨 Building contracts locally...")
-        contracts_to_build = ["opus_token", "hvym-collective", "hvym-collective-factory"]
-        
-        for contract in contracts_to_build:
-            if os.path.exists(contract):
-                print(f"Building {contract}...")
-                build_result = run_stellar_command_with_xdr_workaround(
-                    "stellar contract build",
-                    cwd=contract
-                )
-                if not build_result['success']:
-                    print(f"❌ Failed to build {contract}")
-    else:
-        print("\n🔍 Using pre-built WASM files from cloud...")
+    # Build all contracts first
+    print("\n🔨 Building contracts...")
+    contracts_to_build = ["opus_token", "hvym-collective", "hvym-collective-factory"]
+    
+    for contract in contracts_to_build:
+        if os.path.exists(contract):
+            print(f"Building {contract}...")
+            build_result = run_stellar_command_with_xdr_workaround(
+                "stellar contract build",
+                cwd=contract
+            )
+            if not build_result['success']:
+                print(f"❌ Failed to build {contract}")
     
     # Deploy contracts in dependency order
     deployments = []
     
     # Step 1: Deploy dependency contracts (upload only - these are imported by hvym-collective)
+    # Order matches GitHub Actions build order: node-token first, then ipfs-token
     dependency_contracts = [
         {
-            "name": "pintheon-node-token",
-            "local_wasm": "pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm",
-            "cloud_wasm": "pintheon-node-token.wasm",
+            "name": "pintheon-node-token", 
+            "wasm": "pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm",
             "upload_only": True
         },
         {
             "name": "pintheon-ipfs-token",
-            "local_wasm": "pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm",
-            "cloud_wasm": "pintheon-ipfs-token.wasm",
+            "wasm": "pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm",
             "upload_only": True
         }
     ]
     
     dependency_hashes = {}
     for dep in dependency_contracts:
-        wasm_path = dep["local_wasm"] if args.mode == 'local' else str(Path(args.wasm_dir) / dep["cloud_wasm"])
-        
-        if os.path.exists(wasm_path):
-            print(f"\n📤 Uploading dependency: {dep['name']} ({wasm_path})")
-            wasm_hash = upload_wasm_with_workaround(
-                contract_name=dep["name"],
-                wasm_path=wasm_path,
-                network=args.network,
-                source_account=source_account,
-                rpc_url=args.rpc_url
-            )
-            if wasm_hash:
-                dependency_hashes[dep["name"]] = wasm_hash
+        if os.path.exists(dep["wasm"]):
+            print(f"\n📤 Uploading dependency: {dep['name']}")
+            upload_result = upload_wasm_with_workaround(dep["name"], dep["wasm"], source_account=source_account)
+            if upload_result:
+                dependency_hashes[dep["name"]] = upload_result["wasm_hash"]
                 deployments.append({
                     "name": dep["name"],
-                    "wasm_hash": wasm_hash,
-                    "upload_only": True
+                    "wasm_hash": upload_result["wasm_hash"],
+                    "upload_only": True,
+                    "tx_hash": upload_result.get("tx_hash")
                 })
         else:
-            print(f"⚠️ Dependency WASM not found: {wasm_path}")
+            print(f"⚠️ Dependency WASM not found: {dep['wasm']}")
     
     # Step 2: Deploy Opus Token
-    opus_contract_id = None
+    opus_result = None
     opus_wasm = "opus_token/target/wasm32-unknown-unknown/release/opus_token.wasm"
-    if args.mode == 'cloud':
-        opus_wasm = str(Path(args.wasm_dir) / "opus_token.wasm")
-    
     if os.path.exists(opus_wasm):
-        opus_contract_id = deploy_contract_with_workaround(
-            contract_name="opus_token",
-            wasm_path=opus_wasm,
-            constructor_args=f"--admin {source_account}",
-            network=args.network,
-            source_account=source_account,
-            rpc_url=args.rpc_url
+        opus_result = deploy_contract_with_workaround(
+            "opus_token",
+            opus_wasm,
+            f"--admin {source_account}",
+            source_account=source_account
         )
-        if opus_contract_id:
-            deployments.append({
-                "name": "opus_token",
-                "contract_id": opus_contract_id,
-                "wasm_hash": extract_wasm_hash_from_output(open(opus_wasm, 'rb').read())
-            })
+        if opus_result:
+            deployments.append(opus_result)
     
-    # Step 3: Deploy HVYM Collective
+    # Step 3: Deploy HVYM Collective (final contract with all dependencies)
+    # Note: hvym-collective-factory is not built by GitHub Actions, so skipping it
     collective_wasm = "hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.wasm"
-    if args.mode == 'cloud':
-        collective_wasm = str(Path(args.wasm_dir) / "hvym_collective.wasm")
-    
-    if os.path.exists(collective_wasm) and opus_contract_id:
-        # In cloud mode, check for args file in the wasm directory first
-        args_file = None
-        if args.mode == 'cloud':
-            cloud_args_file = Path(args.wasm_dir) / "hvym-collective_args.json"
-            if cloud_args_file.exists():
-                args_file = str(cloud_args_file)
-                print(f"ℹ️  Using hvym-collective_args.json from wasm directory")
+    if os.path.exists(collective_wasm) and opus_result:
+        # Load constructor arguments from JSON file if available
+        constructor_args = load_hvym_collective_args(opus_result['address'], source_account)
         
-        # Load constructor arguments with the latest opus token address
-        constructor_args = load_hvym_collective_args(
-            opus_token_address=opus_contract_id,
-            admin_account=source_account,
-            args_file=args_file
+        collective_result = deploy_contract_with_workaround(
+            "hvym-collective",
+            collective_wasm,
+            constructor_args,
+            source_account=source_account
         )
-        
-        collective_contract_id = deploy_contract_with_workaround(
-            contract_name="hvym-collective",
-            wasm_path=collective_wasm,
-            constructor_args=constructor_args,
-            network=args.network,
-            source_account=source_account,
-            rpc_url=args.rpc_url
-        )
-        
-        if collective_contract_id:
-            deployments.append({
-                "name": "hvym-collective",
-                "contract_id": collective_contract_id,
-                "wasm_hash": extract_wasm_hash_from_output(open(collective_wasm, 'rb').read())
-            })
-            
-            # Run post-deployment steps if successful
-            if not run_post_deployment(args, collective_contract_id, args.network, {}):
-                print("⚠️ Post-deployment steps completed with warnings")
+        if collective_result:
+            deployments.append(collective_result)
     else:
         if not os.path.exists(collective_wasm):
             print(f"⚠️ HVYM Collective WASM not found: {collective_wasm}")
-        if not opus_contract_id:
+        if not opus_result:
             print("⚠️ Cannot deploy HVYM Collective: Opus Token deployment failed")
     
-    # Save results in the same format as deployments.json
+    # Save results
     if deployments:
-        # Load existing deployments to preserve any existing data
-        try:
-            with open("deployments.json", "r") as f:
-                all_deployments = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            all_deployments = {}
+        deployment_data = {
+            "network": "testnet",
+            "timestamp": int(time.time()),
+            "cli_version": "22.8.2",
+            "note": "Deployed with XDR workaround - transactions succeeded despite CLI errors",
+            "contracts": deployments
+        }
         
-        # Update with new deployments
-        for deployment in deployments:
-            contract_name = deployment['name']
-            if 'upload_only' in deployment and deployment['upload_only']:
-                # For upload-only contracts, we only update the wasm_hash
-                if contract_name in all_deployments:
-                    all_deployments[contract_name]['wasm_hash'] = deployment['wasm_hash']
-                else:
-                    all_deployments[contract_name] = {
-                        'contract_dir': f"wasm_release/{contract_name}",
-                        'wasm_hash': deployment['wasm_hash']
-                    }
-            else:
-                # For deployed contracts, update or add the full deployment info
-                all_deployments[contract_name] = {
-                    'contract_dir': f"wasm_release/{contract_name}",
-                    'wasm_hash': deployment.get('wasm_hash', ''),
-                    'contract_id': deployment.get('contract_id', '')
-                }
+        with open("xdr_workaround_deployments.json", "w") as f:
+            json.dump(deployment_data, f, indent=2)
         
-        # Save the updated deployments
-        with open("deployments.json", "w") as f:
-            json.dump(all_deployments, f, indent=2)
-        
-        # Also update the deployments.md file
-        try:
-            with open("deployments.md", "w") as f:
-                f.write("# Soroban Contract Deployments\n\n")
-                f.write("| Contract | Contract ID | WASM Hash |\n")
-                f.write("|----------|-------------|-----------|\n")
-                for name, data in all_deployments.items():
-                    contract_id = data.get('contract_id', 'N/A')
-                    wasm_hash = data.get('wasm_hash', 'N/A')
-                    f.write(f"| {name} | {contract_id} | {wasm_hash} |\n")
-        except Exception as e:
-            print(f"⚠️ Failed to update deployments.md: {e}")
-        
-        print(f"\n🎉 Deployment completed! {len(deployments)} contracts processed")
-        print("📄 Results saved to deployments.json and deployments.md")
+        print(f"\n🎉 Deployment completed! {len(deployments)} contracts deployed")
+        print("📄 Results saved to xdr_workaround_deployments.json")
         
         for deployment in deployments:
             if 'upload_only' in deployment and deployment['upload_only']:
                 print(f"  • {deployment['name']}: WASM uploaded (upload only)")
             else:
-                contract_id = deployment.get('contract_id', 'Deployment failed')
-                print(f"  • {deployment['name']}: {contract_id}")
+                print(f"  • {deployment['name']}: {deployment.get('address', 'Deployment failed')}")
     else:
         print("\n❌ No contracts were successfully deployed")
         sys.exit(1)

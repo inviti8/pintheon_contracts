@@ -25,7 +25,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Install specific versions that work well together
-          pip install 'stellar-sdk==10.0.0' 'cryptography==41.0.7' requests
+          pip install 'stellar-sdk==10.0.0' 'cryptography==41.0.7' requests toml
 
       - name: Install system dependencies for stellar-cli
         run: |
