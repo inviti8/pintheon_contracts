@@ -454,31 +454,31 @@ def configure_network(network: str, rpc_url: Optional[str] = None) -> bool:
         print(f"❌ Failed to configure network: {str(e)}")
         return False
 
-def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Deploy Stellar contracts with XDR workaround')
     
-    # Cloud deployment options
+    # Cloud deployment arguments
     cloud_group = parser.add_argument_group('Cloud Deployment')
-    cloud_group.add_argument('--cloud', action='store_true', 
-                           help='Enable cloud deployment mode')
-    cloud_group.add_argument('--secret-key', type=str, 
-                           help='Secret key for deployment (required for cloud mode)')
-    cloud_group.add_argument('--identity-name', type=str, default=DEFAULT_IDENTITY_NAME,
-                           help=f'Name for the identity (default: {DEFAULT_IDENTITY_NAME})')
-    cloud_group.add_argument('--rpc-url', type=str, 
-                           help='Custom RPC URL (optional)')
+    cloud_group.add_argument('--cloud', action='store_true', help='Enable cloud deployment mode')
+    cloud_group.add_argument('--mode', choices=['local', 'cloud'], default='local',
+                           help='Deployment mode (default: %(default)s)')
+    cloud_group.add_argument('--secret-key', type=str, help='Secret key for cloud deployment')
+    cloud_group.add_argument('--deployer-account', type=str, help='Deployer account address')
+    cloud_group.add_argument('--wasm-dir', type=str, default='.',
+                           help='Directory containing WASM files (default: current directory)')
+    cloud_group.add_argument('--rpc-url', type=str, help='RPC URL for the network')
+    cloud_group.add_argument('--network', type=str, choices=['testnet', 'public', 'futurenet'], default='testnet',
+                           help='Network to deploy to (default: %(default)s)')
+    cloud_group.add_argument('--contract', type=str, help='Specific contract to deploy')
+    cloud_group.add_argument('--wasm-path', type=str, help='Path to the WASM file to deploy')
+    cloud_group.add_argument('--post-deploy-config', type=str,
+                           help='Path to post-deployment configuration file')
     
-    # Network options
-    network_group = parser.add_argument_group('Network Configuration')
-    network_group.add_argument('--network', type=str, default='testnet',
-                             choices=['testnet', 'public', 'futurenet'],
-                             help='Network to deploy to (default: testnet)')
+    # Local deployment arguments
+    local_group = parser.add_argument_group('Local Deployment')
+    local_group.add_argument('--identity-name', type=str, default=DEFAULT_IDENTITY_NAME,
+                           help='Name for the identity file (default: %(default)s)')
     
-    # Contract options
-    contract_group = parser.add_argument_group('Contract Deployment')
-    contract_group.add_argument('--contract', type=str, 
-                              help='Contract name to deploy (optional)')
     contract_group.add_argument('--wasm-path', type=str,
                               help='Path to WASM file (optional)')
     
@@ -491,36 +491,52 @@ def main():
     # Parse command line arguments
     args = parse_arguments()
     
+    # Determine if we're in cloud mode (either --cloud flag or --mode=cloud)
+    cloud_mode = args.cloud or args.mode == 'cloud'
+    
     # Handle cloud deployment setup
-    if args.cloud:
-        if not args.secret_key:
-            print("❌ Error: --secret-key is required for cloud deployment")
+    if cloud_mode:
+        if not args.secret_key and not args.deployer_account:
+            print("❌ Error: Either --secret-key or --deployer-account is required for cloud deployment")
             sys.exit(1)
             
         print("☁️  Setting up cloud deployment...")
         
-        # Set up identity
-        if not setup_cloud_identity(args.secret_key, args.identity_name):
-            sys.exit(1)
+        # Set up identity if secret key is provided
+        if args.secret_key:
+            if not setup_cloud_identity(args.secret_key, args.identity_name):
+                sys.exit(1)
+            source_account = args.identity_name
+        else:
+            source_account = args.deployer_account
             
         # Configure network
         if not configure_network(args.network, args.rpc_url):
             sys.exit(1)
             
-        # Use the provided identity as source account
-        source_account = args.identity_name
         print(f"✅ Cloud deployment setup complete")
-        print(f"   Using identity: {source_account}")
+        print(f"   Using account: {source_account}")
         print(f"   Network: {args.network}")
         
         # If specific contract deployment was requested
-        if args.contract and args.wasm_path:
+        if args.contract:
+            wasm_path = args.wasm_path or os.path.join(args.wasm_dir, f"{args.contract}.wasm")
+            if not os.path.exists(wasm_path):
+                print(f"❌ Error: WASM file not found at {wasm_path}")
+                sys.exit(1)
+                
             result = deploy_contract_with_workaround(
                 contract_name=args.contract,
-                wasm_path=args.wasm_path,
+                wasm_path=wasm_path,
                 network=args.network,
                 source_account=source_account
             )
+            
+            # Handle post-deployment configuration if specified
+            if result and args.post_deploy_config and os.path.exists(args.post_deploy_config):
+                print(f"📋 Applying post-deployment configuration from {args.post_deploy_config}")
+                # Add post-deployment logic here if needed
+                
             if not result:
                 sys.exit(1)
             return
@@ -640,11 +656,12 @@ def main():
             "contracts": deployments
         }
         
-        with open("xdr_workaround_deployments.json", "w") as f:
+        output_file = "deployments.json"
+        with open(output_file, 'w') as f:
             json.dump(deployment_data, f, indent=2)
         
         print(f"\n🎉 Deployment completed! {len(deployments)} contracts deployed")
-        print("📄 Results saved to xdr_workaround_deployments.json")
+        print(f"📄 Results saved to {output_file}")
         
         for deployment in deployments:
             if 'upload_only' in deployment and deployment['upload_only']:
