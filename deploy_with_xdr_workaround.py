@@ -19,13 +19,13 @@ from pathlib import Path
 from stellar_sdk import Keypair, Network
 from stellar_sdk.exceptions import NotFoundError
 
-def get_soroban_server(network, rpc_url=None):
+def get_stellar_rpc(network, rpc_url=None):
     """Get the RPC URL for the specified network."""
     if not rpc_url:
         rpc_url = {
-            'testnet': 'https://soroban-testnet.stellar.org',
-            'futurenet': 'https://rpc-futurenet.stellar.org',
-            'mainnet': 'https://horizon.stellar.org',
+            'testnet': 'https://soroban-testnet.stellar.org',  # Testnet RPC
+            'futurenet': 'https://rpc-futurenet.stellar.org',  # Futurenet RPC
+            'mainnet': 'https://horizon.stellar.org',         # Mainnet Horizon
         }.get(network, 'https://soroban-testnet.stellar.org')
     
     return rpc_url
@@ -282,7 +282,7 @@ def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", sou
     
     # Build the upload command
     cmd = [
-        'soroban', 'contract', 'deploy',
+        'stellar', 'contract', 'deploy',
         '--wasm', wasm_path,
         '--source', source_account,
         '--network', network,
@@ -453,7 +453,7 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
     # Step 2: Deploy contract
     print("🚀 Deploying contract...")
     cmd = [
-        'soroban', 'contract', 'deploy',
+        'stellar', 'contract', 'deploy',
         '--wasm-hash', wasm_hash,
         '--source', source_account,
         '--network', network,
@@ -605,9 +605,9 @@ def main():
     # Set RPC URL based on network if not provided
     if not args.rpc_url:
         args.rpc_url = {
-            'testnet': 'https://soroban-testnet.stellar.org',
-            'futurenet': 'https://rpc-futurenet.stellar.org',
-            'mainnet': 'https://horizon.stellar.org'
+            'testnet': 'https://soroban-testnet.stellar.org',  # Testnet RPC
+            'futurenet': 'https://rpc-futurenet.stellar.org',  # Futurenet RPC
+            'mainnet': 'https://horizon.stellar.org'           # Mainnet Horizon
         }.get(args.network, 'https://soroban-testnet.stellar.org')
     
     # Set default deployer account for local mode if not provided
