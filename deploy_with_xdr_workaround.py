@@ -14,6 +14,64 @@ import os
 import argparse
 from pathlib import Path
 
+# Stellar SDK imports
+from stellar_sdk import Keypair, Network, Server
+from stellar_sdk.transaction_builder import TransactionBuilder, TransactionEnvelope
+from stellar_sdk.operation import InvokeHostFunction, Operation
+from stellar_sdk.xdr import Xdr
+from stellar_sdk.soroban import SorobanServer
+from stellar_sdk.soroban.soroban_rpc import TransactionStatus
+from stellar_sdk.exceptions import NotFoundError, BadRequestError
+
+def get_soroban_server(network, rpc_url=None):
+    """Get a Soroban server instance for the specified network."""
+    if not rpc_url:
+        rpc_url = {
+            'testnet': 'https://soroban-testnet.stellar.org',
+            'futurenet': 'https://rpc-futurenet.stellar.org',
+            'mainnet': 'https://horizon.stellar.org',
+        }.get(network, 'https://soroban-testnet.stellar.org')
+    
+    return SorobanServer(rpc_url)
+
+def get_network_passphrase(network):
+    """Get the network passphrase for the specified network."""
+    return {
+        'testnet': Network.TESTNET_NETWORK_PASSPHRASE,
+        'futurenet': Network.FUTURENET_NETWORK_PASSPHRASE,
+        'mainnet': Network.PUBLIC_NETWORK_PASSPHRASE,
+    }.get(network, Network.TESTNET_NETWORK_PASSPHRASE)
+
+def setup_account(secret_key, network, rpc_url=None):
+    """Set up and fund an account using the provided secret key."""
+    try:
+        keypair = Keypair.from_secret(secret_key)
+        soroban_server = get_soroban_server(network, rpc_url)
+        
+        # Check if account exists and is funded
+        try:
+            account = soroban_server.load_account(keypair.public_key)
+            print(f"✅ Using existing account: {keypair.public_key}")
+            return keypair
+        except NotFoundError:
+            print(f"Account {keypair.public_key} not found, attempting to fund...")
+            if network == 'testnet':
+                # Try to fund using friendbot
+                response = requests.get(
+                    f"https://friendbot.stellar.org?addr={keypair.public_key}"
+                )
+                if response.status_code == 200:
+                    print(f"✅ Successfully funded account: {keypair.public_key}")
+                    return keypair
+                else:
+                    raise Exception(f"Failed to fund account: {response.text}")
+            else:
+                raise Exception(f"Account {keypair.public_key} not found and automatic funding not supported for {network}")
+                
+    except Exception as e:
+        print(f"❌ Error setting up account: {str(e)}")
+        raise
+
 def extract_transaction_hash(output):
     """Extract transaction hash from CLI output."""
     # Look for transaction hash patterns
@@ -476,35 +534,46 @@ def main():
     # Handle account setup based on mode
     if args.mode == 'local':
         print("💰 Setting up local test account...")
-        # Try to fund existing account first
-        fund_result = run_stellar_command_with_xdr_workaround(
-            f"stellar keys fund test-deployer --network {args.network}"
-        )
-        
-        if not fund_result['success']:
-            print("⚠️ Account funding failed, trying to create new account...")
-            setup_result = run_stellar_command_with_xdr_workaround(
-                f"stellar keys generate --global --network {args.network} test-deployer-new --fund"
-            )
-            if setup_result['success']:
-                source_account = "test-deployer-new"
-            else:
-                print("❌ Failed to setup test account")
-                sys.exit(1)
+        # For local mode, generate a new keypair if deployer_account is not provided
+        if not args.deployer_account:
+            keypair = Keypair.random()
+            print(f"🔑 Generated new test account: {keypair.public_key}")
+            print(f"   Secret Key: {keypair.secret}")
+            print("   Note: Save this key if you need to reuse this account")
         else:
-            source_account = "test-deployer"
-            print("✅ Using existing test-deployer account")
+            keypair = Keypair.from_secret(args.deployer_account)
+            print(f"🔑 Using provided deployer account: {keypair.public_key}")
+        
+        # Setup and fund the account
+        try:
+            keypair = setup_account(
+                secret_key=keypair.secret,
+                network=args.network,
+                rpc_url=args.rpc_url
+            )
+            source_account = keypair.secret  # Use secret key for CLI compatibility
+        except Exception as e:
+            print(f"❌ Failed to set up account: {str(e)}")
+            sys.exit(1)
     else:
         # In cloud mode, use the provided deployer account
-        source_account = args.deployer_account
-        print(f"🔑 Using provided deployer account: {source_account}")
-        
-        # Verify account exists and is funded
-        check_account = run_stellar_command_with_xdr_workaround(
-            f"stellar account {source_account} --network {args.network}"
-        )
-        if not check_account['success']:
-            print(f"❌ Account {source_account} not found or not funded on {args.network}")
+        if not args.deployer_account:
+            print("❌ --deployer-account is required in cloud mode")
+            sys.exit(1)
+            
+        try:
+            keypair = Keypair.from_secret(args.deployer_account)
+            print(f"🔑 Using provided deployer account: {keypair.public_key}")
+            
+            # Verify and setup the account
+            keypair = setup_account(
+                secret_key=args.deployer_account,
+                network=args.network,
+                rpc_url=args.rpc_url
+            )
+            source_account = args.deployer_account  # Use the full secret key
+        except Exception as e:
+            print(f"❌ Failed to set up deployer account: {str(e)}")
             sys.exit(1)
     
     # Build contracts if in local mode

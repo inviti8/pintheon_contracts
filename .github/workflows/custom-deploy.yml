@@ -234,44 +234,45 @@ jobs:
           echo -e "\nPost-deployment configuration:"
           cat config/hvym-collective_post_deploy_args.json
 
-      - name: Set up Stellar CLI with deployer key
+      - name: Extract deployer public key
+        id: extract_pubkey
         run: |
-          # Install Stellar CLI if not already installed
-          if ! command -v stellar &> /dev/null; then
-            echo "Installing Stellar CLI..."
-            curl -sSf https://soroban.stellar.org/install.sh | sh
-            echo "$HOME/.local/bin" >> $GITHUB_PATH
-          fi
+          # Simple script to extract public key from secret key
+          python3 -c "
+          from stellar_sdk import Keypair
+          import os
           
-          # Add the deployer key to the Stellar CLI config
-          echo "Adding deployer key to Stellar CLI..."
-          echo "${{ secrets.ACCT_SECRET }}" | stellar keys add deployer --secret-key
-          
-          # Get the public key for the account
-          echo "Retrieving public key..."
-          PUBLIC_KEY=$(stellar keys public-key deployer)
-          echo "Using deployer account: $PUBLIC_KEY"
-          echo "DEPLOYER_ACCOUNT=$PUBLIC_KEY" >> $GITHUB_ENV
-          
-          # Verify the account is funded (only on testnet)
-          if [ "${{ env.NETWORK }}" = "testnet" ]; then
-            echo "Funding test account on testnet..."
-            stellar keys fund deployer --network testnet || echo "Funding may have failed, continuing..."
-          fi
+          secret = os.environ.get('ACCT_SECRET')
+          if not secret:
+              print('::error::ACCT_SECRET not found in environment')
+              exit(1)
+              
+          try:
+              keypair = Keypair.from_secret(secret)
+              print(f'PUBLIC_KEY={keypair.public_key}')
+              print(f'::add-mask::{keypair.public_key}')
+              print('::set-output name=public_key::' + keypair.public_key)
+          except Exception as e:
+              print(f'::error::Failed to parse secret key: {str(e)}')
+              exit(1)
+          "
+        env:
+          ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
       - name: Run XDR Workaround Deployment
         env:
           NETWORK: ${{ env.NETWORK }}
           RPC_URL: https://soroban-testnet.stellar.org
+          DEPLOYER_ACCOUNT: ${{ secrets.ACCT_SECRET }}
         run: |
           echo "Starting deployment with post-deployment steps..."
-          echo "Using deployer account: ${{ env.DEPLOYER_ACCOUNT }}"
+          echo "Using deployer account: ${{ steps.extract_pubkey.outputs.public_key }}"
           
           # Deploy with the updated args file
           python3 deploy_with_xdr_workaround.py \
             --mode cloud \
             --wasm-dir release-wasm \
-            --deployer-account deployer \
+            --deployer-account "$DEPLOYER_ACCOUNT" \
             --network "$NETWORK" \
             --rpc-url "$RPC_URL" \
             --post-deploy-config ./config/hvym-collective_post_deploy_args.json
