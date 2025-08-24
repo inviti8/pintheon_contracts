@@ -173,7 +173,20 @@ def run_stellar_command_with_xdr_workaround(cmd, cwd=None):
                     
                     # Try to extract contract address if this was a deployment
                     if "deploy" in cmd.lower():
+                        contract_address = None
+                        
+                        # First try to get from Stellar Expert API
                         contract_address = extract_contract_address_from_stellar_expert(tx_hash)
+                        
+                        # If Stellar Expert fails, try to extract from CLI output
+                        if not contract_address:
+                            print("⚠️ Could not get contract address from Stellar Expert, trying CLI output...")
+                            # Look for contract address in the output
+                            matches = re.findall(r'Contract: (C[0-9A-Z]{55})', output)
+                            if matches:
+                                contract_address = matches[0]
+                                print(f"ℹ️ Extracted contract address from CLI output: {contract_address}")
+                        
                         if contract_address:
                             print(f"📍 Contract deployed at: {contract_address}")
                             return {
@@ -266,20 +279,43 @@ def extract_wasm_hash_from_output(output):
         return hash_matches[-1]  # Return the last one found
     return None
 
+def is_valid_contract_address(address):
+    """Check if a string is a valid Stellar contract address."""
+    import re
+    return bool(re.match(r'^C[0-9A-Z]{55}$', str(address)))
+
+def is_valid_secret_key(secret_key):
+    """Check if a string is a valid Stellar secret key."""
+    import re
+    return bool(re.match(r'^S[0-9A-Z]{55}$', str(secret_key)))
+
 def load_hvym_collective_args(opus_token_address, admin_account):
     """Load HVYM Collective constructor arguments.
     
     Args:
         opus_token_address: Address of the deployed Opus token contract
         admin_account: The actual admin account public key to use, will override any value from file
+        
+    Returns:
+        str: Space-separated CLI arguments for the contract constructor
     """
     args_file = "hvym-collective_args.json"
     
+    # Validate token address
+    if not is_valid_contract_address(opus_token_address):
+        print(f"❌ Invalid Opus token address: {opus_token_address}")
+        raise ValueError(f"Invalid Opus token address: {opus_token_address}")
+    
+    # Validate admin account
+    if not is_valid_contract_address(admin_account) and not re.match(r'^G[0-9A-Z]{55}$', str(admin_account)):
+        print(f"❌ Invalid admin account: {admin_account}")
+        raise ValueError(f"Invalid admin account: {admin_account}")
+    
     # Default arguments
     default_args = {
-        "join_fee": 1000000,  # 0.1 XLM in stroops
-        "mint_fee": 500000,  # 0.05 XLM in stroops  
-        "reward": 100000,    # 0.01 XLM in stroops
+        "join_fee": 320000000,  # 32 XLM in stroops
+        "mint_fee": 5000000,   # 0.5 XLM in stroops  
+        "reward": 80000000,    # 8 XLM in stroops
         "token": opus_token_address,
         "admin": admin_account  # Always use the provided admin account
     }
@@ -385,17 +421,46 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         
         # Extract contract address from transaction
         contract_address = None
-        if deploy_result.get('tx_hash'):
-            contract_address = extract_contract_address_from_stellar_expert(
-                deploy_result['tx_hash'],
-                network=network
-            )
+        tx_hash = deploy_result.get('tx_hash')
+        
+        if tx_hash:
+            print(f"ℹ️ Extracting contract address for {contract_name} from transaction {tx_hash}")
+            
+            # First try to get from Stellar Expert API
+            contract_address = extract_contract_address_from_stellar_expert(tx_hash, network=network)
+            
+            # If that fails, try to extract from CLI output
+            if not contract_address:
+                print("⚠️ Could not get contract address from Stellar Expert, trying CLI output...")
+                output = deploy_result.get('output', '')
+                matches = re.findall(r'Contract: (C[0-9A-Z]{55})', output)
+                if matches:
+                    contract_address = matches[0]
+                    print(f"ℹ️ Extracted contract address from CLI output: {contract_address}")
+            
+            # If still no address, try to get from Horizon API
+            if not contract_address:
+                print("⚠️ Could not get contract address from CLI output, trying Horizon API...")
+                try:
+                    from stellar_sdk import Server
+                    server = Server(horizon_url=f"https://horizon-{network}.stellar.org" if network != 'public' else "https://horizon.stellar.org")
+                    tx = server.transactions().transaction(tx_hash).call()
+                    
+                    # Look for create_contract operations
+                    for op in tx.get('_embedded', {}).get('operations', []):
+                        if op.get('type_i') == 24:  # Create Contract operation
+                            contract_address = op.get('contract_id')
+                            if contract_address:
+                                print(f"ℹ️ Extracted contract address from Horizon API: {contract_address}")
+                                break
+                except Exception as e:
+                    print(f"⚠️ Could not get contract address from Horizon API: {e}")
         
         # Prepare result
         result = {
             'name': contract_name,
             'wasm_hash': wasm_hash,
-            'tx_hash': deploy_result.get('tx_hash'),
+            'tx_hash': tx_hash,
             'address': contract_address if contract_address else 'UNKNOWN',
             'network': network,
             'source_account': source_account
@@ -569,7 +634,15 @@ def main():
                 sys.exit(1)
             source_account = args.identity_name
         else:
-            source_account = args.deployer_account
+            # Check if deployer_account is a secret key
+            if is_valid_secret_key(args.deployer_account):
+                # It's a secret key, set it up as an identity
+                if not setup_cloud_identity(args.deployer_account, 'deployer-key'):
+                    sys.exit(1)
+                source_account = 'deployer-key'
+            else:
+                # It's an account alias
+                source_account = args.deployer_account
             
         # Configure network
         if not configure_network(args.network, args.rpc_url):
@@ -676,32 +749,60 @@ def main():
             source_account=source_account
         )
         if opus_result:
-            deployments.append(opus_result)
+            if opus_result.get('address') == 'UNKNOWN':
+                print("❌ Failed to extract Opus Token contract address. Cannot proceed with HVYM Collective deployment.")
+                opus_result = None
+            else:
+                deployments.append(opus_result)
     else:
         print(f"⚠️ Opus Token WASM not found: {opus_wasm}")
     
     # Step 3: Deploy HVYM Collective (final contract with all dependencies)
     collective_wasm = get_wasm_path("hvym-collective", wasm_dir, cloud_mode)
-    if os.path.exists(collective_wasm) and opus_result:
-        # Wait a moment to ensure the WASM is fully propagated
-        print("⏳ Waiting for WASM to be fully propagated...")
-        time.sleep(5)
-        # Load constructor arguments from JSON file if available
-        constructor_args = load_hvym_collective_args(opus_result['address'], source_account)
-        
-        collective_result = deploy_contract_with_workaround(
-            "hvym-collective",
-            collective_wasm,
-            constructor_args,
-            source_account=source_account
-        )
-        if collective_result:
-            deployments.append(collective_result)
+    if not os.path.exists(collective_wasm):
+        print(f"❌ HVYM Collective WASM not found: {collective_wasm}")
+    elif not opus_result:
+        print("❌ Cannot deploy HVYM Collective: Opus Token deployment failed or address not found")
     else:
-        if not os.path.exists(collective_wasm):
-            print(f"⚠️ HVYM Collective WASM not found: {collective_wasm}")
-        if not opus_result:
-            print("⚠️ Cannot deploy HVYM Collective: Opus Token deployment failed")
+        # Verify we have a valid opus token address
+        opus_address = opus_result.get('address')
+        if not opus_address or opus_address == 'UNKNOWN':
+            print("❌ Cannot deploy HVYM Collective: Invalid Opus Token address")
+        else:
+            print(f"ℹ️ Using Opus Token address: {opus_address}")
+            
+            # Wait a moment to ensure the WASM is fully propagated
+            print("⏳ Waiting for WASM to be fully propagated...")
+            time.sleep(5)
+            
+            try:
+                # Load and validate constructor arguments
+                constructor_args = load_hvym_collective_args(opus_address, source_account)
+                print(f"ℹ️ Constructor arguments: {constructor_args}")
+                
+                # Deploy HVYM Collective
+                collective_result = deploy_contract_with_workaround(
+                    "hvym-collective",
+                    collective_wasm,
+                    constructor_args,
+                    source_account=source_account
+                )
+                
+                if collective_result:
+                    deployments.append(collective_result)
+                    
+                    # Verify the deployment
+                    if collective_result.get('address') == 'UNKNOWN':
+                        print("⚠️ HVYM Collective deployed but could not verify contract address")
+                    else:
+                        print(f"✅ Successfully deployed HVYM Collective at: {collective_result['address']}")
+                
+            except ValueError as e:
+                print(f"❌ Error deploying HVYM Collective: {e}")
+            except Exception as e:
+                print(f"❌ Unexpected error deploying HVYM Collective: {e}")
+                import traceback
+                traceback.print_exc()
     
     # Save results
     if deployments:
