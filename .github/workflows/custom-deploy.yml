@@ -234,19 +234,44 @@ jobs:
           echo -e "\nPost-deployment configuration:"
           cat config/hvym-collective_post_deploy_args.json
 
+      - name: Set up Stellar CLI with deployer key
+        run: |
+          # Install Stellar CLI if not already installed
+          if ! command -v stellar &> /dev/null; then
+            echo "Installing Stellar CLI..."
+            curl -sSf https://soroban.stellar.org/install.sh | sh
+            echo "$HOME/.local/bin" >> $GITHUB_PATH
+          fi
+          
+          # Add the deployer key to the Stellar CLI config
+          echo "Adding deployer key to Stellar CLI..."
+          echo "${{ secrets.ACCT_SECRET }}" | stellar keys add deployer --secret-key
+          
+          # Get the public key for the account
+          echo "Retrieving public key..."
+          PUBLIC_KEY=$(stellar keys public-key deployer)
+          echo "Using deployer account: $PUBLIC_KEY"
+          echo "DEPLOYER_ACCOUNT=$PUBLIC_KEY" >> $GITHUB_ENV
+          
+          # Verify the account is funded (only on testnet)
+          if [ "${{ env.NETWORK }}" = "testnet" ]; then
+            echo "Funding test account on testnet..."
+            stellar keys fund deployer --network testnet || echo "Funding may have failed, continuing..."
+          fi
+          
       - name: Run XDR Workaround Deployment
         env:
-          DEPLOYER_ACCOUNT: ${{ secrets.ACCT_SECRET }}
           NETWORK: ${{ env.NETWORK }}
           RPC_URL: https://soroban-testnet.stellar.org
         run: |
           echo "Starting deployment with post-deployment steps..."
+          echo "Using deployer account: ${{ env.DEPLOYER_ACCOUNT }}"
           
           # Deploy with the updated args file
           python3 deploy_with_xdr_workaround.py \
             --mode cloud \
             --wasm-dir release-wasm \
-            --deployer-account "$DEPLOYER_ACCOUNT" \
+            --deployer-account deployer \
             --network "$NETWORK" \
             --rpc-url "$RPC_URL" \
             --post-deploy-config ./config/hvym-collective_post_deploy_args.json
