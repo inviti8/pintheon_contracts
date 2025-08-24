@@ -280,11 +280,11 @@ def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", sou
     """
     print(f"📤 Uploading {contract_name} WASM...")
     
-    # Get network passphrase
+    # Get network passphrase (properly quoted for command line)
     network_passphrases = {
-        'testnet': 'Test SDF Network ; September 2015',
-        'futurenet': 'Test SDF Future Network ; October 2022',
-        'mainnet': 'Public Global Stellar Network ; September 2015'
+        'testnet': '"Test SDF Network ; September 2015"',
+        'futurenet': '"Test SDF Future Network ; October 2022"',
+        'mainnet': '"Public Global Stellar Network ; September 2015"'
     }
     network_passphrase = network_passphrases.get(network, network_passphrases['testnet'])
     
@@ -292,9 +292,9 @@ def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", sou
     cmd = [
         'stellar', 'contract', 'deploy',
         '--wasm', wasm_path,
-        '--source', source_account,
+        '--source-account', source_account,  # Changed from --source to --source-account
         '--network', network,
-        '--network-passphrase', network_passphrase,
+        '--network-passphrase', network_passphrase.strip('"'),  # Remove quotes for subprocess
         '--fee', '1000000'  # Add a higher fee to ensure transaction goes through
     ]
     
@@ -310,12 +310,38 @@ def upload_wasm_with_workaround(contract_name, wasm_path, network="testnet", sou
     cmd_str = ' '.join(safe_cmd)
     print(f"Running: {cmd_str}")
     
-    # Run the command with XDR workaround
-    success, result = run_stellar_command_with_xdr_workaround(
-        ' '.join(cmd), 
-        network=network, 
-        rpc_url=rpc_url
-    )
+    # Run the command directly with subprocess
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300
+        )
+        
+        # Check if command was successful
+        if result.returncode == 0:
+            # Extract contract ID from output
+            output = result.stdout.strip()
+            if output and len(output) == 56 and output.startswith('C'):
+                print(f"✅ {contract_name} WASM uploaded successfully: {output}")
+                return output
+        
+        # If we get here, something went wrong
+        print(f"❌ Failed to upload {contract_name} WASM")
+        print(f"Command: {' '.join(cmd[:4] + ['***'] + cmd[5:])}")
+        print(f"Exit code: {result.returncode}")
+        print(f"Stdout: {result.stdout}")
+        print(f"Stderr: {result.stderr}")
+        return None
+        
+    except subprocess.TimeoutExpired:
+        print(f"❌ Command timed out after 300 seconds")
+        return None
+    except Exception as e:
+        print(f"❌ Error executing command: {str(e)}")
+        return None
     
     if success and isinstance(result, str) and len(result) == 56 and result.startswith('C'):
         print(f"✅ {contract_name} WASM uploaded successfully: {result}")
@@ -464,11 +490,11 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         print(f"❌ Failed to upload WASM for {contract_name}")
         return None
     
-    # Get network passphrase
+    # Get network passphrase (properly quoted for command line)
     network_passphrases = {
-        'testnet': 'Test SDF Network ; September 2015',
-        'futurenet': 'Test SDF Future Network ; October 2022',
-        'mainnet': 'Public Global Stellar Network ; September 2015'
+        'testnet': '"Test SDF Network ; September 2015"',
+        'futurenet': '"Test SDF Future Network ; October 2022"',
+        'mainnet': '"Public Global Stellar Network ; September 2015"'
     }
     network_passphrase = network_passphrases.get(network, network_passphrases['testnet'])
     
@@ -477,10 +503,10 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
     cmd = [
         'stellar', 'contract', 'deploy',
         '--wasm-hash', wasm_hash,
-        '--source', source_account,
+        '--source-account', source_account,  
         '--network', network,
-        '--network-passphrase', network_passphrase,
-        '--fee', '1000000'  # Higher fee for better reliability
+        '--network-passphrase', network_passphrase.strip('"'),  
+        '--fee', '1000000'  
     ]
     
     if rpc_url:
@@ -488,38 +514,50 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         
     # Create safe command for logging (without sensitive data)
     safe_cmd = cmd.copy()
-    if '--source' in safe_cmd and len(safe_cmd) > safe_cmd.index('--source') + 1:
-        safe_cmd[safe_cmd.index('--source') + 1] = '***'
+    if '--source-account' in safe_cmd and len(safe_cmd) > safe_cmd.index('--source-account') + 1:
+        safe_cmd[safe_cmd.index('--source-account') + 1] = '***'
     if '--network-passphrase' in safe_cmd and len(safe_cmd) > safe_cmd.index('--network-passphrase') + 1:
         safe_cmd[safe_cmd.index('--network-passphrase') + 1] = '***'
     print(f"Running: {' '.join(safe_cmd)}")
     
     # Add constructor arguments if provided
     if constructor_args:
-        # Split the constructor args string into a list of arguments
         import shlex
         args_list = shlex.split(constructor_args)
         cmd.extend(['--'] + args_list)
     
-    # Convert command list to string for logging and execution
-    cmd_str = ' '.join(cmd)
-    print(f"Running: {cmd_str}")
-    
-    # Run the deployment command with XDR workaround
-    success, result = run_stellar_command_with_xdr_workaround(
-        cmd_str,
-        network=network,
-        rpc_url=rpc_url
-    )
-    
-    if success and isinstance(result, str) and len(result) == 56 and result.startswith('C'):
-        print(f"✅ {contract_name} deployed successfully: {result}")
-        return result
-    
-    print(f"❌ Failed to deploy {contract_name}")
-    if not success and isinstance(result, str):
-        print(f"Error: {result}")
-    return None
+    # Run the command directly with subprocess
+    try:
+        print(f"⚡ Running: {' '.join(cmd[:4] + ['***'] + cmd[5:])}")
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300
+        )
+        
+        # Check if command was successful
+        if result.returncode == 0:
+            # Extract contract ID from output
+            output = result.stdout.strip()
+            if output and len(output) == 56 and output.startswith('C'):
+                print(f"✅ {contract_name} deployed successfully: {output}")
+                return output
+        
+        # If we get here, something went wrong
+        print(f"❌ Failed to deploy {contract_name}")
+        print(f"Exit code: {result.returncode}")
+        print(f"Stdout: {result.stdout}")
+        print(f"Stderr: {result.stderr}")
+        return None
+        
+    except subprocess.TimeoutExpired:
+        print(f"❌ Command timed out after 300 seconds")
+        return None
+    except Exception as e:
+        print(f"❌ Error executing command: {str(e)}")
+        return None
 
 def parse_args():
     """Parse command line arguments."""
