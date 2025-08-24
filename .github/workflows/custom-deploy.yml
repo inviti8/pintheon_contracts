@@ -319,16 +319,69 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASE="v${{ env.VERSION }}"
-          echo "Updating release notes for $RELEASE"
+          # Get the full tag name (e.g., deploy-v0.03-testnet)
+          FULL_TAG="${{ github.ref_name}}"
+          echo "Updating release notes for tag: $FULL_TAG"
+          
+          # Get the release info using the full tag name
           RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$FULL_TAG")
+            
+          # Check if we got a valid response
+          if [ "$(echo "$RELEASE_INFO" | jq -r '.message')" = "Not Found" ]; then
+            echo "Error: Release $FULL_TAG not found"
+            exit 1
+          fi
+          
           RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
-          CURRENT_BODY=$(echo "$RELEASE_INFO" | jq -r '.body')
-          DEPLOYMENTS_MD=$(cat deployments.md)
-          NEW_BODY="$CURRENT_BODY\n\n## Deployment Details\n$DEPLOYMENTS_MD"
-          curl -s -X PATCH \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
-            -d "{\"body\": $(jq -R -s <<< \"$NEW_BODY\")}"
+          CURRENT_BODY=$(echo "$RELEASE_INFO" | jq -r '.body // ""')
+          
+          echo "Current release ID: $RELEASE_ID"
+          echo "Current body length: ${#CURRENT_BODY} characters"
+          
+          # Read the deployments markdown
+          if [ -f "deployments.md" ]; then
+            DEPLOYMENTS_MD=$(cat deployments.md)
+            echo "Read deployments.md (${#DEPLOYMENTS_MD} characters)"
+            
+            # Prepare the new body - ensure we don't duplicate the deployment details
+            if [[ "$CURRENT_BODY" == *"## Deployment Details"* ]]; then
+              echo "Found existing Deployment Details section, replacing it"
+              NEW_BODY="${CURRENT_BODY%%## Deployment Details*}## Deployment Details\n\n$DEPLOYMENTS_MD"
+            else
+              NEW_BODY="${CURRENT_BODY}\n\n## Deployment Details\n\n$DEPLOYMENTS_MD"
+            fi
+            
+            # Update the release
+            echo "Updating release with new body (${#NEW_BODY} characters)"
+            
+            # Use jq to properly escape the JSON
+            JSON_PAYLOAD=$(jq -n --arg body "$NEW_BODY" '{"body": $body}')
+            
+            # Debug output
+            echo "JSON payload length: ${#JSON_PAYLOAD}"
+            
+            # Make the API call
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              -d "$JSON_PAYLOAD")
+              
+            # Split response into body and status code
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+            RESPONSE_BODY=$(echo "$RESPONSE" | jq -r '.' 2>/dev/null || echo "$RESPONSE" | head -n -1)
+            
+            echo "GitHub API response status: $HTTP_STATUS"
+            if [ $HTTP_STATUS -ne 200 ]; then
+              echo "Error updating release notes:"
+              echo "$RESPONSE_BODY"
+              exit 1
+            fi
+            
+            echo "✅ Successfully updated release notes"
+          else
+            echo "Error: deployments.md not found"
+            exit 1
+          fi

@@ -1,7 +1,7 @@
 {
   "admin": "TESTNET_DEPLOYER",
   "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  "join_fee": 8.0,
+  "join_fee": 32.0,
   "mint_fee": 0.5,
-  "reward": 1.0
+  "reward": 8.0
 }
