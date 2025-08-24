@@ -484,6 +484,16 @@ def parse_arguments():
     
     return parser.parse_args()
 
+def get_wasm_path(contract_name, wasm_dir, cloud_mode=False):
+    """Get the correct WASM path based on deployment mode."""
+    if cloud_mode:
+        # In cloud mode, use the release-wasm directory with hyphenated names
+        wasm_name = contract_name.replace('_', '-') + '.wasm'
+        return os.path.join(wasm_dir, wasm_name)
+    else:
+        # In local mode, use the standard target directory structure
+        return os.path.join(contract_name, 'target', 'wasm32-unknown-unknown', 'release', f"{contract_name.replace('-', '_')}.wasm")
+
 def main():
     """Main deployment function."""
     print("🔧 Stellar Contract Deployment with XDR Workaround")
@@ -493,6 +503,7 @@ def main():
     
     # Determine if we're in cloud mode (either --cloud flag or --mode=cloud)
     cloud_mode = args.cloud or args.mode == 'cloud'
+    wasm_dir = args.wasm_dir or ('.' if not cloud_mode else 'release-wasm')
     
     # Handle cloud deployment setup
     if cloud_mode:
@@ -564,8 +575,11 @@ def main():
             source_account = "test-deployer"
             print("✅ Using existing test-deployer account")
     
-    # This is a deployment-only script - all contracts should be pre-built
-    print("\n🔧 Deployment mode: Using pre-built WASM files")
+    # Set up deployment mode message
+    if cloud_mode:
+        print("\n☁️  Cloud deployment mode: Using pre-built WASM files from", wasm_dir)
+    else:
+        print("\n💻 Local deployment mode: Using local build artifacts")
     
     # Deploy contracts in dependency order
     deployments = []
@@ -575,13 +589,13 @@ def main():
     dependency_contracts = [
         {
             "name": "pintheon-node-token", 
-            "wasm": "pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm",
-            "upload_only": True
+            "wasm": get_wasm_path("pintheon-node-token", wasm_dir, cloud_mode),
+            "deploy": False  # These are dependencies, we just need to upload them
         },
         {
             "name": "pintheon-ipfs-token",
-            "wasm": "pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm",
-            "upload_only": True
+            "wasm": get_wasm_path("pintheon-ipfs-token", wasm_dir, cloud_mode),
+            "deploy": False  # These are dependencies, we just need to upload them
         }
     ]
     
@@ -603,7 +617,7 @@ def main():
     
     # Step 2: Deploy Opus Token
     opus_result = None
-    opus_wasm = "opus_token/target/wasm32-unknown-unknown/release/opus_token.wasm"
+    opus_wasm = get_wasm_path("opus-token", wasm_dir, cloud_mode)
     if os.path.exists(opus_wasm):
         opus_result = deploy_contract_with_workaround(
             "opus_token",
@@ -613,10 +627,11 @@ def main():
         )
         if opus_result:
             deployments.append(opus_result)
+    else:
+        print(f"⚠️ Opus Token WASM not found: {opus_wasm}")
     
     # Step 3: Deploy HVYM Collective (final contract with all dependencies)
-    # Note: hvym-collective-factory is not built by GitHub Actions, so skipping it
-    collective_wasm = "hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.wasm"
+    collective_wasm = get_wasm_path("hvym-collective", wasm_dir, cloud_mode)
     if os.path.exists(collective_wasm) and opus_result:
         # Load constructor arguments from JSON file if available
         constructor_args = load_hvym_collective_args(opus_result['address'], source_account)
