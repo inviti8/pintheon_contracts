@@ -28,6 +28,7 @@ import json
 import os
 import re
 import requests
+from stellar_sdk import Keypair
 import subprocess
 import sys
 import time
@@ -36,8 +37,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 # Cloud deployment configuration
-CLOUD_IDENTITY_DIR = os.path.expanduser("~/.stellar/identity")
-CLOUD_CONFIG_DIR = os.path.expanduser("~/.stellar")
+CLOUD_IDENTITY_DIR = os.path.join(os.getcwd(), ".stellar", "identity")
+CLOUD_CONFIG_DIR = os.path.join(os.getcwd(), ".stellar")
 DEFAULT_IDENTITY_NAME = "DEPLOYER"
 
 def extract_transaction_hash(output):
@@ -557,31 +558,176 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         print(f"❌ Unexpected error deploying {contract_name}: {str(e)}")
         return None
 
-def setup_cloud_identity(secret_key: str, identity_name: str = DEFAULT_IDENTITY_NAME) -> bool:
-    """Set up Stellar CLI identity for cloud deployment."""
+def cleanup_failed_identity(identity_name: str) -> None:
+    """Clean up a failed identity setup."""
     try:
-        from stellar_sdk import Keypair
+        # Remove from Stellar CLI if it exists (with a shorter timeout)
+        try:
+            result = subprocess.run(
+                ["stellar", "keys", "ls"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0 and f"{identity_name}:" in result.stdout:
+                print(f"🧹 Removing identity from Stellar CLI: {identity_name}")
+                subprocess.run(
+                    ["stellar", "keys", "remove", identity_name, "--force", "--yes"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
+            print(f"⚠️  Warning during CLI cleanup: {str(e)}")
         
-        # Create identity directory if it doesn't exist
-        os.makedirs(CLOUD_IDENTITY_DIR, exist_ok=True)
-        
-        # Generate a new mnemonic phrase
-        mnemonic_phrase = Keypair.generate_mnemonic_phrase()
-        
-        # Create identity file
+        # Remove identity file
         identity_file = os.path.join(CLOUD_IDENTITY_DIR, f"{identity_name}.toml")
-        with open(identity_file, 'w') as f:
-            toml.dump({'seed_phrase': mnemonic_phrase}, f)
+        if os.path.exists(identity_file):
+            try:
+                os.remove(identity_file)
+                print(f"🧹 Removed identity file: {identity_file}")
+            except Exception as e:
+                print(f"⚠️  Failed to remove identity file: {str(e)}")
+    except Exception as e:
+        print(f"⚠️  Warning during cleanup of {identity_name}: {str(e)}")
+
+def identity_exists_in_cli(identity_name: str, timeout: int = 5) -> bool:
+    """Check if an identity exists in the Stellar CLI keyring."""
+    try:
+        # Try with a timeout to prevent hanging
+        result = subprocess.run(
+            ["stellar", "keys", "ls", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
         
-        # Verify the identity
-        keypair = Keypair.from_mnemonic_phrase(mnemonic_phrase)
-        print(f"✅ Created Stellar identity: {identity_name}")
-        print(f"   Public key: {keypair.public_key}")
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                keys = json.loads(result.stdout)
+                if isinstance(keys, list):
+                    return any(key.get("name") == identity_name for key in keys)
+            except json.JSONDecodeError:
+                # Fall back to text parsing if JSON parsing fails
+                pass
         
+        # Fall back to text output if JSON output is not available
+        result = subprocess.run(
+            ["stellar", "keys", "ls"],
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        
+        if result.returncode != 0:
+            print(f"❌ Failed to list Stellar CLI keys: {result.stderr}")
+            return False
+            
+        # Look for the identity name in the output
+        return f"{identity_name}:" in result.stdout
+        
+    except (subprocess.SubprocessError, subprocess.TimeoutExpired) as e:
+        print(f"❌ Error checking for existing identity: {str(e)}")
+        return False
+
+def register_identity_with_cli(identity_name: str, _: str = None) -> bool:
+    """Set the default identity using the local identity file.
+    
+    Args:
+        identity_name: Name of the identity to use
+        _: Unused parameter (kept for backward compatibility)
+        
+    Returns:
+        bool: True if identity was set as default successfully, False otherwise
+    """
+    print(f"🔄 Setting up identity: {identity_name}")
+    
+    try:
+        # Check if identity file exists
+        identity_file = os.path.join(CLOUD_IDENTITY_DIR, f"{identity_name}.toml")
+        if not os.path.exists(identity_file):
+            print(f"❌ Identity file not found: {identity_file}")
+            return False
+            
+        print(f"✅ Using local identity file: {identity_file}")
         return True
         
     except Exception as e:
-        print(f"❌ Failed to set up cloud identity: {str(e)}")
+        print(f"❌ Error setting up identity: {str(e)}")
+        return False
+        return False
+
+def setup_cloud_identity(secret_key: str, identity_name: str = DEFAULT_IDENTITY_NAME) -> bool:
+    """Set up a local Stellar identity file for deployment.
+    
+    Args:
+        secret_key: The secret key or mnemonic phrase for the identity
+        identity_name: Name to use for the identity file
+        
+    Returns:
+        bool: True if setup was successful, False otherwise
+    """
+    print("\n=== Starting Local Identity Setup ===")
+    print(f"Identity Name: {identity_name}")
+    print(f"Key Type: {'Mnemonic' if ' ' in secret_key else 'Secret Key'}")
+    
+    identity_file = None
+    try:
+        # 1. Create identity directory
+        print("\n[1/2] Setting up identity directory...")
+        os.makedirs(CLOUD_IDENTITY_DIR, exist_ok=True)
+        print(f"✅ Directory ready: {CLOUD_IDENTITY_DIR}")
+        
+        # 2. Create and save identity file
+        print("\n[2/2] Creating identity file...")
+        identity_file = os.path.join(CLOUD_IDENTITY_DIR, f"{identity_name}.toml")
+        
+        # Validate and process the key
+        try:
+            if ' ' in secret_key:  # Mnemonic phrase
+                keypair = Keypair.from_mnemonic_phrase(secret_key)
+                identity_data = {
+                    'seed_phrase': secret_key,
+                    'public_key': keypair.public_key,
+                    'type': 'mnemonic'
+                }
+            else:  # Secret key
+                keypair = Keypair.from_secret(secret_key)
+                identity_data = {
+                    'secret_key': secret_key,
+                    'public_key': keypair.public_key,
+                    'type': 'secret_key'
+                }
+                
+            with open(identity_file, 'w') as f:
+                toml.dump(identity_data, f)
+                
+            print(f"✅ Identity file created: {identity_file}")
+            print(f"   Public Key: {keypair.public_key}")
+            
+            # Verify the file was written correctly
+            if os.path.exists(identity_file):
+                with open(identity_file, 'r') as f:
+                    file_content = f.read()
+                    print(f"\nIdentity file contents:\n{file_content}")
+            
+            print("\n=== Local Identity Setup Complete ===")
+            print(f"✅ Successfully set up local Stellar identity: {identity_name}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error processing key: {str(e)}")
+            raise
+            
+    except Exception as e:
+        print(f"❌ Failed to set up local identity: {str(e)}")
+        # Clean up any partial setup
+        if identity_file and os.path.exists(identity_file):
+            try:
+                os.remove(identity_file)
+                print(f"🧹 Cleaned up identity file: {identity_file}")
+            except Exception as cleanup_error:
+                print(f"⚠️  Failed to clean up identity file: {str(cleanup_error)}")
         return False
 
 def configure_network(network: str, rpc_url: Optional[str] = None) -> bool:
@@ -710,34 +856,78 @@ def main():
         
         # Set up identity if secret key is provided
         if args.secret_key:
+            print(f"🔑 Setting up identity from provided secret key")
             if not setup_cloud_identity(args.secret_key, args.identity_name):
                 sys.exit(1)
             source_account = args.identity_name
         else:
             # Check if deployer_account is a secret key
             if is_valid_secret_key(args.deployer_account):
+                print(f"🔑 Setting up identity from deployer account secret key")
                 # It's a secret key, set it up as an identity
                 if not setup_cloud_identity(args.deployer_account, 'deployer-key'):
                     sys.exit(1)
                 source_account = 'deployer-key'
             else:
-                # It's an account alias
+                # It's an account alias, verify it exists in the CLI
+                print(f"🔍 Using existing identity: {args.deployer_account}")
+                if not identity_exists_in_cli(args.deployer_account):
+                    print(f"❌ Error: Identity '{args.deployer_account}' not found in Stellar CLI")
+                    print("   Please add this identity using 'stellar keys add' or provide a secret key")
+                    sys.exit(1)
                 source_account = args.deployer_account
+        
+        # Verify the identity is properly set up
+        try:
+            # Test the identity by getting its public key
+            result = subprocess.run(
+                ["stellar", "keys", "show", source_account],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"❌ Error: Failed to verify identity '{source_account}': {result.stderr}")
+                sys.exit(1)
+                
+            # Extract public key from the output (format: "<name>: <public_key>")
+            output_lines = result.stdout.strip().split('\n')
+            public_key = None
+            for line in output_lines:
+                if line.startswith(f"{source_account}:"):
+                    public_key = line.split(':', 1)[1].strip()
+                    break
+                    
+            if public_key:
+                print(f"✅ Verified identity: {public_key} ({source_account})")
+            else:
+                print(f"⚠️  Verified identity but could not extract public key for: {source_account}")
+            
+        except (subprocess.SubprocessError, json.JSONDecodeError) as e:
+            print(f"❌ Error verifying identity: {str(e)}")
+            sys.exit(1)
             
         # Configure network
+        print(f"🌐 Configuring network: {args.network}")
         if not configure_network(args.network, args.rpc_url):
             sys.exit(1)
             
-        print(f"✅ Cloud deployment setup complete")
+        print("✅ Cloud deployment setup complete")
         print(f"   Using account: {source_account}")
         print(f"   Network: {args.network}")
         
         # If specific contract deployment was requested
         if args.contract:
-            wasm_path = args.wasm_path or os.path.join(args.wasm_dir, f"{args.contract}.wasm")
+            wasm_path = args.wasm_path or os.path.join(wasm_dir, f"{args.contract}.wasm")
             if not os.path.exists(wasm_path):
-                print(f"❌ Error: WASM file not found at {wasm_path}")
-                sys.exit(1)
+                # Try to find the WASM file using the get_wasm_path function
+                wasm_path = get_wasm_path(args.contract, wasm_dir, cloud_mode)
+                if not wasm_path or not os.path.exists(wasm_path):
+                    print(f"❌ Error: WASM file not found for contract '{args.contract}'")
+                    print(f"   Searched in: {os.path.abspath(wasm_dir)}")
+                    sys.exit(1)
+            
+            print(f"🚀 Deploying contract: {args.contract}")
+            print(f"   WASM path: {os.path.abspath(wasm_path)}")
                 
             result = deploy_contract_with_workaround(
                 contract_name=args.contract,
@@ -746,8 +936,16 @@ def main():
                 source_account=source_account
             )
             
+            if not result:
+                print(f"❌ Failed to deploy contract: {args.contract}")
+                sys.exit(1)
+                
+            print(f"✅ Successfully deployed contract: {args.contract}")
+            print(f"   Contract ID: {result.get('address')}")
+            print(f"   Transaction: {result.get('tx_hash')}")
+            
             # Handle post-deployment configuration if specified
-            if result and args.post_deploy_config and os.path.exists(args.post_deploy_config):
+            if args.post_deploy_config and os.path.exists(args.post_deploy_config):
                 print(f"📋 Applying post-deployment configuration from {args.post_deploy_config}")
                 # Add post-deployment logic here if needed
                 
