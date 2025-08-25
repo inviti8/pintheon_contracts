@@ -357,6 +357,25 @@ def extract_wasm_hash_from_output(output):
         return hash_matches[-1]  # Return the last one found
     return None
 
+
+def extract_contract_id_from_output(output: str) -> Optional[str]:
+    """Extract contract ID from the last line of CLI output if it matches format."""
+    if not output:
+        return None
+    
+    # Get last non-empty line
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not lines:
+        return None
+        
+    last_line = lines[-1]
+    
+    # Check if last line matches contract ID format (C followed by 55 alphanumeric chars)
+    if len(last_line) == 56 and last_line.startswith('C') and last_line[1:].isalnum():
+        return last_line
+        
+    return None
+
 def is_valid_contract_address(address):
     """Check if a string is a valid Stellar contract address."""
     import re
@@ -500,24 +519,28 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         # Extract contract address from transaction
         contract_address = None
         tx_hash = deploy_result.get('tx_hash')
+        output = deploy_result.get('output', '')
         
-        if tx_hash:
+        # First try to extract from CLI output (last line)
+        contract_address = extract_contract_id_from_output(output)
+        if contract_address:
+            print(f"✅ Extracted contract ID from CLI output: {contract_address}")
+        elif tx_hash:
             print(f"ℹ️ Extracting contract address for {contract_name} from transaction {tx_hash}")
             
-            # Try to get from Stellar Expert using Selenium (primary method)
+            # Try to get from Stellar Expert using Selenium (secondary method)
             print("🔍 Looking up contract address on Stellar Expert...")
             contract_address = extract_contract_address_from_stellar_expert(tx_hash, network=network)
             
             if contract_address:
                 print(f"✅ Successfully extracted contract address: {contract_address}")
             else:
-                # Fallback to CLI output if Selenium method fails
-                print("⚠️ Could not get contract address from Stellar Expert, trying CLI output...")
-                output = deploy_result.get('output', '')
+                # Fallback to pattern matching in CLI output (tertiary method)
+                print("⚠️ Could not get contract address from Stellar Expert, trying CLI pattern matching...")
                 matches = re.findall(r'Contract: (C[0-9A-Z]{55})', output)
                 if matches:
                     contract_address = matches[0]
-                    print(f"ℹ️ Extracted contract address from CLI output: {contract_address}")
+                    print(f"ℹ️ Extracted contract address from CLI pattern: {contract_address}")
                 else:
                     print("⚠️ Could not extract contract address from CLI output")
                     
