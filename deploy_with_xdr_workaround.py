@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 """
-Deployment script that works around XDR processing errors by checking transaction success via API.
-Supports both local and cloud deployment modes.
+Stellar Smart Contract Deployment Script with XDR Workarounds
+
+This script provides a robust deployment solution for Stellar smart contracts that works around
+common XDR processing errors by verifying transaction success via the Stellar Horizon API.
+
+Key Features:
+- Supports both local and cloud deployment modes
+- Uses Selenium for reliable contract ID extraction from Stellar Expert
+- Implements comprehensive error handling and retry mechanisms
+- Provides detailed logging and debugging information
+
+Dependencies:
+- stellar-sdk: For Stellar network interactions
+- selenium: For web scraping Stellar Expert (with Chrome/Chromium and ChromeDriver)
+- webdriver-manager: For automatic ChromeDriver management
+
+Environment Setup:
+1. Install Python dependencies: pip install -r requirements.txt
+2. Install Chrome/Chromium browser
+3. Ensure ChromeDriver is installed (handled automatically by webdriver-manager)
 """
 
 import argparse
@@ -70,75 +88,134 @@ def check_transaction_success(tx_hash, network="testnet", max_retries=30):
     print(f"❌ Transaction {tx_hash} not confirmed after {max_retries} attempts")
     return False, None
 
-def extract_contract_address_from_stellar_expert(tx_hash, network="testnet"):
-    """Extract contract address from Stellar Expert API transaction data."""
-    try:
-        from stellar_sdk import StrKey
-        import base64
-        import re
+def extract_contract_address_from_stellar_expert(tx_hash: str, network: str = "testnet", max_retries: int = 3, retry_delay: int = 5) -> Optional[str]:
+    """
+    Extract contract address from Stellar Expert using Selenium to render the page.
+    
+    This function attempts to load the transaction page on Stellar Expert in a headless
+    browser, wait for the contract link to appear, and extract the contract ID.
+    
+    Args:
+        tx_hash: The transaction hash to look up
+        network: Network to check (testnet/public)
+        max_retries: Maximum number of retry attempts
+        retry_delay: Delay between retries in seconds
         
-        # Get transaction data from Stellar Expert API
-        url = f"https://api.stellar.expert/explorer/{network}/tx/{tx_hash}"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code != 200:
-            print(f"⚠️ Failed to fetch transaction from Stellar Expert: {response.status_code}")
-            return None
-            
-        tx_data = response.json()
-        
-        # Method 1: Try to find the contract ID in the operations
-        operations = tx_data.get('operations', [])
-        for op in operations:
-            if op.get('type') == 'invokeHostFunction':
-                details = op.get('details', {})
-                if 'contractId' in details:
-                    return details['contractId']
-        
-        # Method 2: Extract from transaction result XDR
-        result_xdr = tx_data.get('result')
-        if not result_xdr:
-            return None
-            
+    Returns:
+        str: The contract ID if found, None otherwise
+    """
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import (
+        TimeoutException, 
+        WebDriverException,
+        NoSuchElementException
+    )
+    
+    # Set up Chrome options for headless browsing
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-software-rasterizer")
+    chrome_options.add_argument("--disable-dev-tools")
+    chrome_options.add_argument("--disable-logging")
+    chrome_options.add_argument("--log-level=3")  # Suppress console logs
+    
+    # Initialize driver outside try to ensure it can be closed in finally
+    driver = None
+    
+    # Build the Stellar Expert URL
+    base_url = f"https://stellar.expert/explorer/{network}/tx/{tx_hash}"
+    
+    print(f"🔍 Attempting to extract contract address from Stellar Expert...")
+    print(f"   URL: {base_url}")
+    print(f"   Max retries: {max_retries}, Retry delay: {retry_delay}s")
+    
+    for attempt in range(1, max_retries + 1):
         try:
-            # Decode the XDR result
-            decoded_result = base64.b64decode(result_xdr)
-            hex_data = decoded_result.hex()
+            print(f"\n🔄 Attempt {attempt}/{max_retries}")
             
-            # Look for contract ID pattern (32 bytes)
-            # Contract IDs are 32 bytes, so we look for 64 hex chars
-            # They often start with 'cc' but not always
-            for i in range(0, len(hex_data) - 63, 2):
-                candidate = hex_data[i:i+64]
-                # Skip if it's all zeros or has obvious non-address patterns
-                if candidate != '0' * 64 and not candidate.startswith('0000000000000000'):
-                    try:
-                        contract_bytes = bytes.fromhex(candidate)
-                        contract_address = StrKey.encode_contract(contract_bytes)
-                        if contract_address.startswith('C') and len(contract_address) == 56:
-                            return contract_address
-                    except:
-                        continue
-                        
-            # Method 3: Look for contract address in the raw output
-            if 'operations' in tx_data:
-                for op in tx_data['operations']:
-                    if 'details' in op and 'contractId' in op['details']:
-                        return op['details']['contractId']
-                        
-            return None
-            
-        except Exception as e:
-            print(f"⚠️ Error decoding transaction result: {e}")
-            return None
-            
-        # If we get here, we couldn't extract the contract address
-        print("⚠️ Could not extract contract address from transaction data")
-        return None
+            try:
+                # Initialize Chrome driver with options
+                driver = webdriver.Chrome(options=chrome_options)
+                driver.set_page_load_timeout(60)  # 60 seconds to load the page
+                
+                # Load the page
+                print(f"   Loading page...")
+                driver.get(base_url)
+                
+                # Wait for the contract link to appear with a timeout
+                wait = WebDriverWait(driver, 30)  # 30 seconds to find elements
+                
+                # Wait for the contract link to appear
+                print("   Searching for contract link...")
+                contract_selector = "a[href*='/contract/']"
+                contract_element = wait.until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, contract_selector))
+                )
+                
+                # Extract the contract ID from the href
+                contract_href = contract_element.get_attribute("href")
+                if contract_href:
+                    contract_id = contract_href.split("/")[-1]
+                    if contract_id.startswith('C') and len(contract_id) == 56:
+                        print(f"✅ Successfully extracted contract ID: {contract_id}")
+                        return contract_id
+                    else:
+                        print(f"⚠️ Found invalid contract ID format: {contract_id}")
+                
+                # If we get here, we didn't find a valid contract ID
+                print("⚠️ Could not find valid contract ID in page")
+                
+                # Take a screenshot for debugging
+                screenshot_path = f"stellar_expert_error_{int(time.time())}.png"
+                driver.save_screenshot(screenshot_path)
+                print(f"   Saved screenshot to {screenshot_path}")
+                
+            except TimeoutException:
+                print("❌ Timed out waiting for contract link to appear")
+                if attempt < max_retries:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                continue
+                
+            except WebDriverException as e:
+                print(f"❌ WebDriver error: {str(e)}")
+                if attempt < max_retries:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                continue
+                
+            except Exception as e:
+                print(f"❌ Unexpected error: {str(e)}")
+                if attempt < max_retries:
+                    print(f"⏳ Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                continue
+                
+            finally:
+                # Close the browser after each attempt
+                if driver:
+                    driver.quit()
+                    driver = None
         
-    except Exception as e:
-        print(f"⚠️ Error extracting contract address from Stellar Expert: {e}")
-        return None
+        except Exception as e:
+            print(f"❌ Fatal error in attempt {attempt}: {str(e)}")
+            if attempt < max_retries:
+                print(f"⏳ Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            continue
+    
+    # If we get here, all attempts failed
+    print(f"❌ Failed to extract contract address after {max_retries} attempts")
+    return None
 
 def run_stellar_command_with_xdr_workaround(cmd, cwd=None):
     """Run stellar CLI command and handle XDR errors by checking transaction success."""
@@ -426,42 +503,45 @@ def deploy_contract_with_workaround(contract_name, wasm_path, constructor_args="
         if tx_hash:
             print(f"ℹ️ Extracting contract address for {contract_name} from transaction {tx_hash}")
             
-            # First try to get from Stellar Expert API
+            # Try to get from Stellar Expert using Selenium (primary method)
+            print("🔍 Looking up contract address on Stellar Expert...")
             contract_address = extract_contract_address_from_stellar_expert(tx_hash, network=network)
             
-            # If that fails, try to extract from CLI output
-            if not contract_address:
+            if contract_address:
+                print(f"✅ Successfully extracted contract address: {contract_address}")
+            else:
+                # Fallback to CLI output if Selenium method fails
                 print("⚠️ Could not get contract address from Stellar Expert, trying CLI output...")
                 output = deploy_result.get('output', '')
                 matches = re.findall(r'Contract: (C[0-9A-Z]{55})', output)
                 if matches:
                     contract_address = matches[0]
                     print(f"ℹ️ Extracted contract address from CLI output: {contract_address}")
-            
-            # If still no address, try to get from Horizon API
-            if not contract_address:
-                print("⚠️ Could not get contract address from CLI output, trying Horizon API...")
-                try:
-                    from stellar_sdk import Server
-                    server = Server(horizon_url=f"https://horizon-{network}.stellar.org" if network != 'public' else "https://horizon.stellar.org")
-                    tx = server.transactions().transaction(tx_hash).call()
+                else:
+                    print("⚠️ Could not extract contract address from CLI output")
                     
-                    # Look for create_contract operations
-                    for op in tx.get('_embedded', {}).get('operations', []):
-                        if op.get('type_i') == 24:  # Create Contract operation
-                            contract_address = op.get('contract_id')
-                            if contract_address:
-                                print(f"ℹ️ Extracted contract address from Horizon API: {contract_address}")
+                    # Try to get from Horizon API as last resort
+                    try:
+                        print("ℹ️ Trying to get contract address from Horizon API...")
+                        from stellar_sdk import Server
+                        server = Server(horizon_url=f"https://horizon-{network}.stellar.org" if network != 'public' else "https://horizon.stellar.org")
+                        tx = server.transactions().transaction(tx_hash).call()
+                        
+                        # Look for create_contract operations in the transaction
+                        for op in tx.get('operations', []):
+                            if op.get('type') == 'create_contract' and 'contract_id' in op:
+                                contract_address = op['contract_id']
+                                print(f"✅ Extracted contract address from Horizon API: {contract_address}")
                                 break
-                except Exception as e:
-                    print(f"⚠️ Could not get contract address from Horizon API: {e}")
+                    except Exception as e:
+                        print(f"⚠️ Failed to get contract address from Horizon API: {str(e)}")
         
         # Prepare result
         result = {
             'name': contract_name,
             'wasm_hash': wasm_hash,
             'tx_hash': tx_hash,
-            'address': contract_address if contract_address else 'UNKNOWN',
+            'address': contract_address,
             'network': network,
             'source_account': source_account
         }

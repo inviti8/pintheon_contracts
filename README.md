@@ -46,7 +46,37 @@ This means the standard stellar-expert workflow won't work because it builds con
    - Generate build attestations
    - Submit contract validation data to StellarExpert
 
-### Contract Structure
+## Contract ID Extraction
+
+The deployment script includes a robust contract ID extraction mechanism that works around limitations in the Stellar network's transaction result processing. This is particularly important for Soroban smart contracts where the contract ID is not always directly available in the transaction result.
+
+### How It Works
+
+1. **Selenium-based Extraction (Primary Method)**
+   - The script uses a headless Chrome browser to load the transaction page on Stellar Expert
+   - It waits for the contract link to appear in the transaction details
+   - The contract ID is extracted from the link URL
+   - Includes automatic retries and error handling for reliability
+
+2. **Fallback Methods**
+   - If Selenium extraction fails, the script falls back to parsing the CLI output
+   - As a last resort, it attempts to extract the contract ID from the Horizon API
+
+### Requirements for Selenium
+
+- Chrome or Chromium browser installed
+- ChromeDriver (automatically managed by the script)
+- Python packages: `selenium`, `webdriver-manager`
+
+### Troubleshooting
+
+If contract ID extraction fails:
+1. Check that Chrome/Chromium is installed
+2. Ensure the system has a graphical environment (even in headless mode)
+3. Look for error logs in the script output
+4. Check for screenshots saved as `stellar_expert_error_*.png` for debugging
+
+## Contract Structure
 
 - `hvym-collective/` - Main collective contract
 - `opus_token/` - OPUS token contract
