@@ -14,9 +14,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from build_contracts import (
     CONTRACTS,
     clean_targets,
-    find_wasm_file,
-    run_cmd
+    find_wasm_file
 )
+import subprocess
 
 def setup_cloud_environment():
     """Set up the cloud build environment."""
@@ -24,7 +24,7 @@ def setup_cloud_environment():
     
     # Install wasm32v1 target if not present
     try:
-        run_cmd(["rustup", "target", "add", "wasm32v1-none"])
+        subprocess.run(["rustup", "target", "add", "wasm32v1-none"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Warning: Failed to add wasm32v1 target: {e}")
     
@@ -42,7 +42,7 @@ def build_contract_cloud(contract_dir, optimize=True):
             "cargo", "build", "--release",
             "--target", "wasm32v1-none"
         ]
-        run_cmd(cmd, cwd=contract_dir)
+        subprocess.run(cmd, cwd=contract_dir, check=True)
         
         # Find and optimize the wasm file
         wasm_file = find_wasm_file(contract_dir)
