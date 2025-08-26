@@ -3,11 +3,16 @@ name: Deploy Soroban Contracts
 on:
   push:
     tags:
-      - 'deploy-v*'
+      - 'deploy-v*'  # Format: deploy-vX.Y.Z-{testnet|mainnet|futurenet}
 
 permissions:
   contents: write
   id-token: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  STELLAR_CLI_VERSION: 23.0.1
 
 jobs:
   deploy:
@@ -27,57 +32,21 @@ jobs:
           # Install specific versions that work well together
           pip install 'stellar-sdk==10.0.0' 'cryptography==41.0.7' requests toml selenium webdriver-manager python-dotenv
 
-      - name: Install Chrome and system dependencies
+      - name: Install system dependencies
         run: |
-          # Install minimal required dependencies
+          # Install required system dependencies
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             wget \
             unzip \
-            xvfb \
-            x11-utils \
-            x11-xserver-utils \
-            dbus-x11 \
-            libx11-6 \
-            libxcb1 \
-            libxcomposite1 \
-            libxdamage1 \
-            libxext6 \
-            libxfixes3 \
-            libxrandr2 \
-            libgbm1 \
-            libasound2t64 \
-            libatk-bridge2.0-0 \
-            libatk1.0-0 \
-            libatspi2.0-0 \
-            libcups2 \
-            libdrm2 \
-            libgtk-3-0 \
-            libnspr4 \
-            libnss3 \
-            fonts-liberation \
-            xdg-utils
-          
-          # Download and install Chrome
-          wget -q -O /tmp/chrome.deb "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
-          sudo apt-get install -y /tmp/chrome.deb
-          rm /tmp/chrome.deb
-          
-          # Verify Chrome installation
-          echo "Chrome version:"
-          /usr/bin/google-chrome --version
-          
-          # Install ChromeDriver using webdriver-manager
-          python -m pip install --upgrade webdriver-manager
-          
-          # Set up virtual display
-          echo 'Starting Xvfb'
-          Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &> /dev/null &
-          echo 'Xvfb started'
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-          
-          # Set Chrome options for headless mode
-          echo 'CHROME_OPTIONS="--no-sandbox --disable-dev-shm-usage --disable-gpu --headless --remote-debugging-port=9222"' >> $GITHUB_ENV
+            jq \
+            libdbus-1-dev \
+            pkg-config \
+            libusb-1.0-0-dev \
+            libudev-dev \
+            libssl-dev \
+            build-essential \
+            cmake
           
       - name: Install system dependencies for stellar-cli
         run: |
@@ -106,18 +75,13 @@ jobs:
           components: rustfmt, clippy
           override: true
 
-      - name: Install Stellar CLI
+      - name: Install Stellar CLI ${{ env.STELLAR_CLI_VERSION }}
         env:
           PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig
           RUSTFLAGS: '-C target-cpu=native'
         run: |
-          cargo install --locked --version 22.8.2 stellar-cli --force
+          cargo install --locked --version ${{ env.STELLAR_CLI_VERSION }} stellar-cli --force
           stellar --version
-
-      - name: Install jq
-        run: |
-          wget https://github.com/jqlang/jq/releases/latest/download/jq-linux-amd64 -O /usr/local/bin/jq
-          chmod +x /usr/local/bin/jq
 
       - name: Extract version and network from tag
         id: extract
@@ -197,49 +161,25 @@ jobs:
             exit 1
           fi
 
-      - name: Verify WASM file compatibility
+      - name: Verify WASM files
         run: |
-          shopt -s nullglob
-          WASM_FILES=(release-wasm/*.wasm)
-          if [ ${#WASM_FILES[@]} -eq 0 ]; then
-            echo "Error: No WASM files found in release-wasm/"
-            exit 1
-          fi
-          
-          # Initialize debug output file
-          echo "{\"wasm_verification\": []}" > debug_output.json
-          
-          for wasm in "${WASM_FILES[@]}"; do
-            echo "Verifying WASM file: $wasm"
-            
-            # Check if file exists and is not empty
-            if [ ! -f "$wasm" ] || [ ! -s "$wasm" ]; then
-              echo "Warning: $wasm is missing or empty"
-              continue
+          # Verify each WASM file exists and is not empty
+          for wasm_file in release-wasm/*.wasm; do
+            echo "Verifying $wasm_file"
+            if [ ! -s "$wasm_file" ]; then
+              echo "::error::WASM file $wasm_file is missing or empty"
+              exit 1
             fi
             
-            # Get file size and basic info
-            FILE_SIZE=$(stat -c%s "$wasm")
-            FILE_HASH=$(sha256sum "$wasm" | cut -d ' ' -f1)
-            
-            echo "  - File size: $FILE_SIZE bytes"
-            echo "  - SHA256: $FILE_HASH"
-            
-            # Try to inspect WASM using stellar contract inspect (if available)
-            echo "  - Attempting to inspect contract..."
-            if stellar contract inspect --wasm "$wasm" > wasm-inspect-output.txt 2>&1; then
-              echo "  - Contract inspection successful"
-              cat wasm-inspect-output.txt
+            # Basic WASM verification
+            if ! wasm-opt --version > /dev/null 2>&1; then
+              echo "Skipping wasm-opt validation (not installed)"
+            elif ! wasm-opt "$wasm_file" -o /dev/null; then
+              echo "::warning::WASM file $wasm_file failed wasm-opt validation"
             else
-              echo "  - Contract inspection failed or not supported"
-              cat wasm-inspect-output.txt || echo "No output from inspect command"
+              echo "$wasm_file passed basic validation"
             fi
-            
-            # Add to debug output
-            echo "    {\"file\": \"$wasm\", \"size\": $FILE_SIZE, \"hash\": \"$FILE_HASH\", \"status\": \"verified\"}" >> debug_output.json
           done
-          
-          echo "WASM verification completed (non-blocking)"
 
       - name: Install dependencies
         run: |
@@ -287,50 +227,51 @@ jobs:
           echo -e "\nPost-deployment configuration:"
           cat config/hvym-collective_post_deploy_args.json
 
-      - name: Extract deployer public key
-        id: extract_pubkey
+      - name: Set up Stellar deployer identity
+        id: setup_identity
         run: |
-          # Simple script to extract public key from secret key
-          python3 -c "
-          from stellar_sdk import Keypair
-          import os
+          # Install required Python packages
+          python -m pip install stellar-sdk toml
           
-          secret = os.environ.get('ACCT_SECRET')
-          if not secret:
-              print('::error::ACCT_SECRET not found in environment')
-              exit(1)
-              
-          try:
-              keypair = Keypair.from_secret(secret)
-              print(f'PUBLIC_KEY={keypair.public_key}')
-              print(f'::add-mask::{keypair.public_key}')
-              # Set output using GITHUB_OUTPUT file
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-                  f.write(f'public_key={keypair.public_key}\n')
-          except Exception as e:
-              print(f'::error::Failed to parse secret key: {str(e)}')
-              exit(1)
-          "
+          # Run the identity setup script
+          python setup_deployer_identity.py \
+            --secret-key-env ACCT_SECRET \
+            --network ${{ env.NETWORK }} \
+            --rpc-url https://soroban-testnet.stellar.org
+          
+          # Set outputs from the script
+          echo "PUBLIC_KEY=$(python -c 'import toml; print(toml.load(open("$HOME/.stellar/identity/deployer.toml"))["public_key"]')" >> $GITHUB_OUTPUT
         env:
           ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
-      - name: Run XDR Workaround Deployment
+      - name: Run deployment script
         env:
           NETWORK: ${{ env.NETWORK }}
           RPC_URL: https://soroban-testnet.stellar.org
-          DEPLOYER_ACCOUNT: ${{ secrets.ACCT_SECRET }}
+          STELLAR_NETWORK: ${{ env.NETWORK }}
+          STELLAR_RPC_URL: https://soroban-testnet.stellar.org
         run: |
-          echo "Starting deployment with post-deployment steps..."
-          echo "Using deployer account: ${{ steps.extract_pubkey.outputs.public_key }}"
+          echo "Running deployment for ${{ env.NETWORK }}"
           
-          # Deploy with the updated args file
-          python3 deploy_with_xdr_workaround.py \
-            --mode cloud \
+          # Verify the identity is properly set up
+          if ! stellar keys public-key deployer >/dev/null 2>&1; then
+            echo "::error::Deployer identity not found. Make sure setup_deployer_identity.py ran successfully."
+            exit 1
+          fi
+          
+          # Get the deployer's public key for verification
+          DEPLOYER_PUBLIC_KEY=$(stellar keys public-key deployer)
+          echo "Using deployer identity with public key: $DEPLOYER_PUBLIC_KEY"
+          
+          # Run the deployment script with the deployer identity name
+          python deploy_contracts.py \
+            --network "${{ env.NETWORK }}" \
             --wasm-dir release-wasm \
-            --deployer-account "$DEPLOYER_ACCOUNT" \
-            --network "$NETWORK" \
+            --config config/hvym-collective_args.json \
+            --save-deployments deployments.json \
+            --deployer-acct deployer \
             --rpc-url "$RPC_URL" \
-            --post-deploy-config ./config/hvym-collective_post_deploy_args.json
+            --post-deploy-config config/hvym-collective_post_deploy_args.json
           
           # Save deployment details as an artifact
           if [ -f deployments.json ]; then

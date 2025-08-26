@@ -36,9 +36,15 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown,wasm32v1-none
           override: true
           components: rustfmt, clippy
+          
+      - name: Install wasm32v1 target
+        run: rustup target add wasm32v1-none
+        
+      - name: Show installed targets
+        run: rustup target list --installed
       
       - name: Install wasm-opt
         run: |
@@ -63,9 +69,14 @@ jobs:
           cargo install --locked --version ${{ env.STELLAR_CLI_VERSION }} stellar-cli
           stellar --version
           
-      - name: Build all contracts
+      - name: Build all contracts in cloud
         run: |
-          python build_contracts.py
+          # Install Python dependencies
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          # Run the cloud build script
+          python cloud_build.py
           
       - name: Verify built WASM files
         run: |
