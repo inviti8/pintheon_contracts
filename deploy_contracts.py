@@ -101,8 +101,28 @@ def save_deployments_md(data):
         "| Contract Name | Contract Directory | Wasm Hash | Contract ID |",
         "|--------------|-------------------|--------------------------------------------------------------|----------------------------------------------------------|"
     ]
-    for contract, info in data.items():
-        lines.append(f"| `{contract}` | `{info.get('contract_dir', '')}` | `{info.get('wasm_hash', '')}` | `{info.get('contract_id', '')}` |")
+    
+    # Check if we have the new format with a 'contracts' array
+    if 'contracts' in data:
+        for contract_info in data['contracts']:
+            if isinstance(contract_info, dict):
+                contract_name = contract_info.get('name', '')
+                contract_dir = contract_info.get('contract_dir', '')
+                wasm_hash = contract_info.get('wasm_hash', '')
+                contract_id = contract_info.get('contract_id', contract_info.get('address', ''))
+                lines.append(f"| `{contract_name}` | `{contract_dir}` | `{wasm_hash}` | `{contract_id}` |")
+    
+    # Also handle the old format where contracts are direct keys
+    for key, value in data.items():
+        if key not in ['network', 'timestamp', 'cli_version', 'note', 'contracts'] and isinstance(value, dict):
+            contract_name = key
+            contract_dir = value.get('contract_dir', '')
+            wasm_hash = value.get('wasm_hash', '')
+            contract_id = value.get('contract_id', value.get('address', ''))
+            # Only add if not already in the list
+            if not any(contract_name in line for line in lines):
+                lines.append(f"| `{contract_name}` | `{contract_dir}` | `{wasm_hash}` | `{contract_id}` |")
+    
     with open(DEPLOYMENTS_MD, "w") as f:
         f.write("\n".join(lines) + "\n")
 

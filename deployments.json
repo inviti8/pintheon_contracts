@@ -1,6 +1,6 @@
 {
   "network": "testnet",
-  "timestamp": 1756068055,
+  "timestamp": 1756172568,
   "cli_version": "22.8.2",
   "note": "Deployed with XDR workaround - transactions succeeded despite CLI errors",
   "contracts": [
@@ -19,18 +19,30 @@
     {
       "name": "opus_token",
       "wasm_hash": "69cabf3ccf95a5ccaa484c4a591c55594b5739e8aa723a1f16b4ba944c14c79c",
-      "tx_hash": "9b1f72849d051ef1c3f837fb7c6c93952fab889847b212993c670c356dbf7032",
-      "address": "CCNR64UETUCR54OD7A37W7DMSOKS7K4ITBD3EEUZHRTQYNLNX5YDEFYO",
-      "network": "testnet",
-      "source_account": "test-deployer"
-    },
-    {
-      "name": "hvym-collective",
-      "wasm_hash": "5df80fac63ffc69e099dba935128df76da1e685a1c810d23304b20fb98e216f2",
-      "tx_hash": "8eaa018502940acd6d5f5cb2a68a699a1bf742d178133a1336f82b4e285968d9",
-      "address": "CCHKUAMFAKKAVTLNL5OLFJUKNGNBX52C2F4BGOQTG34CWTRILFUNSR5P",
+      "tx_hash": "679e5f1359ee2c14a373bad06d003f060881d0c027c2fb1145bb597dbb02bb88",
+      "address": "CBKEMSGFR2RAHJXFBDWEAJ2CJG3TEDYCJSL7TIQCWTLWGOUXRLHJ4GEM",
       "network": "testnet",
       "source_account": "test-deployer"
     }
-  ]
+  ],
+  "pintheon-ipfs-token": {
+    "contract_dir": "pintheon-ipfs-deployer/pintheon-ipfs-token",
+    "wasm_hash": "bb36fdc57aae8fc99a5065efdd63c5c4a11496d86b40041feee06c8825f1f253",
+    "contract_id": null
+  },
+  "pintheon-node-token": {
+    "contract_dir": "pintheon-node-deployer/pintheon-node-token",
+    "wasm_hash": "fc396c505d6f7ce2f34a47f5c269c7671b3f0c016ea93f9c471b4f36d9170b63",
+    "contract_id": null
+  },
+  "opus_token": {
+    "contract_dir": "opus_token",
+    "wasm_hash": "e85cbd7f76d1de9865baf11a991dcad7fb65c48e97672e334ae073e3fdb96a22",
+    "contract_id": "CDMYCYLWWQOJDIWRCYZAK3FIUAXOI55D22ZFOMDYGUB4NWYTQDSI3VYD"
+  },
+  "hvym-collective": {
+    "contract_dir": "hvym-collective",
+    "wasm_hash": "887116e31772493cd6abe69784a886137034cd3457d04b21396e218f392c074f",
+    "contract_id": "CCICSEQVAF63Y6VUS6YBFOWG6TK5BOOIPQUAY2DNYG4QUH6AAMYQ4KKY"
+  }
 }

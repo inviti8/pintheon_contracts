@@ -2,7 +2,8 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, Bytes, token
+    TryFromVal, Val, Vec, Error, Symbol, String, BytesN, FromVal, Bytes, token,
+    token::StellarAssetClient
 };
 
 const ID: Symbol = symbol_short!("COLLECTIV");
@@ -22,17 +23,17 @@ const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 // Uncomment these when pushing to GitHub for releases
 // Comment out LOCAL BUILD section below
 
-mod pintheon_node_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm"
-    );
-}
+// mod pintheon_node_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm"
+//     );
+// }
 
-mod pintheon_ipfs_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm"
-    );
-}
+// mod pintheon_ipfs_token {
+//     soroban_sdk::contractimport!(
+//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm"
+//     );
+// }
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
@@ -42,17 +43,12 @@ mod pintheon_ipfs_token {
 // Uncomment these when developing locally
 // Comment out GITHUB WORKFLOW section above
 
-// mod pintheon_node_token {
-//     soroban_sdk::contractimport!(
-//         file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.wasm"
-//     );
-// }
+// Define the WASM files as constants
+const PINTHEON_NODE_TOKEN_WASM: &[u8] = 
+    include_bytes!("../../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm");
 
-// mod pintheon_ipfs_token {
-//     soroban_sdk::contractimport!(
-//         file = "../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm"
-//     );
-// }
+const PINTHEON_IPFS_TOKEN_WASM: &[u8] = 
+    include_bytes!("../../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm");
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
@@ -241,14 +237,16 @@ impl CollectiveContract{
         let b: [u8; 32] = hash_string(&e, &name).into();
         let node_id = String::from_bytes(&e, &b);
         let established = ledger.timestamp();
-        let wasm_hash = e.deployer().upload_contract_wasm(pintheon_node_token::WASM);
+        let wasm_hash = e.deployer().upload_contract_wasm(PINTHEON_NODE_TOKEN_WASM);
         let str_addr = Address::to_string(&caller);
         let salt = hash_string(&e, &str_addr);
         let constructor_args: Vec<Val> = (caller.clone(), name.clone(), symbol.clone(), node_id.clone(), descriptor.clone(), established.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
-        let token = pintheon_node_token::Client::new(&e, &contract_id);
-        token.mint(&caller, &1);
+        
+        // Mint tokens to the caller using StellarAssetClient
+        let token_client = StellarAssetClient::new(&e, &contract_id);
+        token_client.mint(&caller, &1);
 
         contract_id
     }
@@ -279,24 +277,24 @@ impl CollectiveContract{
         let ledger = e.ledger();
         let symbol = String::from_val(&e, &"HVYMFILE");
         let published = ledger.timestamp();
-        let wasm_hash = e.deployer().upload_contract_wasm(pintheon_ipfs_token::WASM);
+        let wasm_hash = e.deployer().upload_contract_wasm(PINTHEON_IPFS_TOKEN_WASM);
         let salt = hash_string(&e, &ipfs_hash);
         let constructor_args: Vec<Val> = (caller.clone(), name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
 
-        //mint opus reward to caller
+        // Mint opus reward to caller using StellarAssetClient
         let opus_address: Address = e.storage().instance().get(&OPUS).unwrap();
-        let opus_client = token::StellarAssetClient::new(&e, &opus_address);
+        let opus_client = StellarAssetClient::new(&e, &opus_address);
         let reward = collective.opus_reward as i128;
-
+        
+        // Mint tokens to the caller
         opus_client.mint(&caller, &reward);
 
         contract_id
     }
 
     pub fn publish_file(e: Env, caller: Address, publisher: String, ipfs_hash: String) {
-
         caller.require_auth();
         let collective: Collective = e.storage().persistent().get(&Datakey::Collective).unwrap();
         let client = token::Client::new(&e, &collective.pay_token);
