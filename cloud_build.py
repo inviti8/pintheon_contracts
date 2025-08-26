@@ -63,27 +63,34 @@ def build_contract_cloud(contract_dir, optimize=True):
             print(f"  Error listing wasm directory: {e}")
     
     try:
-        # Build with wasm32v1-none target
-        cmd = [
-            "cargo", "build", "--release",
-            "--target", "wasm32v1-none"
-        ]
-        subprocess.run(cmd, cwd=contract_dir, check=True)
+        # Build the contract using stellar cli
+        print(f"Building {contract_dir}...")
+        subprocess.run(["stellar", "contract", "build"], cwd=contract_dir, check=True)
         
         # Find and optimize the wasm file
         wasm_file = find_wasm_file(contract_dir)
         if not wasm_file:
             print(f"No .wasm file found in {contract_dir}")
-            print(f"Searched in: {os.path.join(contract_dir, 'target', 'wasm32-unknown-unknown', 'release')}")
-            print("Available files in target directory:")
-            target_dir = os.path.join(contract_dir, 'target', 'wasm32-unknown-unknown', 'release')
-            if os.path.exists(target_dir):
-                try:
-                    for f in os.listdir(target_dir):
-                        if f.endswith('.wasm'):
-                            print(f"  - {f}")
-                except Exception as e:
-                    print(f"  Error listing target directory: {e}")
+            
+            # Check all possible target directories
+            possible_targets = [
+                os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release"),
+                os.path.join(contract_dir, "target", "wasm32v1-none", "release"),
+                os.path.join(contract_dir, "target")
+            ]
+            
+            print("Searching in the following directories:")
+            for target_dir in possible_targets:
+                print(f"- {target_dir}")
+                if os.path.exists(target_dir):
+                    print("  Contents:")
+                    try:
+                        for root, dirs, files in os.walk(target_dir):
+                            for f in files:
+                                if f.endswith('.wasm'):
+                                    print(f"    - {os.path.join(root, f)}")
+                    except Exception as e:
+                        print(f"  Error walking directory: {e}")
             return False
             
         print(f"Found WASM file: {wasm_file}")
@@ -93,19 +100,38 @@ def build_contract_cloud(contract_dir, optimize=True):
         # Optimize the WASM file if requested
         if optimize:
             wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
-            print(f"Optimizing {wasm_file_rel}...")
-            subprocess.run(
-                ["stellar", "contract", "optimize", "--wasm", wasm_file_rel], 
-                cwd=contract_dir, 
-                check=True
-            )
-            print(f"Optimization complete for {contract_dir}")
-            
-            # Copy the optimized WASM to the standard location
             optimized_wasm = wasm_file.replace(".wasm", ".optimized.wasm")
-            if os.path.exists(optimized_wasm):
-                contract_name = os.path.basename(contract_dir)
+            
+            print(f"Optimizing {wasm_file_rel}...")
+            try:
+                result = subprocess.run(
+                    ["stellar", "contract", "optimize", "--wasm", wasm_file_rel], 
+                    cwd=contract_dir, 
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                print(f"Optimization complete for {contract_dir}")
+                if result.stderr:
+                    print(f"Optimization stderr: {result.stderr}")
+                
+                # Verify the optimized file was created
+                if not os.path.exists(optimized_wasm):
+                    print(f"Error: Optimized file not found at {optimized_wasm}")
+                    print(f"Current directory: {os.getcwd()}")
+                    print(f"Directory contents: {os.listdir(os.path.dirname(optimized_wasm))}")
+                    return False
+                    
+                print(f"Optimized WASM size: {os.path.getsize(optimized_wasm) // 1024} KB")
+                
+            except subprocess.CalledProcessError as e:
+                print(f"Error optimizing WASM: {e}")
+                print(f"stderr: {e.stderr}")
+                print(f"stdout: {e.stdout}")
+                return False
+                
                 # Copy to both the project root wasm/ and the contract's wasm/ directory
+                contract_name = os.path.basename(contract_dir)
                 wasm_dest = copy_to_wasm_dir(optimized_wasm, contract_name)
                 
                 # Also copy to the contract's wasm/ directory if it exists
@@ -118,6 +144,32 @@ def build_contract_cloud(contract_dir, optimize=True):
                 
                 # For hvym-collective, ensure the wasm files are in the expected location
                 if contract_name == "hvym-collective":
+                    # The hvym-collective contract expects these specific files
+                    required_wasm_files = {
+                        "pintheon_node_token.optimized.wasm": "pintheon-node-token",
+                        "pintheon_ipfs_token.optimized.wasm": "pintheon-ipfs-token"
+                    }
+                    
+                    for wasm_file, contract_dir_name in required_wasm_files.items():
+                        src_path = os.path.join("wasm", wasm_file)
+                        if os.path.exists(src_path):
+                            # Copy to the hvym-collective's expected location
+                            dest_dir = os.path.join(contract_dir, "..", "..", "wasm")
+                            os.makedirs(dest_dir, exist_ok=True)
+                            dest_path = os.path.join(dest_dir, wasm_file)
+                            shutil.copy2(src_path, dest_path)
+                            print(f"Copied {src_path} to {dest_path} for hvym-collective")
+                        else:
+                            print(f"Warning: Required WASM file not found: {src_path}")
+                            
+                    # Also ensure the wasm files are in the project root wasm/ directory
+                    for wasm_file in required_wasm_files.keys():
+                        src_path = os.path.join("wasm", wasm_file)
+                        if os.path.exists(src_path):
+                            dest_path = os.path.join(wasm_dir, wasm_file)
+                            if not os.path.exists(dest_path):
+                                shutil.copy2(src_path, dest_path)
+                                print(f"Copied {src_path} to {dest_path}")
                     # Copy node and ipfs token wasm files to the project root wasm/ directory
                     src_wasm_dir = os.path.dirname(wasm_dest)
                     for token in ["pintheon_node_token", "pintheon_ipfs_token"]:

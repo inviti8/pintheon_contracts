@@ -26,20 +26,41 @@ def clean_targets(contract_dir):
             shutil.rmtree(subdir)
 
 def find_wasm_file(contract_dir):
-    wasm_dir = os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")
-    if not os.path.isdir(wasm_dir):
-        return None
-    # Find .wasm files that are not already optimized
-    wasm_files = [f for f in glob.glob(os.path.join(wasm_dir, "*.wasm")) if not f.endswith(".optimized.wasm")]
-    if not wasm_files:
-        return None
-    # Prefer the one matching the contract dir name if possible
-    base = os.path.basename(contract_dir).replace("-", "_")
-    for f in wasm_files:
-        if base in os.path.basename(f):
-            return f
-    # Otherwise, just return the first
-    return wasm_files[0]
+    """Find the compiled WASM file in the contract directory.
+    
+    Args:
+        contract_dir: Directory containing the contract to build
+        
+    Returns:
+        Path to the compiled WASM file, or None if not found
+    """
+    # Possible target directories where WASM files might be located
+    possible_targets = [
+        os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release"),
+        os.path.join(contract_dir, "target", "wasm32v1-none", "release"),
+        os.path.join(contract_dir, "target")
+    ]
+    
+    for wasm_dir in possible_targets:
+        if not os.path.isdir(wasm_dir):
+            continue
+            
+        # Find .wasm files that are not already optimized
+        wasm_files = [
+            f for f in glob.glob(os.path.join(wasm_dir, "**", "*.wasm"), recursive=True)
+            if not f.endswith(".optimized.wasm")
+        ]
+        
+        if wasm_files:
+            # Prefer the one matching the contract dir name if possible
+            base = os.path.basename(contract_dir).replace("-", "_")
+            for f in wasm_files:
+                if base in os.path.basename(f):
+                    return f
+            # Otherwise return the first one found
+            return wasm_files[0]
+    
+    return None
 
 def copy_to_wasm_dir(wasm_path: str, contract_name: str) -> str:
     """Copy WASM file to standard location."""
