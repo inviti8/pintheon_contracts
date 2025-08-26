@@ -1,4 +1,4 @@
-name: Custom Build and Release Soroban Contracts
+name: Build and Release Soroban Contracts
 
 on:
   push: 
@@ -10,136 +10,29 @@ permissions:
   contents: write
   attestations: write
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  STELLAR_CLI_VERSION: 23.0.1
+
 jobs:
-  build-dependencies:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
-      
-      - name: Install wasm-opt
-        run: |
-          wget https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
-          tar xzf binaryen-version_116-x86_64-linux.tar.gz
-          sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
-      
+          python-version: '3.10'
+          cache: 'pip'
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Install system dependencies for stellar-cli
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev pkg-config libusb-1.0-0-dev libftdi1-dev libudev-dev libssl-dev
-
-      - name: Install Stellar CLI
-        run: |
-          cargo install --locked --version 22.8.2 stellar-cli
-          stellar --version
-
-      - name: List files in Node Token directory
-        run: ls -l
-        working-directory: pintheon-node-deployer/pintheon-node-token
-
-      - name: Build Pintheon Node Token
-        working-directory: pintheon-node-deployer/pintheon-node-token
-        run: |
-          cargo build --target wasm32-unknown-unknown --release
-          PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
-          WASM_FILE_NAME="${PACKAGE_NAME}.wasm"
-          cp target/wasm32-unknown-unknown/release/pintheon_node_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
-          wasm-opt --enable-bulk-memory -O3 target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} -o target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} || { echo "Optimization failed"; exit 1; }
-          echo "Built ${WASM_FILE_NAME}"
-          echo "WASM file: ${WASM_FILE_NAME}"
-          ls -la target/wasm32-unknown-unknown/release/
-          echo "Checking env-meta for ${WASM_FILE_NAME}"
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for ${WASM_FILE_NAME}, continuing anyway"
-          cat env-meta-output.txt >> ../../debug_output.json
-          cat env-meta-output.txt
-
-      - name: List files in IPFS Token directory
-        run: ls -l
-        working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
-
-      - name: Build Pintheon IPFS Token
-        working-directory: pintheon-ipfs-deployer/pintheon-ipfs-token
-        run: |
-          cargo build --target wasm32-unknown-unknown --release
-          PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
-          WASM_FILE_NAME="${PACKAGE_NAME}.wasm"
-          cp target/wasm32-unknown-unknown/release/pintheon_ipfs_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
-          wasm-opt --enable-bulk-memory -O3 target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} -o target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} || { echo "Optimization failed"; exit 1; }
-          echo "Built ${WASM_FILE_NAME}"
-          echo "WASM file: ${WASM_FILE_NAME}"
-          ls -la target/wasm32-unknown-unknown/release/
-          echo "Checking env-meta for ${WASM_FILE_NAME}"
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for ${WASM_FILE_NAME}, continuing anyway"
-          cat env-meta-output.txt >> ../../debug_output.json
-          cat env-meta-output.txt
-
-      - name: Build Opus Token
-        working-directory: opus_token
-        run: |
-          cargo build --target wasm32-unknown-unknown --release
-          PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
-          WASM_FILE_NAME="${PACKAGE_NAME}.wasm"
-          cp target/wasm32-unknown-unknown/release/opus_token.wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME}
-          wasm-opt --enable-bulk-memory -O3 target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} -o target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} || { echo "Optimization failed"; exit 1; }
-          echo "Built ${WASM_FILE_NAME}"
-          echo "WASM file: ${WASM_FILE_NAME}"
-          ls -la target/wasm32-unknown-unknown/release/
-          echo "Checking env-meta for ${WASM_FILE_NAME}"
-          stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/${WASM_FILE_NAME} > env-meta-output.txt 2>&1 || echo "Warning: env-meta failed for ${WASM_FILE_NAME}, continuing anyway"
-          cat env-meta-output.txt >> ../../debug_output.json
-          cat env-meta-output.txt
-
-      - name: List built WASM files
-        run: |
-          ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
-          ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
-          ls -l opus_token/target/wasm32-unknown-unknown/release/
-
-      - name: Upload dependency artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-wasm-files
-          path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm
-            opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm
-
-  build-hvym-collective:
-    needs: build-dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+          pip install -r requirements.txt
       
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            cmake \
-            curl \
-            git \
-            libdbus-1-dev \
-            libssl-dev \
-            libudev-dev \
-            pkg-config \
-            protobuf-compiler \
-            llvm-dev \
-            libclang-dev \
-            clang \
-            libusb-1.0-0-dev
-      
-      - name: Setup Rust toolchain
+      - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -149,306 +42,105 @@ jobs:
       
       - name: Install wasm-opt
         run: |
-          wget -q https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
+          wget https://github.com/WebAssembly/binaryen/releases/download/version_116/binaryen-version_116-x86_64-linux.tar.gz
           tar xzf binaryen-version_116-x86_64-linux.tar.gz
           sudo cp binaryen-version_116/bin/wasm-opt /usr/local/bin/
       
-      - name: Install Stellar CLI
-        env:
-          RUSTFLAGS: '-C target-cpu=native'
-          PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig
+      - name: Install system dependencies
         run: |
-          cargo install --locked --version 22.8.2 stellar-cli --force
-          stellar --version
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            libdbus-1-dev \
+            libssl-dev \
+            libudev-dev \
+            pkg-config \
+            libusb-1.0-0-dev
 
-      - name: Download dependency artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dependency-wasm-files
-          path: temp-deps/
-      
-      - name: List all downloaded artifacts
-        run: find temp-deps/
-      
-      - name: Copy dependency WASM files
+      - name: Install Stellar CLI ${{ env.STELLAR_CLI_VERSION }}
         run: |
-          mkdir -p pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
-          mkdir -p pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
-          mkdir -p opus_token/target/wasm32-unknown-unknown/release/
-          cp temp-deps/pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/ || echo "Warning: Failed to copy pintheon-node-token WASM"
-          cp temp-deps/pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/ || echo "Warning: Failed to copy pintheon-ipfs-token WASM"
-          cp temp-deps/opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm opus_token/target/wasm32-unknown-unknown/release/ || echo "Warning: Failed to copy opus-token WASM"
-          ls -l pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/
-          ls -l pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/
-          ls -l opus_token/target/wasm32-unknown-unknown/release/
-      
-      - name: Update hvym-collective imports with actual names
-        working-directory: hvym-collective
+          cargo install --locked --version ${{ env.STELLAR_CLI_VERSION }} stellar-cli
+          stellar --version
+          
+      - name: Build all contracts
         run: |
-          sed -i "s|pintheon-node-token_v[0-9.]*\.wasm|pintheon-node-token.wasm|g" src/lib.rs
-          sed -i "s|pintheon-ipfs-token_v[0-9.]*\.wasm|pintheon-ipfs-token.wasm|g" src/lib.rs
-          sed -i "s|opus-token_v[0-9.]*\.wasm|opus-token.wasm|g" src/lib.rs
-          echo "Updated import statements with simplified names"
-          cat src/lib.rs
-      
-      - name: Build HVYM Collective
-        working-directory: hvym-collective
-        env:
-          RUSTFLAGS: '-C target-cpu=native -C link-arg=-s'
-          CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+          python build_contracts.py --optimize
+          
+      - name: Verify built WASM files
         run: |
-          # Clean previous build
-          cargo clean
+          echo "Built WASM files:"
+          find . -name "*.wasm" -type f -exec ls -la {} \;
           
-          # Build with verbose output
-          echo "Building with RUSTFLAGS: $RUSTFLAGS"
-          cargo build --target wasm32-unknown-unknown --release --verbose
-          
-          # Verify wasm file was created
-          if [ ! -f "target/wasm32-unknown-unknown/release/hvym_collective.wasm" ]; then
-            echo "Error: wasm file not found after build"
-            exit 1
-          fi
-          
-          # Optimize wasm
-          echo "Optimizing wasm with wasm-opt..."
-          wasm-opt --enable-bulk-memory -O3 \
-            target/wasm32-unknown-unknown/release/hvym_collective.wasm \
-            -o target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm || {
-              echo "Error: wasm-opt failed"
+          # Verify each contract was built
+          for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
+            wasm_file=$(find . -name "${contract}.optimized.wasm" -o -name "${contract}.wasm" | head -1)
+            if [ -z "$wasm_file" ]; then
+              echo "::error::Failed to find built WASM for ${contract}"
               exit 1
-            }
-          
-          # Check wasm file size
-          echo "WASM file info:"
-          ls -lh target/wasm32-unknown-unknown/release/hvym_collective*.wasm
-          
-          # Run env-meta check
-          echo "Checking env-meta for hvym_collective.wasm"
-          if ! stellar contract env-meta --wasm target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm > env-meta-output.txt 2>&1; then
-            echo "Warning: env-meta check failed, but continuing..."
-            cat env-meta-output.txt
-          else
-            cat env-meta-output.txt
-          fi
-          
-          # Save output for debugging
-          mkdir -p ../../debug_output
-          cp env-meta-output.txt ../../debug_output/hvym-collective-env-meta.txt || true
-      
-      - name: Get package metadata
-        id: metadata
-        working-directory: hvym-collective
-        run: |
-          PACKAGE_NAME=$(grep -m1 '^name =' Cargo.toml | cut -d '"' -f2)
-          PACKAGE_NAME_DISPLAY=$(echo "$PACKAGE_NAME" | sed 's/_/-/g')
-          PACKAGE_VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2)
-          WASM_FILE_NAME="${PACKAGE_NAME_DISPLAY}.wasm"
-          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
-          echo "PACKAGE_NAME_DISPLAY=$PACKAGE_NAME_DISPLAY" >> $GITHUB_ENV
-          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
-          echo "WASM_FILE_NAME=$WASM_FILE_NAME" >> $GITHUB_ENV
-          echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_OUTPUT
-          echo "PACKAGE_NAME_DISPLAY=$PACKAGE_NAME_DISPLAY" >> $GITHUB_OUTPUT
-          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
-          echo "WASM_FILE_NAME=$WASM_FILE_NAME" >> $GITHUB_OUTPUT
-          echo "Package: $PACKAGE_NAME"
-          echo "Package Display: $PACKAGE_NAME_DISPLAY"
-          echo "Version: $PACKAGE_VERSION"
-          echo "WASM File Name: $WASM_FILE_NAME"
-      
-      - name: Rename optimized WASM file
-        working-directory: hvym-collective
-        run: |
-          cp target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
-          echo "Renamed WASM file to: ${{ env.WASM_FILE_NAME }}"
-      
-      - name: Calculate WASM hash and get dependency versions
-        working-directory: hvym-collective
-        run: |
-          WASM_HASH=$(sha256sum target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} | cut -d ' ' -f1)
-          echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
-          echo "WASM Hash: $WASM_HASH"
-          echo "WASM File: ${{ env.WASM_FILE_NAME }}"
-          
-          # Get dependency versions
-          PINTHEON_NODE_VERSION=$(grep -m1 '^version =' ../pintheon-node-deployer/pintheon-node-token/Cargo.toml | cut -d '"' -f2)
-          PINTHEON_IPFS_VERSION=$(grep -m1 '^version =' ../pintheon-ipfs-deployer/pintheon-ipfs-token/Cargo.toml | cut -d '"' -f2)
-          OPUS_TOKEN_VERSION=$(grep -m1 '^version =' ../opus_token/Cargo.toml | cut -d '"' -f2)
-          
-          echo "PINTHEON_NODE_VERSION=$PINTHEON_NODE_VERSION" >> $GITHUB_ENV
-          echo "PINTHEON_IPFS_VERSION=$PINTHEON_IPFS_VERSION" >> $GITHUB_ENV
-          echo "OPUS_TOKEN_VERSION=$OPUS_TOKEN_VERSION" >> $GITHUB_ENV
-          
-          echo "Dependency versions:"
-          echo "- pintheon-node-token: $PINTHEON_NODE_VERSION"
-          echo "- pintheon-ipfs-token: $PINTHEON_IPFS_VERSION"
-          echo "- opus-token: $OPUS_TOKEN_VERSION"
-      
+            fi
+            echo "Found ${contract}: ${wasm_file}"
+          done
+
       - name: Prepare release assets
-        working-directory: .
         run: |
           # Create release directory
           mkdir -p release-wasm
           
-          # Copy optimized wasm file from hvym-collective
-          cp hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} release-wasm/
+          # Copy all optimized WASM files to release directory
+          for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
+            wasm_file=$(find . -name "${contract}.optimized.wasm" -o -name "${contract}.wasm" | head -1)
+            if [ -n "$wasm_file" ]; then
+              cp "$wasm_file" "release-wasm/$(basename "$wasm_file")"
+            fi
+          done
           
-          # Copy hvym-collective_args.json if it exists, otherwise create a default one
-          if [ -f "hvym-collective_args.json" ]; then
-            cp hvym-collective_args.json release-wasm/
-            echo "Copied hvym-collective_args.json to release artifacts"
-          else
-            echo "::warning::hvym-collective_args.json not found in repository root"
-            # Create a minimal default config
-            echo '{
-              "admin": "REPLACE_WITH_DEPLOYER_ADDRESS",
-              "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-              "join_fee": 1.0,
-              "mint_fee": 0.5,
-              "reward": 0.1,
-              "opus_token": "REPLACE_WITH_OPUS_TOKEN_ADDRESS"
-            }' > release-wasm/hvym-collective_args.json
-            echo "Created default hvym-collective_args.json in release artifacts"
-          fi
-          
-          # List files for debugging
+          # List all release assets
+          echo "Release assets:"
           ls -la release-wasm/
-      
-      - name: Create GitHub Release and Upload Assets
+          
+          # Generate checksums
+          (cd release-wasm && sha256sum *.wasm > checksums.sha256)
+          cat release-wasm/checksums.sha256
+          
+      - name: Generate SBOM and attestations
+        uses: anchore/sbom-action@v0.15.1
+        with:
+          path: release-wasm
+          output-file: sbom.spdx
+          format: spdx-json
+          
+      - name: Generate contract metadata
+        run: |
+          # Generate metadata for each contract
+          for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
+            wasm_file=$(find . -name "${contract}.optimized.wasm" -o -name "${contract}.wasm" | head -1)
+            if [ -n "$wasm_file" ]; then
+              echo "Generating metadata for $wasm_file"
+              stellar contract env-meta --wasm "$wasm_file" > "${wasm_file}.meta.json" 2>&1 || echo "Warning: Failed to generate metadata for $wasm_file"
+            fi
+          done
+          
+          # List all generated metadata files
+          find . -name "*.meta.json" -exec ls -la {} \;
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            **/target/wasm32-unknown-unknown/release/*.wasm
+            **/target/wasm32-unknown-unknown/release/*.meta.json
+            release-wasm/
+          retention-days: 7
+          
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          body: |
-            Soroban Contracts Release
-            
-            ## Contracts
-            - **pintheon-node-token** (Version: ${{ env.PINTHEON_NODE_VERSION }})
-            - **pintheon-ipfs-token** (Version: ${{ env.PINTHEON_IPFS_VERSION }})
-            - **opus-token** (Version: ${{ env.OPUS_TOKEN_VERSION }})
-            - **hvym-collective** (Version: ${{ env.PACKAGE_VERSION }}, WASM Hash: ${{ env.WASM_HASH }})
-            
-            ## Files
-            - `pintheon-node-token.wasm`
-            - `pintheon-ipfs-token.wasm`
-            - `opus-token.wasm`
-            - `hvym-collective.wasm`
-            - `.attestation.json`: Contract attestation metadata
-            
-            ## Attestation
-            This release contains contracts built and verified for the Stellar network.
-          draft: false
-          prerelease: false
           files: |
-            release-wasm/*
-
-      - name: Copy WASM files to release directory
-        run: |
-          mkdir -p release-wasm
-          # Copy all WASM files to the release directory
-          cp pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm release-wasm/
-          cp pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm release-wasm/
-          cp opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm release-wasm/
-          cp hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }} release-wasm/
-          cp hvym-collective/target/wasm32-unknown-unknown/release/hvym_collective.optimized.wasm release-wasm/
-      
-      - name: Generate attestation file
-        working-directory: .
-        run: |
-          # Calculate dependency WASM hashes
-          PINTHEON_NODE_HASH=$(sha256sum release-wasm/pintheon-node-token.wasm | cut -d ' ' -f1)
-          PINTHEON_IPFS_HASH=$(sha256sum release-wasm/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
-          OPUS_TOKEN_HASH=$(sha256sum release-wasm/opus-token.wasm | cut -d ' ' -f1)
-          
-          # Create the release-wasm directory if it doesn't exist
-          mkdir -p release-wasm
-          cat > release-wasm/.attestation.json <<EOF
-          {
-            "contracts": [
-              {
-                "package": "pintheon-node-token",
-                "version": "${{ env.PINTHEON_NODE_VERSION }}",
-                "wasm_hash": "${PINTHEON_NODE_HASH}",
-                "home_domain": "pintheon.contracts"
-              },
-              {
-                "package": "pintheon-ipfs-token",
-                "version": "${{ env.PINTHEON_IPFS_VERSION }}",
-                "wasm_hash": "${PINTHEON_IPFS_HASH}",
-                "home_domain": "pintheon.contracts"
-              },
-              {
-                "package": "opus-token",
-                "version": "${{ env.OPUS_TOKEN_VERSION }}",
-                "wasm_hash": "${OPUS_TOKEN_HASH}",
-                "home_domain": "pintheon.contracts"
-              },
-              {
-                "package": "${{ env.PACKAGE_NAME_DISPLAY }}",
-                "version": "${{ env.PACKAGE_VERSION }}",
-                "wasm_hash": "${{ env.WASM_HASH }}",
-                "home_domain": "pintheon.contracts"
-              }
-            ],
-            "release": "${{ github.ref_name }}",
-            "repository": "${{ github.repository }}",
-            "commit": "${{ github.sha }}"
-          }
-          EOF
-
-      - name: Create Contract Attestation
-        run: |
-          echo "Creating contract attestation for multiple contracts"
-          echo "Contracts:"
-          PINTHEON_NODE_HASH=$(sha256sum pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm | cut -d ' ' -f1)
-          PINTHEON_IPFS_HASH=$(sha256sum pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm | cut -d ' ' -f1)
-          OPUS_TOKEN_HASH=$(sha256sum opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm | cut -d ' ' -f1)
-          echo "- pintheon-node-token (WASM Hash: $PINTHEON_NODE_HASH)"
-          echo "- pintheon-ipfs-token (WASM Hash: $PINTHEON_IPFS_HASH)"
-          echo "- opus-token (WASM Hash: $OPUS_TOKEN_HASH)"
-          echo "- ${{ env.PACKAGE_NAME_DISPLAY }} (WASM Hash: ${{ env.WASM_HASH }})"
-          echo "Release: ${{ github.ref_name }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Commit: ${{ github.sha }}"
-
-      - name: Send release info to StellarExpert
-        run: |
-          JSON_OBJECT=$(node -e "console.log(JSON.stringify({
-            repository: process.env.REPOSITORY,
-            commitHash: process.env.COMMIT_HASH,
-            jobId: process.env.JOB_ID,
-            runId: process.env.RUN_ID,
-            contractHash: process.env.CONTRACT_HASH,
-            relativePath: process.env.RELATIVE_PATH,
-            packageName: process.env.PACKAGE_NAME,
-            makeTarget: process.env.MAKE_TARGET
-          }))")
-          echo "JSON to send: $JSON_OBJECT"
-          curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
-               -H "Content-Type: application/json" \
-               -d "$JSON_OBJECT" \
-               --max-time 15
+            release-wasm/*.wasm
+            release-wasm/checksums.sha256
+            sbom.spdx
         env:
-          REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
-          COMMIT_HASH: ${{ github.sha }}
-          JOB_ID: ${{ github.job }}
-          RUN_ID: ${{ github.run_id }}
-          CONTRACT_HASH: ${{ env.WASM_HASH }}
-          RELATIVE_PATH: hvym-collective
-          PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
-          MAKE_TARGET: undefined
-
-      - name: Attest
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: |
-            pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon-node-token.wasm
-            pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon-ipfs-token.wasm
-            opus_token/target/wasm32-unknown-unknown/release/opus-token.wasm
-            hvym-collective/target/wasm32-unknown-unknown/release/${{ env.WASM_FILE_NAME }}
-          subject-name: |
-            pintheon-node-token.wasm
-            pintheon-ipfs-token.wasm
-            opus-token.wasm
-            ${{ env.WASM_FILE_NAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
