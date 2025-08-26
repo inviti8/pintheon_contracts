@@ -65,7 +65,7 @@ jobs:
           
       - name: Build all contracts
         run: |
-          python build_contracts.py --optimize
+          python build_contracts.py
           
       - name: Verify built WASM files
         run: |

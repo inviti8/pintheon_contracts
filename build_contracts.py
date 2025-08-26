@@ -38,20 +38,38 @@ def find_wasm_file(contract_dir):
     # Otherwise, just return the first
     return wasm_files[0]
 
-def build_contract(contract_dir):
+def build_contract(contract_dir, optimize=True):
     print(f"\n=== Building {contract_dir} ===")
     clean_targets(contract_dir)
     try:
+        # Build the contract
+        print(f"Building {contract_dir}...")
         subprocess.run(["stellar", "contract", "build"], cwd=contract_dir, check=True)
+        
+        # Find the generated WASM file
         wasm_file = find_wasm_file(contract_dir)
         if not wasm_file:
-            print(f"No .wasm file found to optimize in {contract_dir}")
+            print(f"No .wasm file found in {contract_dir}")
             sys.exit(1)
+            
         # Make the path relative to contract_dir
         wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
-        print(f"Optimizing {wasm_file_rel}")
-        subprocess.run(["stellar", "contract", "optimize", "--wasm", wasm_file_rel], cwd=contract_dir, check=True)
-        print(f"Build and optimization complete for {contract_dir}")
+        
+        # Optimize the WASM file if requested
+        if optimize:
+            print(f"Optimizing {wasm_file_rel}...")
+            subprocess.run(
+                ["stellar", "contract", "optimize", "--wasm", wasm_file_rel], 
+                cwd=contract_dir, 
+                check=True
+            )
+            print(f"Optimization complete for {contract_dir}")
+        else:
+            print(f"Skipping optimization for {contract_dir} (--no-optimize)")
+            
+        print(f"Build complete for {contract_dir}")
+        return True
+        
     except subprocess.CalledProcessError as e:
         print(f"Error building {contract_dir}: {e}")
         sys.exit(1)
@@ -63,7 +81,15 @@ def main():
         type=str,
         help="Build only the specified contract directory (relative path)",
     )
+    parser.add_argument(
+        "--optimize",
+        action="store_true",
+        help="Optimize the built WASM files (default: True)",
+    )
     args = parser.parse_args()
+
+    # Default to optimizing if --optimize is not specified
+    optimize = args.optimize if hasattr(args, 'optimize') else True
 
     if args.contract:
         if args.contract not in CONTRACTS:
@@ -71,10 +97,10 @@ def main():
             for c in CONTRACTS:
                 print(f"  {c}")
             sys.exit(1)
-        build_contract(args.contract)
+        build_contract(args.contract, optimize=optimize)
     else:
         for contract in CONTRACTS:
-            build_contract(contract)
+            build_contract(contract, optimize=optimize)
 
 if __name__ == "__main__":
     main() 
