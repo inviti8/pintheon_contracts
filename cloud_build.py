@@ -79,12 +79,14 @@ def main():
             for c in CONTRACTS:
                 print(f"  {c}")
             return 1
-        success = build_contract_cloud(CONTRACTS[args.contract])
+        contract_path = os.path.join(os.getcwd(), args.contract)
+        success = build_contract_cloud(contract_path)
         return 0 if success else 1
     else:
         all_success = True
-        for contract_dir in CONTRACTS.values():
-            if not build_contract_cloud(contract_dir):
+        for contract_dir in CONTRACTS:
+            contract_path = os.path.join(os.getcwd(), contract_dir)
+            if not build_contract_cloud(contract_path):
                 all_success = False
         return 0 if all_success else 1
 
