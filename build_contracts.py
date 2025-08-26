@@ -6,13 +6,16 @@ import subprocess
 import sys
 import glob
 
-# Ordered list of contract directories
-CONTRACTS = [
-    "pintheon-ipfs-deployer/pintheon-ipfs-token",
+# Define build order to ensure dependencies are built first
+BUILD_ORDER = [
     "pintheon-node-deployer/pintheon-node-token",
+    "pintheon-ipfs-deployer/pintheon-ipfs-token",
     "opus_token",
-    "hvym-collective",
+    "hvym-collective"
 ]
+
+# For backward compatibility
+CONTRACTS = BUILD_ORDER
 
 def clean_targets(contract_dir):
     target_dir = os.path.join(contract_dir, "target")
@@ -107,15 +110,27 @@ def main():
     # Default to optimizing if --optimize is not specified
     optimize = args.optimize if hasattr(args, 'optimize') else True
 
+    # Create wasm directory if it doesn't exist
+    os.makedirs("wasm", exist_ok=True)
+    
     if args.contract:
         if args.contract not in CONTRACTS:
             print(f"Contract {args.contract} not in build list. Valid options:")
             for c in CONTRACTS:
                 print(f"  {c}")
             sys.exit(1)
+            
+        # If building hvym-collective, ensure its dependencies are built first
+        if args.contract == "hvym-collective":
+            for dep in BUILD_ORDER[:-1]:  # All except hvym-collective itself
+                if dep != args.contract:  # Skip if it's the same as the target
+                    print(f"Building dependency: {dep}")
+                    build_contract(dep, optimize=optimize)
+        
         build_contract(args.contract, optimize=optimize)
     else:
-        for contract in CONTRACTS:
+        # Build all contracts in the specified order
+        for contract in BUILD_ORDER:
             build_contract(contract, optimize=optimize)
 
 if __name__ == "__main__":

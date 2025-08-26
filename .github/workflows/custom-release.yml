@@ -79,28 +79,71 @@ jobs:
           rustup target add wasm32v1-none
           rustup target list --installed
           
-      - name: Build all contracts
+      - name: Create wasm directory
         run: |
+          mkdir -p wasm
+          chmod -R 777 wasm
+          
+      - name: Set up build environment
+        run: |
+          # Log the current directory structure
+          echo "=== Current directory structure ==="
+          find . -maxdepth 3 -type d | sort
+          
+          # Create and set permissions for the wasm directory
+          mkdir -p wasm
+          chmod -R 777 wasm
+          
+          # Create wasm directories in each contract directory
+          for dir in pintheon-node-deployer/pintheon-node-token \
+                     pintheon-ipfs-deployer/pintheon-ipfs-token \
+                     opus_token \
+                     hvym-collective; do
+            mkdir -p "$dir/wasm"
+            chmod -R 777 "$dir/wasm"
+            
+            # Log the directory structure for each contract
+            echo -e "\n=== Contents of $dir ==="
+            ls -la "$dir" || echo "Could not list $dir"
+            
+            echo -e "\n=== Contents of $dir/target ==="
+            ls -la "$dir/target" 2>/dev/null || echo "No target directory in $dir"
+            
+            echo -e "\n=== Contents of $dir/wasm ==="
+            ls -la "$dir/wasm" 2>/dev/null || echo "No wasm directory in $dir"
+          done
+          
           # Install Python dependencies
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-          # Run the cloud build script
-          python cloud_build.py
+          # Log the Python environment
+          echo -e "\n=== Python environment ==="
+          python --version
+          pip list
+          
+      - name: Build all contracts
+        run: |
+          # Build in the correct order
+          python cloud_build.py --contract pintheon-node-deployer/pintheon-node-token
+          python cloud_build.py --contract pintheon-ipfs-deployer/pintheon-ipfs-token
+          python cloud_build.py --contract opus_token
+          python cloud_build.py --contract hvym-collective
           
       - name: Verify built WASM files
         run: |
-          echo "Built WASM files:"
-          find . -name "*.wasm" -type f -exec ls -la {} \;
+          echo "Built WASM files in wasm/ directory:"
+          ls -la wasm/
           
           # Verify each contract was built
           for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
-            wasm_file=$(find . -name "${contract}.optimized.wasm" -o -name "${contract}.wasm" | head -1)
-            if [ -z "$wasm_file" ]; then
+            wasm_file="wasm/${contract}.optimized.wasm"
+            if [ ! -f "$wasm_file" ]; then
               echo "::error::Failed to find built WASM for ${contract}"
               exit 1
+            else
+              echo "✅ Found WASM for ${contract}: $(ls -la "$wasm_file")"
             fi
-            echo "Found ${contract}: ${wasm_file}"
           done
 
       - name: Prepare release assets
@@ -108,16 +151,19 @@ jobs:
           # Create release directory
           mkdir -p release-wasm
           
-          # Copy all optimized WASM files to release directory
+          # Copy all optimized WASM files from wasm/ to release directory
           for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
-            wasm_file=$(find . -name "${contract}.optimized.wasm" -o -name "${contract}.wasm" | head -1)
-            if [ -n "$wasm_file" ]; then
+            wasm_file="wasm/${contract}.optimized.wasm"
+            if [ -f "$wasm_file" ]; then
               cp "$wasm_file" "release-wasm/$(basename "$wasm_file")"
+              echo "✅ Copied $wasm_file to release directory"
+            else
+              echo "::warning::WASM file not found: $wasm_file"
             fi
           done
           
-          # List all release assets
-          echo "Release assets:"
+          # List all files in release directory
+          echo "Release assets prepared:"
           ls -la release-wasm/
           
           # Generate checksums
