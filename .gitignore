@@ -55,3 +55,11 @@ deployer_acct.txt
 .stellar/identity/TESTNET_DEPLOYER.toml
 
 account.json
+
+wasm/hvym_collective.optimized.wasm
+
+wasm/opus_token.optimized.wasm
+
+wasm/pintheon_ipfs_token.optimized.wasm
+
+wasm/pintheon_node_token.optimized.wasm

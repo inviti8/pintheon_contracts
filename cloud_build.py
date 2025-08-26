@@ -6,6 +6,7 @@ Extends build_contracts.py with cloud-specific build configurations.
 
 import os
 import sys
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -31,6 +32,16 @@ def setup_cloud_environment():
     # Set environment variables for cloud build
     os.environ["RUSTFLAGS"] = "--remap-path-prefix=/home/runner/.cargo/registry/src= "
 
+def copy_to_wasm_dir(wasm_path: str, contract_name: str) -> str:
+    """Copy WASM file to standard location."""
+    os.makedirs("wasm", exist_ok=True)
+    # Convert contract name to the format used in wasm filenames
+    wasm_name = contract_name.replace("-", "_") + ".optimized.wasm"
+    dest = os.path.join("wasm", wasm_name)
+    shutil.copy2(wasm_path, dest)
+    print(f"Copied {wasm_path} to {dest}")
+    return dest
+
 def build_contract_cloud(contract_dir, optimize=True):
     """Build a contract in the cloud environment."""
     print(f"\n=== Building {contract_dir} in cloud ===")
@@ -50,6 +61,23 @@ def build_contract_cloud(contract_dir, optimize=True):
             print(f"No .wasm file found in {contract_dir}")
             return False
             
+        # Optimize the WASM file if requested
+        if optimize:
+            wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
+            print(f"Optimizing {wasm_file_rel}...")
+            subprocess.run(
+                ["stellar", "contract", "optimize", "--wasm", wasm_file_rel], 
+                cwd=contract_dir, 
+                check=True
+            )
+            print(f"Optimization complete for {contract_dir}")
+            
+            # Copy the optimized WASM to the standard location
+            optimized_wasm = wasm_file.replace(".wasm", ".optimized.wasm")
+            if os.path.exists(optimized_wasm):
+                contract_name = os.path.basename(contract_dir)
+                copy_to_wasm_dir(optimized_wasm, contract_name)
+        
         print(f"Built: {wasm_file}")
         return True
         

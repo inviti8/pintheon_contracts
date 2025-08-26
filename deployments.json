@@ -38,11 +38,11 @@
   "opus_token": {
     "contract_dir": "opus_token",
     "wasm_hash": "e85cbd7f76d1de9865baf11a991dcad7fb65c48e97672e334ae073e3fdb96a22",
-    "contract_id": "CDMYCYLWWQOJDIWRCYZAK3FIUAXOI55D22ZFOMDYGUB4NWYTQDSI3VYD"
+    "contract_id": "CBFF5KRY5WXEDXQQMF53NLYQ7LBTTSDRVNBA2W4HWPPHAEBIXEJKNFDM"
   },
   "hvym-collective": {
     "contract_dir": "hvym-collective",
     "wasm_hash": "887116e31772493cd6abe69784a886137034cd3457d04b21396e218f392c074f",
-    "contract_id": "CCICSEQVAF63Y6VUS6YBFOWG6TK5BOOIPQUAY2DNYG4QUH6AAMYQ4KKY"
+    "contract_id": "CAP2N7MB5LY5UPHW3TGLURTKIXUMJYLFGAR65VEC3IZBSA6JN7KRCIKQ"
   }
 }

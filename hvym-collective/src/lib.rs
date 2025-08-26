@@ -18,32 +18,18 @@ const ADD_ADMIN: Symbol = symbol_short!("ADD_ADMIN");
 const REM_ADMIN: Symbol = symbol_short!("REM_ADMIN");
 
 // =============================================================================
-// GITHUB WORKFLOW IMPORTS (for production releases)
+// WASM IMPORTS (standardized location for both local and cloud builds)
 // =============================================================================
-// Uncomment these when pushing to GitHub for releases
-// Comment out LOCAL BUILD section below
-
-// Define the WASM files as constants for cloud build
-const PINTHEON_NODE_TOKEN_WASM: &[u8] = 
-    include_bytes!("../../../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm");
-
-const PINTHEON_IPFS_TOKEN_WASM: &[u8] = 
-    include_bytes!("../../../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm");
-
-// Note: opus_token is deployed separately and set via set_opus_token method
-
-// =============================================================================
-// LOCAL BUILD IMPORTS (for local development and testing)
-// =============================================================================
-// Uncomment these when developing locally
-// Comment out GITHUB WORKFLOW section above
+// These imports use the standardized wasm/ directory in the project root
 
 // Define the WASM files as constants
-// const PINTHEON_NODE_TOKEN_WASM: &[u8] = 
-//     include_bytes!("../../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm");
+const PINTHEON_NODE_TOKEN_WASM: &[u8] = 
+    include_bytes!("../../wasm/pintheon_node_token.optimized.wasm");
 
-// const PINTHEON_IPFS_TOKEN_WASM: &[u8] = 
-//     include_bytes!("../../pintheon-ipfs-deployer/pintheon-ipfs-token/target/wasm32-unknown-unknown/release/pintheon_ipfs_token.optimized.wasm");
+const PINTHEON_IPFS_TOKEN_WASM: &[u8] = 
+    include_bytes!("../../wasm/pintheon_ipfs_token.optimized.wasm");
+
+// Note: opus_token is deployed separately and set via set_opus_token method
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 

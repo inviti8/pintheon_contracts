@@ -36,40 +36,48 @@ DEPLOY_ONLY_CONTRACTS = [
 
 def find_optimized_wasm(contract_dir, official_release=False):
     if official_release:
-        # For official releases, look for WASM files in the wasm_release directory
-        if not os.path.isdir(contract_dir):
-            return None
-        wasm_files = glob.glob(os.path.join(contract_dir, "*.wasm"))
-        if not wasm_files:
-            return None
-        # Return the first WASM file found (should be the only one)
-        return wasm_files[0]
-    else:
-        # For development, look in the target directory (try both old and new CLI build paths)
-        wasm_dirs = [
-            os.path.join(contract_dir, "target", "wasm32v1-none", "release"),  # New stellar CLI build
-            os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")  # Old cargo build
-        ]
-        
-        for wasm_dir in wasm_dirs:
-            if not os.path.isdir(wasm_dir):
-                continue
-            
-            # Try optimized files first, then regular .wasm files
-            wasm_files = glob.glob(os.path.join(wasm_dir, "*.optimized.wasm"))
-            if not wasm_files:
-                wasm_files = glob.glob(os.path.join(wasm_dir, "*.wasm"))
-            
+        # For official releases, look for WASM files in the wasm_release directory first
+        if os.path.isdir(contract_dir):
+            wasm_files = glob.glob(os.path.join(contract_dir, "*.wasm"))
             if wasm_files:
-                # Prefer the one matching the contract dir name if possible
-                base = os.path.basename(contract_dir).replace("-", "_")
-                for f in wasm_files:
-                    if base in os.path.basename(f):
-                        return f
-                # Return the first one if no name match
+                # Return the first WASM file found (should be the only one)
                 return wasm_files[0]
-        
         return None
+    
+    # First check the wasm/ directory in the project root
+    wasm_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "wasm")
+    if os.path.isdir(wasm_dir):
+        contract_name = os.path.basename(contract_dir).replace("-", "_")
+        wasm_pattern = os.path.join(wasm_dir, f"{contract_name}.optimized.wasm")
+        wasm_files = glob.glob(wasm_pattern)
+        if wasm_files:
+            return wasm_files[0]
+    
+    # Fall back to checking target directories (for backward compatibility)
+    wasm_dirs = [
+        os.path.join(contract_dir, "target", "wasm32v1-none", "release"),  # New stellar CLI build
+        os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")  # Old cargo build
+    ]
+    
+    for wasm_dir in wasm_dirs:
+        if not os.path.isdir(wasm_dir):
+            continue
+        
+        # Try optimized files first, then regular .wasm files
+        wasm_files = glob.glob(os.path.join(wasm_dir, "*.optimized.wasm"))
+        if not wasm_files:
+            wasm_files = glob.glob(os.path.join(wasm_dir, "*.wasm"))
+        
+        if wasm_files:
+            # Prefer the one matching the contract dir name if possible
+            base = os.path.basename(contract_dir).replace("-", "_")
+            for f in wasm_files:
+                if base in os.path.basename(f):
+                    return f
+            # Return the first one if no name match
+            return wasm_files[0]
+    
+    return None
 
 def run_cmd(cmd, cwd=None, capture_output=True):
     try:
