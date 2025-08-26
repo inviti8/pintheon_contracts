@@ -122,12 +122,30 @@ jobs:
           python --version
           pip list
           
-      - name: Build all contracts
+      - name: Build dependency contracts
         run: |
-          # Build in the correct order
+          # Build dependencies first
           python cloud_build.py --contract pintheon-node-deployer/pintheon-node-token
           python cloud_build.py --contract pintheon-ipfs-deployer/pintheon-ipfs-token
           python cloud_build.py --contract opus_token
+          
+          # Verify WASM files were created
+          echo "Verifying WASM files in wasm/ directory:"
+          ls -la wasm/
+          
+          # Verify the optimized WASM files exist
+          for contract in pintheon_node_token pintheon_ipfs_token; do
+            wasm_file="wasm/${contract}.optimized.wasm"
+            if [ ! -f "$wasm_file" ]; then
+              echo "::error::Missing required WASM file: $wasm_file"
+              exit 1
+            fi
+            echo "✅ Found required WASM: $wasm_file"
+          done
+          
+      - name: Build hvym-collective
+        run: |
+          # Now build hvym-collective with all dependencies in place
           python cloud_build.py --contract hvym-collective
           
       - name: Verify built WASM files

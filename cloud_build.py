@@ -42,10 +42,37 @@ def copy_to_wasm_dir(wasm_path: str, contract_name: str) -> str:
     print(f"Copied {wasm_path} to {dest}")
     return dest
 
+def ensure_wasm_files_for_collective():
+    """Ensure required WASM files are in place for hvym-collective."""
+    wasm_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "wasm"))
+    os.makedirs(wasm_dir, exist_ok=True)
+    
+    required_files = [
+        "pintheon_node_token.optimized.wasm",
+        "pintheon_ipfs_token.optimized.wasm"
+    ]
+    
+    missing_files = []
+    for wasm_file in required_files:
+        src_path = os.path.join(wasm_dir, wasm_file)
+        if not os.path.exists(src_path):
+            print(f"Warning: Required WASM file not found: {src_path}")
+            missing_files.append(wasm_file)
+    
+    return len(missing_files) == 0
+
 def build_contract_cloud(contract_dir, optimize=True):
     """Build a contract in the cloud environment."""
     print(f"\n=== Building {contract_dir} in cloud ===")
     print(f"Current working directory: {os.getcwd()}")
+    
+    # If building hvym-collective, ensure dependencies are in place
+    if os.path.basename(contract_dir) == 'hvym-collective':
+        print("Verifying required WASM files for hvym-collective...")
+        if not ensure_wasm_files_for_collective():
+            print("Error: Missing required WASM files for hvym-collective")
+            return False
+    
     clean_targets(contract_dir)
     
     # Create the wasm directory in the project root if it doesn't exist
