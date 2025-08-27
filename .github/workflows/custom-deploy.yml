@@ -158,8 +158,8 @@ jobs:
           echo "Network: ${{ env.NETWORK }}"
           echo "Stellar CLI version: $(stellar --version)"
 
-      - name: Create release-wasm directory
-        run: mkdir -p release-wasm
+      - name: Create wasm directory
+        run: mkdir -p wasm
 
       - name: Download release assets
         env:
@@ -186,7 +186,7 @@ jobs:
               ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length // 0')
               if [ "$ASSET_COUNT" -gt 0 ]; then
                 echo "Found release with $ASSET_COUNT assets at tag: $RELEASE_TAG"
-                echo "$RELEASE_INFO" > release-wasm/release_info.json
+                echo "$RELEASE_INFO" > wasm/release_info.json
                 
                 # Download all contract wasm files
                 for CONTRACT in "${CONTRACTS[@]}"; do
@@ -196,7 +196,7 @@ jobs:
                     ASSET_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"$WASM_FILE\") | .url")
                     if [ -n "$ASSET_URL" ]; then
                       # Save with just the contract name for consistency
-                      OUTPUT_FILE="release-wasm/${CONTRACT}.wasm"
+                      OUTPUT_FILE="wasm/${CONTRACT}.wasm"
                       echo "Downloading $WASM_FILE from $RELEASE_TAG as $OUTPUT_FILE"
                       curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
                            -H "Accept: application/octet-stream" \
@@ -205,7 +205,7 @@ jobs:
                     fi
                   done
                   
-                  if [ ! -f "release-wasm/${CONTRACT}.wasm" ]; then
+                  if [ ! -f "wasm/${CONTRACT}.wasm" ]; then
                     echo "Warning: ${CONTRACT}.wasm or ${CONTRACT}.optimized.wasm not found in release $RELEASE_TAG"
                   fi
                 done
@@ -213,7 +213,7 @@ jobs:
                 # Verify we got all required files
                 ALL_FOUND=true
                 for CONTRACT in "${CONTRACTS[@]}"; do
-                  if [ ! -f "release-wasm/${CONTRACT}.wasm" ]; then
+                  if [ ! -f "wasm/${CONTRACT}.wasm" ]; then
                     echo "Error: Neither ${CONTRACT}.wasm nor ${CONTRACT}.optimized.wasm found in release $RELEASE_TAG"
                     ALL_FOUND=false
                   fi
@@ -225,7 +225,7 @@ jobs:
                 else
                   echo "Some contract wasm files missing from $RELEASE_TAG, trying next tag..."
                   # Clear any partially downloaded files
-                  rm -f release-wasm/*.wasm
+                  rm -f wasm/*.wasm
                 fi
               fi
             fi
@@ -238,17 +238,17 @@ jobs:
 
       - name: List downloaded WASM files
         run: |
-          echo "Listing files in release-wasm/"
-          ls -l release-wasm/ || echo "No files found in release-wasm/"
-          if [ -z "$(ls -A release-wasm/)" ]; then
-            echo "Error: release-wasm/ is empty"
+          echo "Listing files in wasm/"
+          ls -l wasm/ || echo "No files found in wasm/"
+          if [ -z "$(ls -A wasm/)" ]; then
+            echo "Error: wasm/ is empty"
             exit 1
           fi
 
       - name: Verify WASM files
         run: |
           # Verify each WASM file exists and is not empty
-          for wasm_file in release-wasm/*.wasm; do
+          for wasm_file in wasm/*.wasm; do
             echo "Verifying $wasm_file"
             if [ ! -s "$wasm_file" ]; then
               echo "::error::WASM file $wasm_file is missing or empty"
@@ -277,16 +277,16 @@ jobs:
           mkdir -p config
           
           # Check for hvym-collective_args.json in release artifacts (try both locations)
-          if [ -f "release-wasm/hvym-collective_args.json" ]; then
-            # Found in release-wasm directory
-            cp release-wasm/hvym-collective_args.json config/
+          if [ -f "wasm/hvym-collective_args.json" ]; then
+            # Found in wasm directory
+            cp wasm/hvym-collective_args.json config/
           elif [ -f "hvym-collective_args.json" ]; then
             # Found in root of release
             cp hvym-collective_args.json config/
           else
             echo "::error::Missing required file: hvym-collective_args.json"
             echo "This file must be included in the release artifacts for cloud deployment"
-            echo "Expected location: root or release-wasm/ directory"
+            echo "Expected location: root or wasm/ directory"
             exit 1
           fi
           echo "Using hvym-collective_args.json from release artifacts"
