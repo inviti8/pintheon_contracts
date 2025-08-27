@@ -223,26 +223,30 @@ def main() -> int:
         print(f"   Network: {args.network}")
         print(f"   RPC URL: {args.rpc_url}")
         
-        # Get or create the output file path
-        output_file = os.environ.get('GITHUB_OUTPUT')
-        if not output_file:
-            print("::warning::GITHUB_OUTPUT not set, using default output file")
-            output_file = os.path.join(os.getcwd(), 'github_output.txt')
+        # Verify the identity can be used by the Stellar CLI
+        try:
+            # Get the identity name based on network
+            identity_name = f"{args.network.upper()}_DEPLOYER"
+            
+            # Verify the identity is accessible
+            print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
+            result = subprocess.run(
+                ["stellar", "keys", "public-key", identity_name],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                print(f"❌ Failed to verify identity with Stellar CLI: {result.stderr}")
+                return 1
+                
+            print(f"✅ Successfully verified identity: {result.stdout.strip()}")
+            
+        except Exception as e:
+            print(f"❌ Error verifying identity: {str(e)}")
+            return 1
         
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
-        
-        # Write outputs in GitHub Actions format
-        with open(output_file, 'a') as f:
-            # Write in GitHub Actions output format
-            f.write(f'public_key={identity_data["public_key"]}\n')
-            f.write(f'identity_file={identity_file}\n')
-            f.write(f'network={args.network}\n')
-            f.write(f'rpc_url={args.rpc_url}\n')
-        
-        # Print success message for the log
-        print("\n✅ Deployer identity created successfully")
-        print(f"Output written to: {output_file}")
+        print("\n✅ Deployer identity created and verified successfully")
         
         return 0
         

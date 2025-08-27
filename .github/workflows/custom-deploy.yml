@@ -317,21 +317,29 @@ jobs:
           # Install required Python packages
           python -m pip install stellar-sdk toml
           
-          # Run the setup script and capture output
+          # Run the setup script
+          echo "🔧 Setting up Stellar deployer identity for network: ${{ env.NETWORK }}"
+          echo "Working directory: $(pwd)"
+          
           python setup_deployer_identity.py \
             --secret-key-env ACCT_SECRET \
             --network ${{ env.NETWORK }} \
             --rpc-url https://soroban-testnet.stellar.org
             
-          # The Python script now handles all output writing to GITHUB_OUTPUT
-          # Just verify the identity file was created
-          IDENTITY_FILE=".stellar/identity/$(python -c "print('TESTNET_DEPLOYER.toml' if '${{ env.NETWORK }}' == 'testnet' else 'PUBLIC_DEPLOYER.toml')")
-          if [ ! -f "$IDENTITY_FILE" ]; then
-            echo "::error::Identity file $IDENTITY_FILE not found after setup"
+          # Verify the identity is usable
+          echo "🔍 Verifying identity is usable..."
+          IDENTITY_NAME="${{ env.NETWORK | upper }}_DEPLOYER"
+          
+          # Get public key from identity
+          PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME" 2>&1)
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to get public key from identity: $PUBLIC_KEY"
             exit 1
           fi
           
           echo "✅ Identity setup complete"
+          echo "   Identity: $IDENTITY_NAME"
+          echo "   Public Key: $PUBLIC_KEY"
         env:
           ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
@@ -353,26 +361,13 @@ jobs:
             exit 1
           fi
           
-          # Determine the identity name based on network
-          if [ "${{ env.NETWORK }}" = "testnet" ]; then
-            IDENTITY_NAME="TESTNET_DEPLOYER"
-          elif [ "${{ env.NETWORK }}" = "public" ]; then
-            IDENTITY_NAME="PUBLIC_DEPLOYER"
-          else
-            IDENTITY_NAME="DEPLOYER"
-          fi
+          # Get the identity name based on network (already verified in setup step)
+          IDENTITY_NAME="${{ env.NETWORK | upper }}_DEPLOYER"
           
-          # Verify the identity is properly set up
-          if ! stellar keys public-key "$IDENTITY_NAME" >/dev/null 2>&1; then
-            echo "::error::Deployer identity '$IDENTITY_NAME' not found. Make sure setup_deployer_identity.py ran successfully."
-            echo "Available identities:"
-            stellar keys list || true
-            exit 1
-          fi
-          
-          # Get the deployer's public key for verification
+          # Get the deployer's public key (already verified in setup step)
           DEPLOYER_PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME")
-          echo "Using deployer identity '$IDENTITY_NAME' with public key: $DEPLOYER_PUBLIC_KEY"
+          echo "🚀 Starting deployment with identity: $IDENTITY_NAME"
+          echo "   Public key: $DEPLOYER_PUBLIC_KEY"
           
           # Ensure the wasm directory exists
           if [ ! -d "wasm" ]; then
