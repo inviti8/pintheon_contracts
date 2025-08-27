@@ -1,3 +1,6 @@
 {
-    "admin": "TESTNET_DEPLOYER"
-  } 
+    "admin": "TESTNET_DEPLOYER",
+    "name": "Opus Token",
+    "symbol": "OPUS",
+    "decimals": 7
+}
