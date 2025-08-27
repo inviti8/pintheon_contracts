@@ -223,15 +223,22 @@ def main() -> int:
         print(f"   Network: {args.network}")
         print(f"   RPC URL: {args.rpc_url}")
         
-        # Write output to a temporary file in shell variable format
-        # This is more reliable than parsing stdout in the workflow
-        output_file = os.environ.get('GITHUB_OUTPUT', '.github_output')
+        # Get or create the output file path
+        output_file = os.environ.get('GITHUB_OUTPUT')
+        if not output_file:
+            print("::warning::GITHUB_OUTPUT not set, using default output file")
+            output_file = os.path.join(os.getcwd(), 'github_output.txt')
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
+        
+        # Write outputs in GitHub Actions format
         with open(output_file, 'a') as f:
-            # Write in shell variable format for sourcing
-            f.write(f'export PUBLIC_KEY="{identity_data["public_key"]}"\n')
-            f.write(f'export IDENTITY_FILE="{identity_file}"\n')
-            f.write(f'export NETWORK="{args.network}"\n')
-            f.write(f'export RPC_URL="{args.rpc_url}"\n')
+            # Write in GitHub Actions output format
+            f.write(f'public_key={identity_data["public_key"]}\n')
+            f.write(f'identity_file={identity_file}\n')
+            f.write(f'network={args.network}\n')
+            f.write(f'rpc_url={args.rpc_url}\n')
         
         # Print success message for the log
         print("\n✅ Deployer identity created successfully")
