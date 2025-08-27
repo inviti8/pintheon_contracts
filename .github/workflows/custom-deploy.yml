@@ -372,22 +372,11 @@ jobs:
           # Upload deployment details as an artifact
           echo "DEPLOYMENT_DETAILS=deployment_details.json" >> $GITHUB_ENV
           
-          echo "Debug output contents:"
-          cat debug_output.json
-
       - name: Upload deployments.md as artifact
         uses: actions/upload-artifact@v4
         with:
           name: deployments-md
           path: deployments.md
-
-      - name: Upload debug output as artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-output
-          path: debug_output.json
-          if-no-files-found: warn
 
       - name: Update release notes with deployments
         env:

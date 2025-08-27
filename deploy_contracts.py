@@ -129,9 +129,12 @@ def generate_deployments_md(deployments: dict) -> None:
     md += "| Contract | Network | Contract ID | Wasm Hash |\n"
     md += "|----------|---------|-------------|-----------|\n"
     
+    # Skip these top-level keys that aren't contract deployments
+    skip_keys = {'network', 'timestamp', 'cli_version', 'note', 'contracts'}
+    
     for contract, info in deployments.items():
-        if not isinstance(info, dict):
-            print(f"Warning: Unexpected data type for {contract} in deployments, expected dict")
+        # Skip non-dictionary items and metadata keys
+        if not isinstance(info, dict) or contract in skip_keys:
             continue
             
         network = info.get('network', 'testnet')  # Default to testnet if not specified
@@ -143,6 +146,10 @@ def generate_deployments_md(deployments: dict) -> None:
             contract_id = contract_id.get('address', 'Not deployed')
             
         md += f"| {contract} | {network} | `{contract_id}` | `{wasm_hash}` |\n"
+    
+    # Add a note if no deployments were found
+    if md.count('\n') <= 4:  # Only headers in the markdown
+        md += "| No deployments found | | | |\n"
     
     with open(DEPLOYMENTS_MD, 'w') as f:
         f.write(md)
