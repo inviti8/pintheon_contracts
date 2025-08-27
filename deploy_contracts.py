@@ -19,6 +19,11 @@ CONTRACTS = [
 # Global variable to store the project root directory
 PROJECT_ROOT = Path(__file__).parent.resolve()
 
+# Initialize paths
+DEPLOYMENTS_FILE = PROJECT_ROOT / "deployments.json"
+DEPLOYMENTS_MD = PROJECT_ROOT / "deployments.md"
+WASM_DIR = PROJECT_ROOT / "wasm"
+
 def ensure_project_root():
     """Ensure the script is being run from the project root directory."""
     # Check for key project files/directories
@@ -63,12 +68,14 @@ def run_command(cmd: list, cwd: str = ".") -> str:
         
     return result.stdout.strip()
 
-DEPLOYMENTS_FILE = "deployments.json"
-DEPLOYMENTS_MD = "deployments.md"
+# These are now defined at the top of the file using pathlib
 
 def upload_contract(contract_name: str, deployer_acct: str) -> str:
     """Upload a contract and return the wasm hash."""
-    wasm_file = f"{WASM_DIR}/{contract_name}.optimized.wasm"
+    wasm_file = WASM_DIR / f"{contract_name}.optimized.wasm"
+    if not wasm_file.exists():
+        raise FileNotFoundError(f"WASM file not found: {wasm_file}")
+        
     cmd = [
         "stellar", "contract", "upload",
         f"--source-account={deployer_acct}",
@@ -140,23 +147,30 @@ def load_deployments() -> dict:
     """Load existing deployments from deployments.json and migrate if needed."""
     if DEPLOYMENTS_FILE.exists():
         with open(DEPLOYMENTS_FILE, 'r') as f:
-            deployments = json.load(f)
-            
-            # Check if migration is needed
-            if any('-' in key or 'contracts' in deployments for key in deployments):
-                print("Migrating deployments to new format...")
-                deployments = migrate_deployments(deployments)
-                # Save the migrated version
-                with open(DEPLOYMENTS_FILE, 'w') as f_out:
-                    json.dump(deployments, f_out, indent=2)
-            
-            return deployments
+            try:
+                deployments = json.load(f)
+                
+                # Check if migration is needed
+                if any('-' in key or 'contracts' in deployments for key in deployments):
+                    print("Migrating deployments to new format...")
+                    deployments = migrate_deployments(deployments)
+                    # Save the migrated version
+                    with open(DEPLOYMENTS_FILE, 'w') as f_out:
+                        json.dump(deployments, f_out, indent=2)
+                
+                return deployments
+            except json.JSONDecodeError as e:
+                print(f"Error parsing {DEPLOYMENTS_FILE}: {e}")
+                return {}
     return {}
 
 def save_deployments(deployments: dict) -> None:
     """Save deployments to deployments.json."""
+    # Ensure the directory exists
+    DEPLOYMENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(DEPLOYMENTS_FILE, 'w') as f:
         json.dump(deployments, f, indent=2)
+    print(f"Saved deployments to {DEPLOYMENTS_FILE}")
 
 # Contract categories
 UPLOAD_ONLY_CONTRACTS = [
