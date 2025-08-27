@@ -387,7 +387,7 @@ jobs:
               
               # Run post-deployment script
               python hvym_post_deploy.py \
-                --deployer-acct "${{ steps.deploy_config.outputs.deployer_acct }}" \
+                --deployer-acct "$IDENTITY_NAME" \
                 --network "${{ env.NETWORK }}" \
                 --fund-amount "$FUND_AMOUNT" \
                 --initial-opus-alloc "$INITIAL_OPUS_ALLOC"
@@ -399,7 +399,7 @@ jobs:
           else
             echo "ℹ️ No post-deployment configuration found, using defaults"
             python hvym_post_deploy.py \
-              --deployer-acct "${{ steps.deploy_config.outputs.deployer_acct }}" \
+              --deployer-acct "$IDENTITY_NAME" \
               --network "${{ env.NETWORK }}" \
               --fund-amount 30 \
               --initial-opus-alloc 1000
