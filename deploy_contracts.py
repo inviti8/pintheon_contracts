@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 
 # Constants
 NETWORK = "testnet"  # or take from env/args
+NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"  # Testnet passphrase
 WASM_DIR = "wasm"
 CONTRACTS = [
     "pintheon_ipfs_token",
@@ -73,6 +74,7 @@ def upload_contract(contract_name: str, deployer_acct: str) -> str:
         f"--source-account={deployer_acct}",
         f"--wasm={wasm_file}",
         f"--network={NETWORK}",
+        f"--network-passphrase={NETWORK_PASSPHRASE}",
         "--fee=1000000"
     ]
     return run_command(cmd)
@@ -84,6 +86,7 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
         f"--wasm-hash={wasm_hash}",
         f"--source-account={deployer_acct}",
         f"--network={NETWORK}",
+        f"--network-passphrase={NETWORK_PASSPHRASE}",
         "--fee=1000000",
         "--"
     ]
