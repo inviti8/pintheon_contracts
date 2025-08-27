@@ -332,8 +332,13 @@ jobs:
           
           # Get the public key from the identity file
           PUBLIC_KEY=$(python -c "import toml; print(toml.load(open('$IDENTITY_FILE'))['public_key'])")
-          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_OUTPUT
-          echo "IDENTITY_FILE=$IDENTITY_FILE" >> $GITHUB_OUTPUT
+          
+          # Set outputs using the new method
+          {
+            echo "public_key=$PUBLIC_KEY"
+            echo "identity_file=$IDENTITY_FILE"
+            echo "network=${{ env.NETWORK }}"
+          } >> $GITHUB_OUTPUT
         env:
           ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
