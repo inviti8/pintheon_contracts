@@ -208,13 +208,12 @@ jobs:
             echo "✅ Found final WASM: $wasm_file ($(du -h "$wasm_file" | cut -f1))"
           done
           
-      - name: Verify built WASM files
+      - name: Verify WASM files
         run: |
           echo "Built WASM files in wasm/ directory:"
           ls -la wasm/
-          
           # Verify each contract was built
-          for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ ! -f "$wasm_file" ]; then
               echo "::error::Failed to find built WASM for ${contract}"
@@ -230,7 +229,7 @@ jobs:
           mkdir -p release-wasm
           
           # Copy all optimized WASM files from wasm/ to release directory
-          for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ -f "$wasm_file" ]; then
               cp "$wasm_file" "release-wasm/$(basename "$wasm_file")"
@@ -258,9 +257,9 @@ jobs:
       - name: Generate contract metadata
         run: |
           # Generate metadata for each contract
-          for contract in pintheon-node-token pintheon-ipfs-token opus_token hvym-collective; do
-            wasm_file=$(find . -name "${contract}.optimized.wasm" -o -name "${contract}.wasm" | head -1)
-            if [ -n "$wasm_file" ]; then
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective; do
+            wasm_file="wasm/${contract}.optimized.wasm"
+            if [ -f "$wasm_file" ]; then
               echo "Generating metadata for $wasm_file"
               stellar contract env-meta --wasm "$wasm_file" > "${wasm_file}.meta.json" 2>&1 || echo "Warning: Failed to generate metadata for $wasm_file"
             fi
@@ -275,8 +274,8 @@ jobs:
         with:
           name: build-artifacts
           path: |
-            **/target/wasm32-unknown-unknown/release/*.wasm
-            **/target/wasm32-unknown-unknown/release/*.meta.json
+            wasm/*.wasm
+            wasm/*.meta.json
             release-wasm/
           retention-days: 7
           
