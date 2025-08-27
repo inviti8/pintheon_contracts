@@ -99,13 +99,59 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
     
     return run_command(cmd)
 
+def migrate_deployments(deployments: dict) -> dict:
+    """Migrate old deployment format to new format with only underscores."""
+    # Create a copy to avoid modifying during iteration
+    old_deployments = deployments.copy()
+    
+    # Process contracts from the old 'contracts' array
+    if 'contracts' in old_deployments and isinstance(old_deployments['contracts'], list):
+        for contract_info in old_deployments['contracts']:
+            if not isinstance(contract_info, dict):
+                continue
+                
+            # Convert contract name to underscore format
+            contract_name = contract_info.get('name', '').replace('-', '_')
+            if not contract_name:
+                continue
+                
+            # Initialize contract entry if it doesn't exist
+            if contract_name not in deployments:
+                deployments[contract_name] = {}
+                
+            # Update with contract info, preserving existing values
+            for key, value in contract_info.items():
+                if key != 'name':  # Skip the name field
+                    deployments[contract_name][key] = value
+    
+    # Remove old hyphenated entries
+    for key in list(deployments.keys()):
+        if '-' in key and key.replace('-', '_') in deployments:
+            print(f"Removing duplicate hyphenated entry: {key}")
+            del deployments[key]
+    
+    # Remove the old contracts array
+    if 'contracts' in deployments:
+        del deployments['contracts']
+    
+    return deployments
+
 def load_deployments() -> dict:
-    """Load existing deployments from deployments.json."""
-    try:
+    """Load existing deployments from deployments.json and migrate if needed."""
+    if DEPLOYMENTS_FILE.exists():
         with open(DEPLOYMENTS_FILE, 'r') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+            deployments = json.load(f)
+            
+            # Check if migration is needed
+            if any('-' in key or 'contracts' in deployments for key in deployments):
+                print("Migrating deployments to new format...")
+                deployments = migrate_deployments(deployments)
+                # Save the migrated version
+                with open(DEPLOYMENTS_FILE, 'w') as f_out:
+                    json.dump(deployments, f_out, indent=2)
+            
+            return deployments
+    return {}
 
 def save_deployments(deployments: dict) -> None:
     """Save deployments to deployments.json."""
@@ -132,16 +178,54 @@ def generate_deployments_md(deployments: dict) -> None:
     # Skip these top-level keys that aren't contract deployments
     skip_keys = {'network', 'timestamp', 'cli_version', 'note', 'contracts'}
     
+    # Track processed contracts to avoid duplicates
+    processed_contracts = set()
+    
+    # First, process contracts from the 'contracts' array (old format)
+    if 'contracts' in deployments and isinstance(deployments['contracts'], list):
+        for contract_info in deployments['contracts']:
+            if not isinstance(contract_info, dict):
+                continue
+                
+            # Convert contract name to underscore format
+            contract_name = contract_info.get('name', '').replace('-', '_')
+            if not contract_name or contract_name in processed_contracts:
+                continue
+                
+            processed_contracts.add(contract_name)
+            
+            # Skip if we have a direct entry for this contract (prefer direct entries)
+            if contract_name in deployments and isinstance(deployments[contract_name], dict):
+                continue
+                
+            # Add to markdown
+            network = contract_info.get('network', 'testnet')
+            contract_id = contract_info.get('contract_id', contract_info.get('address', 'Not deployed'))
+            wasm_hash = contract_info.get('wasm_hash', 'N/A')
+            
+            if isinstance(contract_id, dict):
+                contract_id = contract_id.get('address', 'Not deployed')
+                
+            md += f"| {contract_name} | {network} | `{contract_id}` | `{wasm_hash}` |\n"
+    
+    # Process direct contract entries (new format)
     for contract, info in deployments.items():
-        # Skip non-dictionary items and metadata keys
-        if not isinstance(info, dict) or contract in skip_keys:
+        # Skip non-dictionary items, metadata keys, and hyphenated names
+        if (not isinstance(info, dict) or 
+            contract in skip_keys or 
+            '-' in contract):
             continue
             
-        network = info.get('network', 'testnet')  # Default to testnet if not specified
+        # Skip if we've already processed this contract
+        if contract in processed_contracts:
+            continue
+            
+        processed_contracts.add(contract)
+        
+        network = info.get('network', 'testnet')
         contract_id = info.get('contract_id', info.get('address', 'Not deployed'))
         wasm_hash = info.get('wasm_hash', 'N/A')
         
-        # Ensure contract_id is a string
         if isinstance(contract_id, dict):
             contract_id = contract_id.get('address', 'Not deployed')
             
@@ -166,8 +250,20 @@ def main():
     
     print(f"Starting deployment with deployer: {args.deployer_acct}")
     
-    # Load existing deployments
+    # Load existing deployments and clean up old format
     deployments = load_deployments()
+    
+    # Remove old hyphenated entries if they exist
+    for contract in CONTRACTS:
+        hyphenated = contract.replace('_', '-')
+        if hyphenated in deployments:
+            print(f"Removing old hyphenated entry: {hyphenated}")
+            del deployments[hyphenated]
+    
+    # Clean up old contracts array if it exists
+    if 'contracts' in deployments:
+        print("Removing old contracts array from deployments")
+        del deployments['contracts']
     
     try:
         # Process each contract in order
@@ -179,15 +275,17 @@ def main():
             wasm_hash = upload_contract(contract, args.deployer_acct)
             print(f"Uploaded with hash: {wasm_hash}")
             
-            # Update deployments
+            # Initialize contract entry if it doesn't exist
             if contract not in deployments:
                 deployments[contract] = {}
-                
-            deployments[contract].update({
+            
+            # Update contract info
+            contract_info = {
                 'wasm_hash': wasm_hash,
                 'network': args.network,
-                'deployer': args.deployer_acct
-            })
+                'deployer': args.deployer_acct,
+                'timestamp': int(time.time())
+            }
             
             # Deploy if needed
             if contract in DEPLOY_ONLY_CONTRACTS:
@@ -195,10 +293,24 @@ def main():
                 contract_args = load_contract_args(contract)
                 contract_id = deploy_contract(contract, wasm_hash, args.deployer_acct, contract_args)
                 print(f"Deployed with ID: {contract_id}")
-                deployments[contract]['contract_id'] = contract_id
+                contract_info['contract_id'] = contract_id
+            
+            # Update deployments with the new info
+            deployments[contract].update(contract_info)
             
             # Save progress after each contract
             save_deployments(deployments)
+        
+        # Add metadata
+        deployments.update({
+            'network': args.network,
+            'timestamp': int(time.time()),
+            'cli_version': '23.0.1',
+            'note': 'Deployed with standardized underscore format'
+        })
+        
+        # Save final state
+        save_deployments(deployments)
         
         # Generate markdown report
         generate_deployments_md(deployments)
