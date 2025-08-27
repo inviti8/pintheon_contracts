@@ -273,43 +273,11 @@ jobs:
       - name: Configure deployment arguments
         id: deploy_config
         run: |
-          # Create config directory if it doesn't exist
-          mkdir -p config
-          
-          # Check for hvym-collective_args.json in release artifacts (try both locations)
-          if [ -f "wasm/hvym-collective_args.json" ]; then
-            # Found in wasm directory
-            cp wasm/hvym-collective_args.json config/
-          elif [ -f "hvym-collective_args.json" ]; then
-            # Found in root of release
-            cp hvym-collective_args.json config/
-          else
-            echo "::error::Missing required file: hvym-collective_args.json"
-            echo "This file must be included in the release artifacts for cloud deployment"
-            echo "Expected location: root or wasm/ directory"
-            exit 1
-          fi
-          echo "Using hvym-collective_args.json from release artifacts"
-          
-          # Verify the required fields exist
-          if ! jq -e 'has("admin") and has("token") and has("join_fee") and has("mint_fee") and has("reward")' config/hvym-collective_args.json > /dev/null; then
-            echo "::error::Invalid hvym-collective_args.json: Missing required fields"
-            echo "Required fields: admin, token, join_fee, mint_fee, reward"
-            exit 1
-          fi
-          
-          # Create post-deployment config file
-          echo '{
-            "fund_amount": 30.0,
-            "initial_opus_alloc": 1000.0,
-            "enabled": true
-          }' > config/hvym-collective_post_deploy_args.json
-          
           # Show the configs for debugging
           echo "Deployment arguments:"
-          cat config/hvym-collective_args.json
+          cat hvym_collective_args.json
           echo -e "\nPost-deployment configuration:"
-          cat config/hvym-collective_post_deploy_args.json
+          cat hvym_collective_post_deploy_args.json
 
       - name: Set up Stellar deployer identity
         id: setup_identity

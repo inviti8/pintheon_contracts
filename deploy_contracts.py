@@ -414,8 +414,8 @@ def upload_only(contract_key, contract_dir, deployer_acct, network, deployments,
 def load_args_from_json(contract_key):
     import json
     
-    # Handle JSON file naming
-    json_file = f"{contract_key.replace('_', '-')}_args.json"
+    # Handle JSON file naming - use consistent underscore naming
+    json_file = f"{contract_key}_args.json"
     
     if not os.path.isfile(json_file):
         print(f"Error: Argument file not found for {contract_key} (expected {json_file})")
@@ -435,8 +435,8 @@ def load_args_from_json(contract_key):
         if k == 'admin':
             continue
             
-        # Handle special conversions for hvym-collective
-        if contract_key == "hvym-collective" and k in ["join_fee", "mint_fee", "reward"]:
+        # Handle special conversions for hvym_collective
+        if contract_key == "hvym_collective" and k in ["join_fee", "mint_fee", "reward"]:
             try:
                 # Convert XLM to stroops (1 XLM = 10,000,000 stroops)
                 v = int(float(v) * 10_000_000)
