@@ -96,10 +96,10 @@ To trigger a deployment, push your changes to the main branch or create a releas
 
 ### Notes
 - Updates `deployments.json` and `deployments.md`.
-- For `hvym-collective`, you need a `hvym-collective_args.json` file.
+- For `hvym_collective`, you need a `hvym_collective_args.json` file.
 - The pipeline will handle building and deploying the contracts automatically.
 - Upload-only contracts: `pintheon-ipfs-token`, `pintheon-node-token`, `opus_token`.
-- Deploy-only contract: `hvym-collective`.
+- Deploy-only contract: `hvym_collective`.
 
 ---
 
@@ -145,26 +145,26 @@ python3 deploy_with_xdr_workaround.py \
 - `--deployer-account`: Account to use for deployment (required for cloud mode)
 - `--network`: Stellar network (`testnet`, `futurenet`, or `mainnet`)
 - `--rpc-url`: Custom RPC URL (default: based on network)
-- `--post-deploy-config`: Path to post-deployment JSON config (default: `hvym-collective_post_deploy_args.json`)
+- `--post-deploy-config`: Path to post-deployment JSON config (default: `hvym_collective_post_deploy_args.json`)
 - `--skip-post-deploy`: Skip post-deployment steps
 - `--strict`: Fail on any error during deployment or post-deployment
 
 ### Deployment Configuration
 
-#### Constructor Arguments (`hvym-collective_args.json`)
+#### Constructor Arguments (`hvym_collective_args.json`)
 
-The `hvym-collective` contract requires constructor arguments that can be provided in a JSON file. This file is automatically handled during deployment:
+The `hvym_collective` contract requires constructor arguments that can be provided in a JSON file. This file is automatically handled during deployment:
 
 1. **Cloud Deployments**:
-   - Looks for `hvym-collective_args.json` in the release artifacts
+   - Looks for `hvym_collective_args.json` in the release artifacts
    - Falls back to default values if not found
    - Always uses the latest OPUS token address from the current deployment
 
 2. **Local Development**:
-   - Looks for `hvym-collective_args.json` in the project root
+   - Looks for `hvym_collective_args.json` in the project root
    - Falls back to default values if not found
 
-Example `hvym-collective_args.json`:
+Example `hvym_collective_args.json`:
 ```json
 {
   "admin": "GABCD...",         // Admin account address
@@ -311,7 +311,7 @@ python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount 30 --in
 
 ## 6. Constructor Arguments JSON Files
 
-For contracts that require constructor arguments, create a JSON file named `<contract>_args.json` (e.g., `hvym-collective_args.json`) with all required fields. Example:
+For contracts that require constructor arguments, create a JSON file named `<contract>_args.json` (e.g., `hvym_collective_args.json`) with all required fields. Example:
 
 ```json
 {
@@ -324,7 +324,7 @@ For contracts that require constructor arguments, create a JSON file named `<con
 ```
 
 ### File Naming Convention
-- `hvym-collective_args.json` - Arguments for hvym-collective contract
+- `hvym_collective_args.json` - Arguments for hvym_collective contract
 - `pintheon-ipfs-token_args.json` - Arguments for pintheon-ipfs-token contract
 - `pintheon-node-token_args.json` - Arguments for pintheon-node-token contract
 
