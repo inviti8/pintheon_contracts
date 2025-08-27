@@ -158,38 +158,68 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASE="v${{ env.VERSION }}"
+          VERSION="${{ env.VERSION }}"
           CONTRACTS=(
-            "pintheon-ipfs-token"
-            "pintheon-node-token"
-            "opus-token"
-            "hvym-collective"
+            "pintheon_ipfs_token"
+            "pintheon_node_token"
+            "opus_token"
+            "hvym_collective"
           )
-          echo "Downloading assets for release $RELEASE"
-          RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE")
-          echo "$RELEASE_INFO" > release-wasm/release_info.json
-          if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "null"')" = "Not Found" ]; then
-            echo "Error: Release $RELEASE not found"
-            exit 1
-          fi
-          ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length')
-          if [ "$ASSET_COUNT" -eq 0 ]; then
-            echo "Error: No assets found for release $RELEASE"
-            exit 1
-          fi
-          for CONTRACT in "${CONTRACTS[@]}"; do
-            ASSET_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"${CONTRACT}.wasm\") | .url")
-            ASSET_NAME=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"${CONTRACT}.wasm\") | .name")
-            if [ -z "$ASSET_URL" ]; then
-              echo "Error: No WASM asset found for contract $CONTRACT in release $RELEASE"
-              exit 1
+          
+          # Try both fast-vX.XX and vX.XX formats
+          RELEASE_TAGS=("v$VERSION" "fast-v$VERSION")
+          
+          for RELEASE_TAG in "${RELEASE_TAGS[@]}"; do
+            echo "Trying release tag: $RELEASE_TAG"
+            RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE_TAG" 2>/dev/null)
+              
+            # Check if release exists and has assets
+            if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "success"')" != "Not Found" ]; then
+              ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length // 0')
+              if [ "$ASSET_COUNT" -gt 0 ]; then
+                echo "Found release with $ASSET_COUNT assets at tag: $RELEASE_TAG"
+                echo "$RELEASE_INFO" > release-wasm/release_info.json
+                
+                # Download all contract wasm files
+                for CONTRACT in "${CONTRACTS[@]}"; do
+                  WASM_FILE="${CONTRACT}.wasm"
+                  ASSET_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"$WASM_FILE\") | .url")
+                  if [ -n "$ASSET_URL" ]; then
+                    echo "Downloading $WASM_FILE from $RELEASE_TAG"
+                    curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
+                         -H "Accept: application/octet-stream" \
+                         "$ASSET_URL" -o "release-wasm/$WASM_FILE"
+                  else
+                    echo "Warning: $WASM_FILE not found in release $RELEASE_TAG"
+                  fi
+                done
+                
+                # Verify we got all required files
+                ALL_FOUND=true
+                for CONTRACT in "${CONTRACTS[@]}"; do
+                  if [ ! -f "release-wasm/${CONTRACT}.wasm" ]; then
+                    echo "Error: ${CONTRACT}.wasm not found in release $RELEASE_TAG"
+                    ALL_FOUND=false
+                  fi
+                done
+                
+                if [ "$ALL_FOUND" = true ]; then
+                  echo "Successfully downloaded all contract wasm files from $RELEASE_TAG"
+                  exit 0
+                else
+                  echo "Some contract wasm files missing from $RELEASE_TAG, trying next tag..."
+                  # Clear any partially downloaded files
+                  rm -f release-wasm/*.wasm
+                fi
+              fi
             fi
-            echo "Downloading $ASSET_NAME from $ASSET_URL for contract $CONTRACT"
-            curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
-                 -H "Accept: application/octet-stream" \
-                 "$ASSET_URL" -o "release-wasm/$ASSET_NAME"
           done
+          
+          # If we get here, we failed to find a suitable release
+          echo "Error: Failed to find a release with all required contract wasm files"
+          echo "Tried tags: ${RELEASE_TAGS[*]}"
+          exit 1
 
       - name: List downloaded WASM files
         run: |

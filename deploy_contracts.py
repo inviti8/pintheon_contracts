@@ -7,31 +7,31 @@ import glob
 import json
 
 CONTRACTS = {
-    "pintheon-ipfs-token": "pintheon-ipfs-deployer/pintheon-ipfs-token",
-    "pintheon-node-token": "pintheon-node-deployer/pintheon-node-token",
+    "pintheon_ipfs_token": "pintheon-ipfs-deployer/pintheon-ipfs-token",
+    "pintheon_node_token": "pintheon-node-deployer/pintheon-node-token",
     "opus_token": "opus_token",
-    "hvym-collective": "hvym-collective",
+    "hvym_collective": "hvym-collective",
 }
 CONTRACT_ORDER = list(CONTRACTS.keys())
 
 # Official release contracts mapping (using wasm_release folder)
 OFFICIAL_CONTRACTS = {
-    "pintheon-ipfs-token": "wasm_release/pintheon-ipfs-token",
-    "pintheon-node-token": "wasm_release/pintheon-node-token",
-    "opus_token": "wasm_release/opus-token",
-    "hvym-collective": "wasm_release/hvym-collective",
+    "pintheon_ipfs_token": "wasm_release/pintheon_ipfs_token",
+    "pintheon_node_token": "wasm_release/pintheon_node_token",
+    "opus_token": "wasm_release/opus_token",
+    "hvym_collective": "wasm_release/hvym_collective",
 }
 
 DEPLOYMENTS_FILE = "deployments.json"
 DEPLOYMENTS_MD = "deployments.md"
 
 UPLOAD_ONLY_CONTRACTS = [
-    "pintheon-ipfs-token",
-    "pintheon-node-token"
+    "pintheon_ipfs_token",
+    "pintheon_node_token"
 ]
 DEPLOY_ONLY_CONTRACTS = [
     "opus_token",
-    "hvym-collective"
+    "hvym_collective"
 ]
 
 def find_optimized_wasm(contract_dir, official_release=False):
