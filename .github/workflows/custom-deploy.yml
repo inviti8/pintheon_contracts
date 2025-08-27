@@ -299,12 +299,18 @@ jobs:
           IDENTITY_NAME="${{ env.NETWORK }}_DEPLOYER"
           IDENTITY_NAME=$(echo "$IDENTITY_NAME" | tr '[:lower:]' '[:upper:]')
           
-          # Get public key from identity
+          # Save identity name for subsequent steps
+          echo "IDENTITY_NAME=$IDENTITY_NAME" >> $GITHUB_ENV
+          
+          # Get public key from identity for deployment
           PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME" 2>&1)
           if [ $? -ne 0 ]; then
             echo "::error::Failed to get public key from identity: $PUBLIC_KEY"
             exit 1
           fi
+          
+          # Save public key for subsequent steps
+          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_ENV
           
           echo "✅ Identity setup complete"
           echo "   Identity: $IDENTITY_NAME"
@@ -375,10 +381,9 @@ jobs:
       - name: Run post-deployment actions for hvym-collective
         if: success()
         run: |
-          # Get public key from identity
-          echo "Getting public key for identity: $IDENTITY_NAME"
-          PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME")
-          echo "Using public key: $PUBLIC_KEY"
+          # Use the public key from the environment
+          echo "Using identity: ${{ env.IDENTITY_NAME }}"
+          echo "Using public key: ${{ env.PUBLIC_KEY }}"
           
           # Check if post-deployment is enabled
           if [ -f "hvym_collective_post_deploy_args.json" ]; then
@@ -392,8 +397,8 @@ jobs:
               
               # Run post-deployment script
               python hvym_post_deploy.py \
-                --deployer-acct "$IDENTITY_NAME" \
-                --deployer-pubkey "$PUBLIC_KEY" \
+                --deployer-acct "${{ env.IDENTITY_NAME }}" \
+                --deployer-pubkey "${{ env.PUBLIC_KEY }}" \
                 --network "${{ env.NETWORK }}" \
                 --fund-amount "$FUND_AMOUNT" \
                 --initial-opus-alloc "$INITIAL_OPUS_ALLOC"
