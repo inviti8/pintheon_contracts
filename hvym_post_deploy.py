@@ -42,23 +42,24 @@ def main():
 
     deployments = load_deployments()
     
-    # Get hvym-collective contract ID
-    hvym = deployments.get("hvym-collective", {})
+    # Get hvym_collective contract ID
+    hvym = deployments.get("hvym_collective", {})
     contract_id = hvym.get("contract_id")
     if not contract_id:
-        print("hvym-collective contract_id not found in deployments.json")
+        print("hvym_collective contract_id not found in deployments.json")
+        print("Available contracts:", ", ".join(deployments.keys()))
         sys.exit(1)
     
-    # Get opus-token contract ID from deployments.json
+    # Get opus_token contract ID from deployments.json
     opus = deployments.get("opus_token", {})
     opus_contract_id = opus.get("contract_id")
     if not opus_contract_id:
         print("opus_token contract_id not found in deployments.json")
-        print("Please run deploy_contracts.py first to deploy opus-token")
+        print("Please run deploy_contracts.py first to deploy opus_token")
         sys.exit(1)
 
     # Fund contract
-    print(f"\n=== Funding hvym-collective contract {contract_id} ===")
+    print(f"\n=== Funding hvym_collective contract {contract_id} ===")
     fund_cmd = [
         "stellar", "contract", "invoke",
         "--id", contract_id,
