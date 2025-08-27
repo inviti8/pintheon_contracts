@@ -247,12 +247,13 @@ jobs:
           (cd release-wasm && sha256sum *.wasm > checksums.sha256)
           cat release-wasm/checksums.sha256
           
-      - name: Generate SBOM and attestations
+      - name: Generate SBOM
         uses: anchore/sbom-action@v0.15.1
         with:
           path: release-wasm
-          output-file: sbom.spdx
+          output-file: sbom
           format: spdx-json
+          artifact-name: sbom-artifact
           
       - name: Generate contract metadata
         run: |
@@ -285,6 +286,6 @@ jobs:
           files: |
             release-wasm/*.wasm
             release-wasm/checksums.sha256
-            sbom.spdx
+            sbom.spdx.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
