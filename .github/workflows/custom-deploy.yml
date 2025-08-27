@@ -333,12 +333,27 @@ jobs:
           # Get the public key from the identity file
           PUBLIC_KEY=$(python -c "import toml; print(toml.load(open('$IDENTITY_FILE'))['public_key'])")
           
-          # Set outputs using the new method
+          # Create a temporary file for outputs
+          OUTPUT_FILE=$(mktemp)
+          
+          # Write outputs with proper escaping
           {
-            echo "public_key=$PUBLIC_KEY"
-            echo "identity_file=$IDENTITY_FILE"
-            echo "network=${{ env.NETWORK }}"
-          } >> $GITHUB_OUTPUT
+            echo "public_key<<EOF"
+            echo "$PUBLIC_KEY"
+            echo "EOF"
+            echo "identity_file<<EOF"
+            echo "$IDENTITY_FILE"
+            echo "EOF"
+            echo "network<<EOF"
+            echo "${{ env.NETWORK }}"
+            echo "EOF"
+          } > "$OUTPUT_FILE"
+          
+          # Append to GITHUB_OUTPUT
+          cat "$OUTPUT_FILE" >> "$GITHUB_OUTPUT"
+          
+          # Clean up
+          rm -f "$OUTPUT_FILE"
         env:
           ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
