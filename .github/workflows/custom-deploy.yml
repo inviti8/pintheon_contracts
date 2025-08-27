@@ -382,13 +382,9 @@ jobs:
           
           # Run the deployment script with the correct identity name
           python deploy_contracts.py \
-            --network "${{ env.NETWORK }}" \
-            --wasm-dir wasm \
-            --config config/hvym-collective_args.json \
-            --save-deployments deployments.json \
             --deployer-acct "$IDENTITY_NAME" \
-            --rpc-url "$RPC_URL" \
-            --post-deploy-config config/hvym-collective_post_deploy_args.json
+            --network "${{ env.NETWORK }}" \
+            --wasm-dir wasm
           
           # Save deployment details as an artifact
           if [ -f deployments.json ]; then
