@@ -298,30 +298,62 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
         "--source-account", deployer_acct,
         "--network", network
     ]
+    
+    # Add constructor arguments if provided
     if constructor_args:
+        print("Using constructor arguments:")
+        # Print arguments in a readable format (pairs of --arg value)
+        for i in range(0, len(constructor_args), 2):
+            if i + 1 < len(constructor_args):
+                print(f"  {constructor_args[i]} {constructor_args[i+1]}")
         deploy_cmd.append("--")
         deploy_cmd.extend(constructor_args)
-    deploy_out = run_cmd(deploy_cmd, cwd=working_dir, env=env)
-    print(f"Deploy output:\n{deploy_out}")
-    # Extract contract ID from last line
-    deploy_lines = [line.strip() for line in deploy_out.splitlines() if line.strip()]
-    contract_id = None
-    if deploy_lines:
-        last_line = deploy_lines[-1]
-        if len(last_line) == 56 and last_line.isalnum() and last_line.isupper():
-            contract_id = last_line
-    if not contract_id:
-        print(f"Could not extract contract ID from deploy output (expected last line to be contract ID):\n{deploy_out}")
+    
+    try:
+        deploy_out = run_cmd(deploy_cmd, cwd=working_dir, env=env)
+        print(f"Deploy output:\n{deploy_out}")
+        
+        # Extract contract ID from last line
+        deploy_lines = [line.strip() for line in deploy_out.splitlines() if line.strip()]
+        contract_id = None
+        if deploy_lines:
+            last_line = deploy_lines[-1]
+            if len(last_line) == 56 and all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567' for c in last_line):
+                contract_id = last_line
+        
+        if not contract_id:
+            print(f"Warning: Could not extract contract ID from deploy output. Checking for error messages...")
+            error_lines = [line for line in deploy_out.splitlines() if 'error' in line.lower()]
+            if error_lines:
+                print("Error messages found in output:")
+                for line in error_lines:
+                    print(f"  {line}")
+            print("Full deploy output was:")
+            print(deploy_out)
+            sys.exit(1)
+            
+        print(f"✅ Successfully deployed {contract_key}")
+        print(f"Contract ID: {contract_id}")
+        
+        # Update deployments.json
+        deployments[contract_key] = {
+            "contract_dir": contract_dir,
+            "wasm_hash": wasm_hash,
+            "contract_id": contract_id
+        }
+        save_deployments(deployments)
+        print(f"Updated {DEPLOYMENTS_FILE} with {contract_key}")
+        
+        return contract_id
+        
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Deployment failed with error:")
+        print(f"Command: {' '.join(e.cmd)}")
+        print(f"Exit code: {e.returncode}")
+        print(f"Output: {e.output}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"Error: {e.stderr}")
         sys.exit(1)
-    print(f"Contract ID: {contract_id}")
-    # Update deployments.json
-    deployments[contract_key] = {
-        "contract_dir": contract_dir,
-        "wasm_hash": wasm_hash,
-        "contract_id": contract_id
-    }
-    save_deployments(deployments)
-    print(f"Updated {DEPLOYMENTS_FILE} with {contract_key}")
 
 def upload_only(contract_key, contract_dir, deployer_acct, network, deployments, official_release=False):
     mode = "OFFICIAL RELEASE" if official_release else "DEVELOPMENT"
@@ -381,31 +413,50 @@ def upload_only(contract_key, contract_dir, deployer_acct, network, deployments,
 
 def load_args_from_json(contract_key):
     import json
-    # Handle naming mismatch for opus_token
-    if contract_key == "opus_token":
-        json_file = "opus-token_args.json"
-    else:
-        json_file = f"{contract_key}_args.json"
+    
+    # Define required arguments for each contract
+    REQUIRED_ARGS = {
+        "hvym-collective": ["admin", "token", "join_fee", "mint_fee", "reward"],
+        "opus_token": ["admin", "name", "symbol", "decimals"],
+        # Add other contracts and their required args as needed
+    }
+    
+    # Handle JSON file naming
+    json_file = f"{contract_key.replace('_', '-')}_args.json"
     
     if not os.path.isfile(json_file):
-        print(f"Warning: No argument file found for {contract_key} (expected {json_file}), no constructor args will be used.")
-        return []
-    with open(json_file, "r") as f:
-        data = json.load(f)
+        print(f"Error: Argument file not found for {contract_key} (expected {json_file})")
+        sys.exit(1)
+    
+    try:
+        with open(json_file, "r") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing {json_file}: {e}")
+        sys.exit(1)
+    
+    # Validate required arguments
+    if contract_key in REQUIRED_ARGS:
+        missing_args = [arg for arg in REQUIRED_ARGS[contract_key] if arg not in data]
+        if missing_args:
+            print(f"Error: Missing required arguments in {json_file}: {', '.join(missing_args)}")
+            sys.exit(1)
+    
+    # Convert values to appropriate format
     args = []
-    # For hvym-collective, convert join_fee, mint_fee, reward to stroops
-    if contract_key == "hvym-collective":
-        for key in ["join_fee", "mint_fee", "reward"]:
-            if key in data:
-                # Allow both int and float (for decimal XLM values)
-                try:
-                    data[key] = int(float(data[key]) * 10_000_000)
-                except Exception as e:
-                    print(f"Error converting {key} to stroops: {e}")
-                    sys.exit(1)
     for k, v in data.items():
-        args.append(f"--{k.replace('_', '-')}")
-        args.append(str(v))
+        # Handle special conversions
+        if contract_key == "hvym-collective" and k in ["join_fee", "mint_fee", "reward"]:
+            try:
+                v = int(float(v) * 10_000_000)  # Convert XLM to stroops
+            except (ValueError, TypeError) as e:
+                print(f"Error converting {k} to stroops: {e}")
+                sys.exit(1)
+        
+        # Add argument to the list
+        arg_name = k.replace('_', '-')  # Convert snake_case to kebab-case
+        args.extend([f"--{arg_name}", str(v)])
+    
     return args
 
 def main():
