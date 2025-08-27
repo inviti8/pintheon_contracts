@@ -323,8 +323,17 @@ jobs:
             --network ${{ env.NETWORK }} \
             --rpc-url https://soroban-testnet.stellar.org
           
-          # Set outputs from the script
-          echo "PUBLIC_KEY=$(python -c 'import toml; print(toml.load(open("$HOME/.stellar/identity/deployer.toml"))["public_key"]')" >> $GITHUB_OUTPUT
+          # Verify the identity file was created
+          IDENTITY_FILE=".stellar/identity/$(python -c "print('TESTNET_DEPLOYER.toml' if '${{ env.NETWORK }}' == 'testnet' else 'PUBLIC_DEPLOYER.toml')")
+          if [ ! -f "$IDENTITY_FILE" ]; then
+            echo "::error::Identity file $IDENTITY_FILE not found after setup"
+            exit 1
+          fi
+          
+          # Get the public key from the identity file
+          PUBLIC_KEY=$(python -c "import toml; print(toml.load(open('$IDENTITY_FILE'))['public_key'])")
+          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_OUTPUT
+          echo "IDENTITY_FILE=$IDENTITY_FILE" >> $GITHUB_OUTPUT
         env:
           ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
@@ -335,25 +344,54 @@ jobs:
           STELLAR_NETWORK: ${{ env.NETWORK }}
           STELLAR_RPC_URL: https://soroban-testnet.stellar.org
         run: |
-          echo "Running deployment for ${{ env.NETWORK }}"
+          # Ensure we're in the repository root
+          cd "$GITHUB_WORKSPACE"
+          
+          echo "Running deployment for ${{ env.NETWORK }} in $(pwd)"
+          
+          # Verify we're in the correct directory by checking for important files
+          if [ ! -f "deploy_contracts.py" ] || [ ! -d ".github/workflows" ]; then
+            echo "::error::Not in repository root directory. Current directory: $(pwd)"
+            exit 1
+          fi
+          
+          # Determine the identity name based on network
+          if [ "${{ env.NETWORK }}" = "testnet" ]; then
+            IDENTITY_NAME="TESTNET_DEPLOYER"
+          elif [ "${{ env.NETWORK }}" = "public" ]; then
+            IDENTITY_NAME="PUBLIC_DEPLOYER"
+          else
+            IDENTITY_NAME="DEPLOYER"
+          fi
           
           # Verify the identity is properly set up
-          if ! stellar keys public-key deployer >/dev/null 2>&1; then
-            echo "::error::Deployer identity not found. Make sure setup_deployer_identity.py ran successfully."
+          if ! stellar keys public-key "$IDENTITY_NAME" >/dev/null 2>&1; then
+            echo "::error::Deployer identity '$IDENTITY_NAME' not found. Make sure setup_deployer_identity.py ran successfully."
+            echo "Available identities:"
+            stellar keys list || true
             exit 1
           fi
           
           # Get the deployer's public key for verification
-          DEPLOYER_PUBLIC_KEY=$(stellar keys public-key deployer)
-          echo "Using deployer identity with public key: $DEPLOYER_PUBLIC_KEY"
+          DEPLOYER_PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME")
+          echo "Using deployer identity '$IDENTITY_NAME' with public key: $DEPLOYER_PUBLIC_KEY"
           
-          # Run the deployment script with the deployer identity name
+          # Ensure the wasm directory exists
+          if [ ! -d "wasm" ]; then
+            echo "::error::WASM directory not found. Make sure contracts are built."
+            exit 1
+          fi
+          
+          # Ensure the config directory exists
+          mkdir -p config
+          
+          # Run the deployment script with the correct identity name
           python deploy_contracts.py \
             --network "${{ env.NETWORK }}" \
-            --wasm-dir release-wasm \
+            --wasm-dir wasm \
             --config config/hvym-collective_args.json \
             --save-deployments deployments.json \
-            --deployer-acct deployer \
+            --deployer-acct "$IDENTITY_NAME" \
             --rpc-url "$RPC_URL" \
             --post-deploy-config config/hvym-collective_post_deploy_args.json
           

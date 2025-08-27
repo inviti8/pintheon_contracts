@@ -5,6 +5,25 @@ import subprocess
 import sys
 import glob
 import json
+from pathlib import Path
+
+# Global variable to store the project root directory
+PROJECT_ROOT = Path(__file__).parent.resolve()
+
+def ensure_project_root():
+    """Ensure the script is being run from the project root directory."""
+    # Check for key project files/directories
+    required_paths = [
+        PROJECT_ROOT / 'deploy_contracts.py',
+        PROJECT_ROOT / '.github',
+        PROJECT_ROOT / 'wasm'
+    ]
+    
+    for path in required_paths:
+        if not path.exists():
+            print(f"Error: Could not find required path: {path}")
+            print("Please run this script from the project root directory.")
+            sys.exit(1)
 
 CONTRACTS = {
     "pintheon_ipfs_token": "pintheon-ipfs-deployer/pintheon-ipfs-token",
@@ -35,18 +54,35 @@ DEPLOY_ONLY_CONTRACTS = [
 ]
 
 def find_optimized_wasm(contract_dir, official_release=False):
+    """
+    Find the optimized WASM file for a contract.
+    
+    Args:
+        contract_dir: Path to the contract directory (relative to project root)
+        official_release: Whether to look in the wasm_release directory
+        
+    Returns:
+        Path to the optimized WASM file, or None if not found
+    """
+    contract_dir = Path(contract_dir)
+    if not contract_dir.is_absolute():
+        contract_dir = PROJECT_ROOT / contract_dir
+    
     if official_release:
         # For official releases, look for WASM files in the wasm_release directory first
-        if os.path.isdir(contract_dir):
-            wasm_files = glob.glob(os.path.join(contract_dir, "*.wasm"))
+        print(f"  Official release mode, checking {contract_dir}")
+        if contract_dir.is_dir():
+            wasm_files = list(contract_dir.glob("*.wasm"))
             if wasm_files:
+                print(f"  Found {len(wasm_files)} WASM files in release directory")
                 # Return the first WASM file found (should be the only one)
-                return wasm_files[0]
+                return str(wasm_files[0].resolve())
+        print("  No WASM files found in release directory")
         return None
-    
+        
     # First check the wasm/ directory in the project root
-    wasm_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "wasm")
-    if os.path.isdir(wasm_dir):
+    wasm_dir = PROJECT_ROOT / "wasm"
+    if wasm_dir.exists():
         contract_name = os.path.basename(contract_dir).replace("-", "_")
         wasm_pattern = os.path.join(wasm_dir, f"{contract_name}.optimized.wasm")
         wasm_files = glob.glob(wasm_pattern)
@@ -55,8 +91,8 @@ def find_optimized_wasm(contract_dir, official_release=False):
     
     # Fall back to checking target directories (for backward compatibility)
     wasm_dirs = [
-        os.path.join(contract_dir, "target", "wasm32v1-none", "release"),  # New stellar CLI build
-        os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release")  # Old cargo build
+        contract_dir / "target" / "wasm32v1-none" / "release",  # New stellar CLI build
+        contract_dir / "target" / "wasm32-unknown-unknown" / "release"  # Old cargo build
     ]
     
     for wasm_dir in wasm_dirs:
@@ -79,14 +115,83 @@ def find_optimized_wasm(contract_dir, official_release=False):
     
     return None
 
-def run_cmd(cmd, cwd=None, capture_output=True):
+def run_cmd(cmd, cwd=None, capture_output=True, env=None):
+    """
+    Run a shell command with proper working directory and environment handling.
+    
+    Args:
+        cmd: Command to run (list of arguments)
+        cwd: Working directory (defaults to project root if None)
+        capture_output: Whether to capture and return command output
+        env: Optional environment variables to use (dict)
+        
+    Returns:
+        Command output if capture_output=True, else None
+        
+    Raises:
+        subprocess.CalledProcessError: If the command returns a non-zero exit code
+    """
+    # Set default working directory to project root
+    if cwd is None:
+        cwd = PROJECT_ROOT
+    elif not Path(cwd).is_absolute():
+        cwd = PROJECT_ROOT / cwd
+    
+    # Ensure the working directory exists
+    cwd.mkdir(parents=True, exist_ok=True)
+    
+    # Prepare environment - start with current environment and update with any provided vars
+    process_env = os.environ.copy()
+    if env:
+        process_env.update(env)
+    
+    # Log the command for debugging
+    print(f"\n📝 Running command: {' '.join(cmd)}")
+    print(f"   Working directory: {cwd}")
+    if env:
+        print("   Environment variables:")
+        for k, v in env.items():
+            if 'SECRET' in k or 'KEY' in k or 'PASSWORD' in k:
+                print(f"     {k}=[REDACTED]")
+            else:
+                print(f"     {k}={v}")
+    
     try:
-        result = subprocess.run(cmd, cwd=cwd, check=True, capture_output=capture_output, text=True)
-        return result.stdout.strip()
+        result = subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            check=True,
+            capture_output=capture_output,
+            text=True,
+            env=process_env
+        )
+        
+        # Log the output if we captured it
+        if capture_output and result.stdout:
+            print("✅ Command succeeded with output:")
+            print(result.stdout)
+            
+        return result.stdout.strip() if capture_output else None
+        
     except subprocess.CalledProcessError as e:
-        print(f"Error running command: {' '.join(cmd)}")
-        print(e.stdout)
-        print(e.stderr)
+        print(f"❌ Command failed with exit code {e.returncode}")
+        print(f"   Command: {' '.join(cmd)}")
+        print(f"   Working directory: {cwd}")
+        
+        if e.stdout:
+            print("=== STDOUT ===")
+            print(e.stdout)
+            
+        if e.stderr:
+            print("=== STDERR ===")
+            print(e.stderr)
+            
+        # Re-raise the exception to allow callers to handle it
+        raise
+        
+    except Exception as e:
+        print(f"❌ Unexpected error executing command: {str(e)}")
+        raise
         sys.exit(1)
 
 def load_deployments():
@@ -269,16 +374,29 @@ def load_args_from_json(contract_key):
     return args
 
 def main():
-    parser = argparse.ArgumentParser(description="Upload and deploy Soroban contracts using Stellar CLI.\nIf --constructor-args is not provided, the script will look for a JSON file named <contract>_args.json and use its fields as constructor arguments.")
+    # Ensure we're running from the project root
+    ensure_project_root()
+    
+    parser = argparse.ArgumentParser(
+        description="Upload and deploy Soroban contracts using Stellar CLI.\n"
+        "If --constructor-args is not provided, the script will look for a JSON file "
+        "named <contract>_args.json and use its fields as constructor arguments."
+    )
     parser.add_argument(
         "--deployer-acct",
         required=True,
-        help="Stellar CLI account name or secret to use as deployer (--source-account value)",
+        help="Stellar CLI account name to use as deployer (must be in ~/.stellar/identity/)",
     )
     parser.add_argument(
         "--network",
         default="testnet",
+        choices=["testnet", "public", "futurenet"],
         help="Network name for deployment (default: testnet)",
+    )
+    parser.add_argument(
+        "--wasm-dir",
+        default=PROJECT_ROOT / "wasm",
+        help="Directory containing optimized WASM files (default: wasm in project root)",
     )
     parser.add_argument(
         "--contract",
@@ -296,6 +414,15 @@ def main():
         help="Use official release WASM files from the 'wasm_release' directory.",
     )
     args = parser.parse_args()
+    
+    # Convert relative paths to absolute
+    if not Path(args.wasm_dir).is_absolute():
+        args.wasm_dir = PROJECT_ROOT / args.wasm_dir
+    
+    # Validate wasm directory exists
+    if not args.wasm_dir.exists():
+        print(f"Error: WASM directory not found: {args.wasm_dir}")
+        sys.exit(1)
     
     # Validate official release mode
     if args.official_release:
@@ -327,7 +454,6 @@ def main():
         if args.official_release:
             contract_dir = OFFICIAL_CONTRACTS[args.contract]
         if args.contract in UPLOAD_ONLY_CONTRACTS:
-            wasm_path = find_optimized_wasm(contract_dir, args.official_release)
             upload_only(contract_key=args.contract, contract_dir=contract_dir, deployer_acct=args.deployer_acct, network=args.network, deployments=deployments, official_release=args.official_release)
         elif args.contract in DEPLOY_ONLY_CONTRACTS:
             upload_and_deploy(args.contract, contract_dir, args.deployer_acct, args.network, deployments, constructor_args, args.official_release)
