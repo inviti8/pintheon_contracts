@@ -130,9 +130,18 @@ def generate_deployments_md(deployments: dict) -> None:
     md += "|----------|---------|-------------|-----------|\n"
     
     for contract, info in deployments.items():
-        network = info.get('network', 'unknown')
-        contract_id = info.get('contract_id', 'Not deployed')
+        if not isinstance(info, dict):
+            print(f"Warning: Unexpected data type for {contract} in deployments, expected dict")
+            continue
+            
+        network = info.get('network', 'testnet')  # Default to testnet if not specified
+        contract_id = info.get('contract_id', info.get('address', 'Not deployed'))
         wasm_hash = info.get('wasm_hash', 'N/A')
+        
+        # Ensure contract_id is a string
+        if isinstance(contract_id, dict):
+            contract_id = contract_id.get('address', 'Not deployed')
+            
         md += f"| {contract} | {network} | `{contract_id}` | `{wasm_hash}` |\n"
     
     with open(DEPLOYMENTS_MD, 'w') as f:
