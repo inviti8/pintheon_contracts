@@ -223,20 +223,15 @@ def main() -> int:
         print(f"   Network: {args.network}")
         print(f"   RPC URL: {args.rpc_url}")
         
-        # Set outputs for GitHub Actions (using environment file syntax for GitHub Actions)
-        github_output = os.environ.get('GITHUB_OUTPUT')
-        if github_output:
-            with open(github_output, 'a') as fh:
-                print(f'public_key={identity_data["public_key"]}', file=fh)
-                print(f'identity_file={identity_file}', file=fh)
-                print(f'network={args.network}', file=fh)
-        
-        # Always print the outputs for debugging
-        print("\n📝 GitHub Actions outputs (for reference):")
+        # Print the values in a parseable format for the workflow to capture
+        # These will be parsed by the GitHub Actions workflow
         print(f"public_key={identity_data['public_key']}")
         print(f"identity_file={identity_file}")
         print(f"network={args.network}")
         print(f"rpc_url={args.rpc_url}")
+        
+        # Print a success message for the user
+        print("\n✅ Deployer identity created successfully")
         
         return 0
         
