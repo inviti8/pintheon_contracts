@@ -223,15 +223,19 @@ def main() -> int:
         print(f"   Network: {args.network}")
         print(f"   RPC URL: {args.rpc_url}")
         
-        # Print the values in a parseable format for the workflow to capture
-        # These will be parsed by the GitHub Actions workflow
-        print(f"public_key={identity_data['public_key']}")
-        print(f"identity_file={identity_file}")
-        print(f"network={args.network}")
-        print(f"rpc_url={args.rpc_url}")
+        # Write output to a temporary file in shell variable format
+        # This is more reliable than parsing stdout in the workflow
+        output_file = os.environ.get('GITHUB_OUTPUT', '.github_output')
+        with open(output_file, 'a') as f:
+            # Write in shell variable format for sourcing
+            f.write(f'export PUBLIC_KEY="{identity_data["public_key"]}"\n')
+            f.write(f'export IDENTITY_FILE="{identity_file}"\n')
+            f.write(f'export NETWORK="{args.network}"\n')
+            f.write(f'export RPC_URL="{args.rpc_url}"\n')
         
-        # Print a success message for the user
+        # Print success message for the log
         print("\n✅ Deployer identity created successfully")
+        print(f"Output written to: {output_file}")
         
         return 0
         
