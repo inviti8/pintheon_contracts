@@ -414,47 +414,25 @@ def upload_only(contract_key, contract_dir, deployer_acct, network, deployments,
 def load_args_from_json(contract_key):
     import json
     
-    # Define required arguments for each contract
-    REQUIRED_ARGS = {
-        "hvym-collective": ["admin", "token", "join_fee", "mint_fee", "reward"],
-        "opus_token": ["admin", "name", "symbol", "decimals"],
-        # Add other contracts and their required args as needed
-    }
-    
     # Handle JSON file naming
     json_file = f"{contract_key.replace('_', '-')}_args.json"
     
     if not os.path.isfile(json_file):
-        print(f"Error: Argument file not found for {contract_key} (expected {json_file})")
-        sys.exit(1)
+        print(f"Warning: Argument file not found for {contract_key} (expected {json_file})")
+        return []
     
     try:
         with open(json_file, "r") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
         print(f"Error parsing {json_file}: {e}")
-        sys.exit(1)
-    
-    # Validate required arguments
-    if contract_key in REQUIRED_ARGS:
-        missing_args = [arg for arg in REQUIRED_ARGS[contract_key] if arg not in data]
-        if missing_args:
-            print(f"Error: Missing required arguments in {json_file}: {', '.join(missing_args)}")
-            sys.exit(1)
+        return []
     
     # Convert values to appropriate format
     args = []
     for k, v in data.items():
-        # Handle special conversions
-        if contract_key == "hvym-collective" and k in ["join_fee", "mint_fee", "reward"]:
-            try:
-                v = int(float(v) * 10_000_000)  # Convert XLM to stroops
-            except (ValueError, TypeError) as e:
-                print(f"Error converting {k} to stroops: {e}")
-                sys.exit(1)
-        
-        # Add argument to the list
-        arg_name = k.replace('_', '-')  # Convert snake_case to kebab-case
+        # Convert snake_case to kebab-case for argument names
+        arg_name = k.replace('_', '-')
         args.extend([f"--{arg_name}", str(v)])
     
     return args
