@@ -252,6 +252,13 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
             print(f"Expected file pattern: {contract_dir}/target/wasm32-unknown-unknown/release/*.optimized.wasm")
         sys.exit(1)
     wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
+    # Set up environment with network passphrase for Stellar CLI
+    env = os.environ.copy()
+    if network == "testnet":
+        env["STELLAR_NETWORK_PASSPHRASE"] = "Test SDF Network ; September 2015"
+    elif network == "public":
+        env["STELLAR_NETWORK_PASSPHRASE"] = "Public Global Stellar Network ; September 2015"
+
     # Upload
     print(f"Uploading {wasm_file_rel} ...")
     upload_cmd = [
@@ -260,7 +267,7 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
         "--wasm", wasm_file_rel,
         "--network", network
     ]
-    upload_out = run_cmd(upload_cmd, cwd=contract_dir)
+    upload_out = run_cmd(upload_cmd, cwd=contract_dir, env=env)
     # Refined: Use the last line if it's a 64-char hex string
     lines = [line.strip() for line in upload_out.splitlines() if line.strip()]
     wasm_hash = None
@@ -283,7 +290,7 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
     if constructor_args:
         deploy_cmd.append("--")
         deploy_cmd.extend(constructor_args)
-    deploy_out = run_cmd(deploy_cmd, cwd=contract_dir)
+    deploy_out = run_cmd(deploy_cmd, cwd=contract_dir, env=env)
     print(f"Deploy output:\n{deploy_out}")
     # Extract contract ID from last line
     deploy_lines = [line.strip() for line in deploy_out.splitlines() if line.strip()]
@@ -327,13 +334,20 @@ def upload_only(contract_key, contract_dir, deployer_acct, network, deployments,
             sys.exit(1)
     
     print(f"Uploading {wasm_file.name} ...")
+    # Set up environment with network passphrase for Stellar CLI
+    env = os.environ.copy()
+    if network == "testnet":
+        env["STELLAR_NETWORK_PASSPHRASE"] = "Test SDF Network ; September 2015"
+    elif network == "public":
+        env["STELLAR_NETWORK_PASSPHRASE"] = "Public Global Stellar Network ; September 2015"
+    
     upload_cmd = [
         "stellar", "contract", "upload",
         "--source-account", deployer_acct,
         "--wasm", str(wasm_file),
         "--network", network
     ]
-    upload_out = run_cmd(upload_cmd, cwd=PROJECT_ROOT)
+    upload_out = run_cmd(upload_cmd, cwd=PROJECT_ROOT, env=env)
     lines = [line.strip() for line in upload_out.splitlines() if line.strip()]
     wasm_hash = None
     if lines:
