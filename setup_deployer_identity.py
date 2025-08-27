@@ -129,20 +129,6 @@ def verify_with_cli(network: str) -> bool:
         if result.returncode == 0:
             public_key = result.stdout.strip()
             print(f"✅ Successfully verified identity: {public_key}")
-            
-            # Verify the identity can be used with the network
-            network_result = subprocess.run(
-                ["stellar", "config", "--network", network, "get"],
-                cwd=os.getcwd(),
-                capture_output=True,
-                text=True
-            )
-            
-            if network_result.returncode != 0:
-                print(f"⚠️  Warning: Could not verify network configuration: {network_result.stderr}")
-            else:
-                print(f"✅ Network configuration verified: {network_result.stdout.strip()}")
-                
             return True
         else:
             print(f"❌ Failed to verify identity: {result.stderr}")
