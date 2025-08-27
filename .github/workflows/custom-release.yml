@@ -122,31 +122,52 @@ jobs:
           python --version
           pip list
           
-      - name: Build dependency contracts
+      - name: Build contracts in sequence
         run: |
-          # Build dependencies first
-          python cloud_build.py --contract pintheon-node-deployer/pintheon-node-token
-          python cloud_build.py --contract pintheon-ipfs-deployer/pintheon-ipfs-token
-          python cloud_build.py --contract opus_token
-          
-          # Verify WASM files were created
-          echo "Verifying WASM files in wasm/ directory:"
-          ls -la wasm/
-          
-          # Verify the optimized WASM files exist
-          for contract in pintheon_node_token pintheon_ipfs_token; do
-            wasm_file="wasm/${contract}.optimized.wasm"
-            if [ ! -f "$wasm_file" ]; then
-              echo "::error::Missing required WASM file: $wasm_file"
+          # Build each contract one by one with proper error handling
+          for contract in \
+            "pintheon-node-deployer/pintheon-node-token" \
+            "pintheon-ipfs-deployer/pintheon-ipfs-token" \
+            "opus_token"; do
+            
+            echo "\n🚀 Building $contract..."
+            if ! python cloud_build.py --contract "$contract"; then
+              echo "::error::Failed to build $contract"
               exit 1
             fi
-            echo "✅ Found required WASM: $wasm_file"
+            
+            # Verify the optimized WASM file was created
+            contract_name=$(basename "$contract" | tr '-' '_')
+            wasm_file="wasm/${contract_name}.optimized.wasm"
+            if [ ! -f "$wasm_file" ]; then
+              echo "::error::Optimized WASM not found after building $contract"
+              echo "Expected: $(pwd)/$wasm_file"
+              echo "Current directory contents:"
+              ls -la wasm/ || echo "No wasm directory found"
+              exit 1
+            fi
+            
+            echo "✅ Successfully built and verified: $wasm_file"
+            echo "File size: $(du -h "$wasm_file" | cut -f1)"
           done
           
-      - name: Build hvym-collective
-        run: |
-          # Now build hvym-collective with all dependencies in place
-          python cloud_build.py --contract hvym-collective
+          # Now build hvym-collective after all dependencies are verified
+          echo "\n🚀 Building hvym-collective..."
+          if ! python cloud_build.py --contract hvym-collective; then
+            echo "::error::Failed to build hvym-collective"
+            exit 1
+          fi
+          
+          # Final verification of all WASM files
+          echo "\n🔍 Verifying all WASM files..."
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective; do
+            wasm_file="wasm/${contract}.optimized.wasm"
+            if [ ! -f "$wasm_file" ]; then
+              echo "::error::Missing final WASM file: $wasm_file"
+              exit 1
+            fi
+            echo "✅ Found final WASM: $wasm_file ($(du -h "$wasm_file" | cut -f1))"
+          done
           
       - name: Verify built WASM files
         run: |

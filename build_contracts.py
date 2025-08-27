@@ -34,31 +34,60 @@ def find_wasm_file(contract_dir):
     Returns:
         Path to the compiled WASM file, or None if not found
     """
-    # Possible target directories where WASM files might be located
-    possible_targets = [
-        os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release"),
-        os.path.join(contract_dir, "target", "wasm32v1-none", "release"),
-        os.path.join(contract_dir, "target")
+    # Get the contract name from the directory
+    contract_name = os.path.basename(contract_dir).replace("-", "_")
+    
+    # Possible locations where the WASM file might be
+    possible_paths = [
+        # Standard output directories with contract name
+        os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release", f"{contract_name}.wasm"),
+        os.path.join(contract_dir, "target", "wasm32v1-none", "release", f"{contract_name}.wasm"),
+        
+        # Standard output directories with any .wasm file
+        os.path.join(contract_dir, "target", "wasm32-unknown-unknown", "release", "*.wasm"),
+        os.path.join(contract_dir, "target", "wasm32v1-none", "release", "*.wasm"),
+        
+        # Check any .wasm file in target directory
+        os.path.join(contract_dir, "target", "**", "*.wasm"),
+        
+        # Check directly in the contract directory (as a last resort)
+        os.path.join(contract_dir, "*.wasm")
     ]
     
-    for wasm_dir in possible_targets:
-        if not os.path.isdir(wasm_dir):
-            continue
+    # First check for exact matches
+    for path in possible_paths:
+        if '*' not in path:  # Exact path check
+            if os.path.exists(path) and os.path.isfile(path):
+                print(f"Found WASM file at exact path: {path}")
+                return path
+    
+    # Then check for glob patterns
+    for pattern in possible_paths:
+        if '*' in pattern:  # Pattern match
+            matches = [f for f in glob.glob(pattern, recursive=True) 
+                      if not f.endswith('.optimized.wasm')]
             
-        # Find .wasm files that are not already optimized
-        wasm_files = [
-            f for f in glob.glob(os.path.join(wasm_dir, "**", "*.wasm"), recursive=True)
-            if not f.endswith(".optimized.wasm")
-        ]
-        
-        if wasm_files:
-            # Prefer the one matching the contract dir name if possible
-            base = os.path.basename(contract_dir).replace("-", "_")
-            for f in wasm_files:
-                if base in os.path.basename(f):
-                    return f
-            # Otherwise return the first one found
-            return wasm_files[0]
+            if matches:
+                # Prefer exact name matches first
+                exact_matches = [m for m in matches if m.endswith(f"{contract_name}.wasm")]
+                if exact_matches:
+                    print(f"Found exact match: {exact_matches[0]}")
+                    return exact_matches[0]
+                
+                # Then prefer files that contain the contract name
+                name_matches = [m for m in matches if contract_name in m]
+                if name_matches:
+                    print(f"Found name match: {name_matches[0]}")
+                    return name_matches[0]
+                
+                # Otherwise return the first match
+                print(f"Found first match: {matches[0]}")
+                return matches[0]
+    
+    print(f"No WASM file found for {contract_name} in {contract_dir}")
+    print("Searched in:")
+    for path in possible_paths:
+        print(f"- {path}")
     
     return None
 
