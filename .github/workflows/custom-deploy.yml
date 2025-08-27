@@ -375,6 +375,11 @@ jobs:
       - name: Run post-deployment actions for hvym-collective
         if: success()
         run: |
+          # Get public key from identity
+          echo "Getting public key for identity: $IDENTITY_NAME"
+          PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME")
+          echo "Using public key: $PUBLIC_KEY"
+          
           # Check if post-deployment is enabled
           if [ -f "hvym_collective_post_deploy_args.json" ]; then
             ENABLED=$(jq -r '.enabled // true' hvym_collective_post_deploy_args.json)
@@ -388,6 +393,7 @@ jobs:
               # Run post-deployment script
               python hvym_post_deploy.py \
                 --deployer-acct "$IDENTITY_NAME" \
+                --deployer-pubkey "$PUBLIC_KEY" \
                 --network "${{ env.NETWORK }}" \
                 --fund-amount "$FUND_AMOUNT" \
                 --initial-opus-alloc "$INITIAL_OPUS_ALLOC"
@@ -400,6 +406,7 @@ jobs:
             echo "ℹ️ No post-deployment configuration found, using defaults"
             python hvym_post_deploy.py \
               --deployer-acct "$IDENTITY_NAME" \
+              --deployer-pubkey "$PUBLIC_KEY" \
               --network "${{ env.NETWORK }}" \
               --fund-amount 30 \
               --initial-opus-alloc 1000

@@ -31,6 +31,7 @@ def extract_last_nonempty_line(output):
 def main():
     parser = argparse.ArgumentParser(description="Fund hvym-collective and set opus token via CLI, updating deployments.json.")
     parser.add_argument("--deployer-acct", required=True, help="Stellar CLI account name or secret to use as source")
+    parser.add_argument("--deployer-pubkey", required=True, help="Public key of the deployer account (starts with 'G')")
     parser.add_argument("--network", default="testnet", help="Network name (default: testnet)")
     parser.add_argument("--fund-amount", required=True, type=float, help="Amount to fund hvym-collective contract (whole number, e.g. 30 XLM)")
     parser.add_argument("--initial-opus-alloc", required=True, type=float, help="Initial opus token allocation to mint to admin (whole number, e.g. 10 XLM)")
@@ -63,10 +64,10 @@ def main():
     fund_cmd = [
         "stellar", "contract", "invoke",
         "--id", contract_id,
-        "--source", args.deployer_acct,
+        "--source", args.deployer_acct,  # Uses identity name or secret key
         "--network", args.network,
         "--", "fund-contract",
-        "--caller", args.deployer_acct,
+        "--caller", args.deployer_pubkey,  # Uses the provided public key
         "--fund-amount", fund_amount_stroops
     ]
     fund_out = run_cmd(fund_cmd)
@@ -78,10 +79,10 @@ def main():
     set_opus_cmd = [
         "stellar", "contract", "invoke",
         "--id", contract_id,
-        "--source", args.deployer_acct,
+        "--source", args.deployer_acct,  # Uses identity name or secret key
         "--network", args.network,
         "--", "set-opus-token",
-        "--caller", args.deployer_acct,
+        "--caller", args.deployer_pubkey,  # Uses the provided public key
         "--opus-contract-id", opus_contract_id,
         "--initial-alloc", initial_opus_alloc_stroops
     ]
