@@ -224,16 +224,19 @@ def main() -> int:
         print(f"   RPC URL: {args.rpc_url}")
         
         # Set outputs for GitHub Actions (using environment file syntax for GitHub Actions)
-        with open(os.environ.get('GITHUB_OUTPUT', ''), 'a') as fh:
-            print(f'public_key={identity_data["public_key"]}', file=fh)
-            print(f'identity_file={identity_file}', file=fh)
-            print(f'network={args.network}', file=fh)
-            
-        # Also print for debugging
-        print(f"📝 Setting GitHub Actions outputs:")
-        print(f"   public_key={identity_data['public_key']}")
-        print(f"   identity_file={identity_file}")
-        print(f"   network={args.network}")
+        github_output = os.environ.get('GITHUB_OUTPUT')
+        if github_output:
+            with open(github_output, 'a') as fh:
+                print(f'public_key={identity_data["public_key"]}', file=fh)
+                print(f'identity_file={identity_file}', file=fh)
+                print(f'network={args.network}', file=fh)
+        
+        # Always print the outputs for debugging
+        print("\n📝 GitHub Actions outputs (for reference):")
+        print(f"public_key={identity_data['public_key']}")
+        print(f"identity_file={identity_file}")
+        print(f"network={args.network}")
+        print(f"rpc_url={args.rpc_url}")
         
         return 0
         
