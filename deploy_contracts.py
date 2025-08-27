@@ -507,17 +507,47 @@ def main():
         print("Using official release WASM files from 'wasm_release' directory")
     
     deployments = load_deployments()
+    # Always process constructor args through load_args_from_json for consistent handling
     if args.constructor_args is not None:
-        constructor_args = args.constructor_args
-        if '--admin' not in constructor_args:
-            constructor_args = constructor_args + ['--admin', args.deployer_acct]
+        # Convert command line args to a dict format that load_args_from_json expects
+        args_dict = {}
+        i = 0
+        while i < len(args.constructor_args):
+            if args.constructor_args[i].startswith('--'):
+                arg_name = args.constructor_args[i][2:].replace('-', '_')
+                if i + 1 < len(args.constructor_args) and not args.constructor_args[i+1].startswith('--'):
+                    args_dict[arg_name] = args.constructor_args[i+1]
+                    i += 2
+                else:
+                    args_dict[arg_name] = True  # For flags without values
+                    i += 1
+            else:
+                i += 1
+        
+        # Save to a temp file to use load_args_from_json
+        import tempfile
+        import json
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False) as temp:
+            json.dump(args_dict, temp)
+            temp_path = temp.name
+        
+        # Process through load_args_from_json
+        constructor_args = load_args_from_json(args.contract if args.contract else 'temp')
+        
+        # Clean up temp file
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
     else:
         if args.contract:
             constructor_args = load_args_from_json(args.contract)
-            if '--admin' not in constructor_args:
-                constructor_args = constructor_args + ['--admin', args.deployer_acct]
         else:
-            constructor_args = None
+            constructor_args = []
+    
+    # Ensure admin is set
+    if constructor_args is not None and '--admin' not in constructor_args:
+        constructor_args = constructor_args + ['--admin', args.deployer_acct]
     if args.contract:
         if args.contract not in CONTRACTS:
             print(f"Contract '{args.contract}' not in deploy list. Valid options:")
