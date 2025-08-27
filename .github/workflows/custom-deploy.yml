@@ -372,6 +372,39 @@ jobs:
           # Upload deployment details as an artifact
           echo "DEPLOYMENT_DETAILS=deployment_details.json" >> $GITHUB_ENV
           
+      - name: Run post-deployment actions for hvym-collective
+        if: success()
+        run: |
+          # Check if post-deployment is enabled
+          if [ -f "hvym_collective_post_deploy_args.json" ]; then
+            ENABLED=$(jq -r '.enabled // true' hvym_collective_post_deploy_args.json)
+            if [ "$ENABLED" = "true" ]; then
+              echo "Running post-deployment actions for hvym-collective..."
+              
+              # Get deployment arguments
+              FUND_AMOUNT=$(jq -r '.fund_amount // 30' hvym_collective_post_deploy_args.json)
+              INITIAL_OPUS_ALLOC=$(jq -r '.initial_opus_alloc // 1000' hvym_collective_post_deploy_args.json)
+              
+              # Run post-deployment script
+              python hvym_post_deploy.py \
+                --deployer-acct "${{ steps.deploy_config.outputs.deployer_acct }}" \
+                --network "${{ env.NETWORK }}" \
+                --fund-amount "$FUND_AMOUNT" \
+                --initial-opus-alloc "$INITIAL_OPUS_ALLOC"
+                
+              echo "✅ Post-deployment actions completed successfully"
+            else
+              echo "ℹ️ Post-deployment actions are disabled in hvym_collective_post_deploy_args.json"
+            fi
+          else
+            echo "ℹ️ No post-deployment configuration found, using defaults"
+            python hvym_post_deploy.py \
+              --deployer-acct "${{ steps.deploy_config.outputs.deployer_acct }}" \
+              --network "${{ env.NETWORK }}" \
+              --fund-amount 30 \
+              --initial-opus-alloc 1000
+          fi
+          
       - name: Upload deployments.md as artifact
         uses: actions/upload-artifact@v4
         with:
