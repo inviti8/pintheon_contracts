@@ -3,7 +3,8 @@ name: Build and Release Soroban Contracts
 on:
   push: 
     tags:
-      - 'v*'  # triggered whenever a new tag (prefixed with "v") is pushed to the repository
+      - 'v*'        # Standard build (builds CLI from source)
+      - 'fast-v*'   # Fast build (downloads pre-built binary)
 
 permissions:
   id-token: write
@@ -67,10 +68,47 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
           
-      - name: Install Stellar CLI ${{ env.STELLAR_CLI_VERSION }}
+      - name: Determine build type
+        id: build_type
         run: |
+          if [[ ${{ github.ref_name }} == fast-v* ]]; then
+            echo "BUILD_TYPE=fast" >> $GITHUB_ENV
+            echo "::set-output name=type::fast"
+          else
+            echo "BUILD_TYPE=standard" >> $GITHUB_ENV
+            echo "::set-output name=type::standard"
+          fi
+          echo "Build type: ${{ env.BUILD_TYPE }}"
+
+      - name: Install Stellar CLI (Standard Build)
+        if: env.BUILD_TYPE == 'standard'
+        run: |
+          echo "Installing Stellar CLI from source..."
           cargo install --locked --version ${{ env.STELLAR_CLI_VERSION }} stellar-cli
           stellar --version
+
+      - name: Install Stellar CLI (Fast Build)
+        if: env.BUILD_TYPE == 'fast'
+        run: |
+          echo "Downloading pre-built Stellar CLI..."
+          VERSION=${{ env.STELLAR_CLI_VERSION }}
+          ARCH="x86_64"  # GitHub Actions runners are x86_64
+          OS="linux"
+          
+          # Download and verify checksum
+          curl -L -o stellar-cli.tar.gz \
+            "https://github.com/stellar/rs-stellar-cli/releases/download/v${VERSION}/stellar-cli-${VERSION}-${OS}-${ARCH}.tar.gz"
+          
+          # Extract and install
+          tar -xzf stellar-cli.tar.gz
+          chmod +x stellar
+          sudo mv stellar /usr/local/bin/
+          
+          # Verify installation
+          stellar --version
+          
+          # Clean up
+          rm -f stellar-cli.tar.gz
           
       - name: Set up Rust toolchain
         run: |
