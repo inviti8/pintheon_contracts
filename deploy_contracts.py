@@ -26,10 +26,10 @@ def ensure_project_root():
             sys.exit(1)
 
 CONTRACTS = {
-    "pintheon_ipfs_token": "pintheon-ipfs-deployer/pintheon-ipfs-token",
-    "pintheon_node_token": "pintheon-node-deployer/pintheon-node-token",
-    "opus_token": "opus_token",
-    "hvym_collective": "hvym-collective",
+    "pintheon_ipfs_token": "wasm/pintheon_ipfs_token.optimized.wasm",
+    "pintheon_node_token": "wasm/pintheon_node_token.optimized.wasm",
+    "opus_token": "wasm/opus_token.optimized.wasm",
+    "hvym_collective": "wasm/hvym_collective.optimized.wasm",
 }
 CONTRACT_ORDER = list(CONTRACTS.keys())
 
