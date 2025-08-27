@@ -308,24 +308,32 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
 def upload_only(contract_key, contract_dir, deployer_acct, network, deployments, official_release=False):
     mode = "OFFICIAL RELEASE" if official_release else "DEVELOPMENT"
     print(f"\n=== Uploading {contract_key} ({contract_dir}) (upload only, no deploy) [{mode}] ===")
-    wasm_file = find_optimized_wasm(contract_dir, official_release)
-    if not wasm_file:
-        if official_release:
-            print(f"No WASM file found in {contract_dir}")
-            print(f"Expected file pattern: {contract_dir}/*.wasm")
-        else:
-            print(f"No optimized .wasm file found in {contract_dir}")
-            print(f"Expected file pattern: {contract_dir}/target/wasm32-unknown-unknown/release/*.optimized.wasm")
-        sys.exit(1)
-    wasm_file_rel = os.path.relpath(wasm_file, contract_dir)
-    print(f"Uploading {wasm_file_rel} ...")
+    
+    # Check if contract_dir is already a .wasm file
+    if contract_dir.endswith('.wasm'):
+        wasm_file = Path(contract_dir)
+        if not wasm_file.exists():
+            print(f"WASM file not found: {contract_dir}")
+            sys.exit(1)
+    else:
+        wasm_file = find_optimized_wasm(contract_dir, official_release)
+        if not wasm_file:
+            if official_release:
+                print(f"No WASM file found in {contract_dir}")
+                print(f"Expected file pattern: {contract_dir}/*.wasm")
+            else:
+                print(f"No optimized .wasm file found in {contract_dir}")
+                print(f"Expected file pattern: {contract_dir}/target/wasm32-unknown-unknown/release/*.optimized.wasm")
+            sys.exit(1)
+    
+    print(f"Uploading {wasm_file.name} ...")
     upload_cmd = [
         "stellar", "contract", "upload",
         "--source-account", deployer_acct,
-        "--wasm", wasm_file_rel,
+        "--wasm", str(wasm_file),
         "--network", network
     ]
-    upload_out = run_cmd(upload_cmd, cwd=contract_dir)
+    upload_out = run_cmd(upload_cmd, cwd=PROJECT_ROOT)
     lines = [line.strip() for line in upload_out.splitlines() if line.strip()]
     wasm_hash = None
     if lines:
