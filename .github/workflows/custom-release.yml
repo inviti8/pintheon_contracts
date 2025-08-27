@@ -248,12 +248,12 @@ jobs:
           cat release-wasm/checksums.sha256
           
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0.15.1
+        uses: anchore/sbom-action@v1
         with:
           path: release-wasm
           output-file: sbom
           format: spdx-json
-          artifact-name: sbom-artifact
+          artifact-name: sbom_artifact
           
       - name: Generate contract metadata
         run: |
