@@ -150,11 +150,21 @@ def run_cmd(cmd, cwd=None, capture_output=True, env=None):
     print(f"   Working directory: {cwd}")
     if env:
         print("   Environment variables:")
+        # Only log specific, non-sensitive environment variables
+        safe_to_log = {
+            'STELLAR_NETWORK', 'STELLAR_NETWORK_PASSPHRASE', 'STELLAR_CLI_VERSION',
+            'RPC_URL', 'NETWORK', 'HOME', 'PWD', 'USER', 'LANG', 'PATH'
+        }
         for k, v in env.items():
-            if 'SECRET' in k or 'KEY' in k or 'PASSWORD' in k:
+            if k in safe_to_log:
+                if any(sensitive in k.upper() for sensitive in ['SECRET', 'KEY', 'TOKEN', 'PASSWORD']):
+                    print(f"     {k}=[REDACTED]")
+                else:
+                    print(f"     {k}={v}")
+            elif k.startswith('STELLAR_'):
+                # Log all STELLAR_* variables but redact values
                 print(f"     {k}=[REDACTED]")
-            else:
-                print(f"     {k}={v}")
+        print("   [Other environment variables omitted for brevity]")
     
     try:
         result = subprocess.run(
@@ -300,6 +310,7 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
     ]
     
     # Add constructor arguments if provided
+    print(f"[DEBUG] Raw constructor_args before processing: {constructor_args}")
     if constructor_args:
         print("Using constructor arguments:")
         # Print arguments in a readable format (pairs of --arg value)
@@ -308,6 +319,7 @@ def upload_and_deploy(contract_key, contract_dir, deployer_acct, network, deploy
                 print(f"  {constructor_args[i]} {constructor_args[i+1]}")
         deploy_cmd.append("--")
         deploy_cmd.extend(constructor_args)
+        print(f"[DEBUG] Full deploy command: {' '.join(deploy_cmd)}")
     
     try:
         deploy_out = run_cmd(deploy_cmd, cwd=working_dir, env=env)
@@ -416,6 +428,7 @@ def load_args_from_json(contract_key):
     
     # Handle JSON file naming - use consistent underscore naming
     json_file = f"{contract_key}_args.json"
+    print(f"[DEBUG] Loading arguments from {json_file}")
     
     if not os.path.isfile(json_file):
         print(f"Error: Argument file not found for {contract_key} (expected {json_file})")
@@ -424,22 +437,28 @@ def load_args_from_json(contract_key):
     try:
         with open(json_file, "r") as f:
             data = json.load(f)
+        print(f"[DEBUG] Raw JSON data: {data}")
     except json.JSONDecodeError as e:
         print(f"Error parsing {json_file}: {e}")
         sys.exit(1)
     
     # Convert values to appropriate format
     args = []
+    print("[DEBUG] Processing constructor arguments:")
     for k, v in data.items():
         # Skip admin as it will be set by the deployer
         if k == 'admin':
+            print(f"  [DEBUG] Skipping admin, will be set by deployer")
             continue
             
+        original_v = v  # Save for debug output
+        
         # Handle special conversions for hvym_collective
         if contract_key == "hvym_collective" and k in ["join_fee", "mint_fee", "reward"]:
             try:
                 # Convert XLM to stroops (1 XLM = 10,000,000 stroops)
                 v = int(float(v) * 10_000_000)
+                print(f"  [DEBUG] Converted {k} from {original_v} to {v} stroops")
             except (ValueError, TypeError) as e:
                 print(f"Error converting {k} to stroops: {e}")
                 sys.exit(1)
@@ -447,6 +466,7 @@ def load_args_from_json(contract_key):
         # Convert snake_case to kebab-case for argument names
         arg_name = k.replace('_', '-')
         args.extend([f"--{arg_name}", str(v)])
+        print(f"  [DEBUG] Added argument: --{arg_name} {v}")
     
     return args
 
@@ -519,7 +539,9 @@ def main():
                 print(f"  {c}")
             sys.exit(1)
             
+        print(f"[DEBUG] Loading constructor args for {args.contract}")
         constructor_args = load_args_from_json(args.contract)
+        print(f"[DEBUG] Constructor args after loading: {constructor_args}")
         
         # Ensure admin is set to deployer account
         admin_set = False
@@ -554,8 +576,11 @@ def main():
                 upload_only(contract_key, contract_dir, args.deployer_acct, args.network, deployments, args.official_release)
             elif contract_key in DEPLOY_ONLY_CONTRACTS:
                 per_contract_args = constructor_args if constructor_args is not None else load_args_from_json(contract_key)
+                print(f"[DEBUG] Before admin check - per_contract_args: {per_contract_args}")
                 if '--admin' not in per_contract_args:
+                    print(f"[DEBUG] Adding admin argument: --admin {args.deployer_acct}")
                     per_contract_args = per_contract_args + ['--admin', args.deployer_acct]
+                print(f"[DEBUG] Final constructor args for {contract_key}: {per_contract_args}")
                 upload_and_deploy(contract_key, contract_dir, args.deployer_acct, args.network, deployments, per_contract_args, args.official_release)
 
 if __name__ == "__main__":
