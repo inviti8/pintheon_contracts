@@ -418,28 +418,31 @@ def load_args_from_json(contract_key):
     json_file = f"{contract_key.replace('_', '-')}_args.json"
     
     if not os.path.isfile(json_file):
-        print(f"Warning: Argument file not found for {contract_key} (expected {json_file})")
-        return []
+        print(f"Error: Argument file not found for {contract_key} (expected {json_file})")
+        sys.exit(1)
     
     try:
         with open(json_file, "r") as f:
             data = json.load(f)
     except json.JSONDecodeError as e:
         print(f"Error parsing {json_file}: {e}")
-        return []
+        sys.exit(1)
     
     # Convert values to appropriate format
     args = []
     for k, v in data.items():
+        # Skip admin as it will be set by the deployer
+        if k == 'admin':
+            continue
+            
         # Handle special conversions for hvym-collective
-        if contract_key == "hvym-collective":
-            if k in ["join_fee", "mint_fee", "reward"]:
-                try:
-                    # Convert XLM to stroops (1 XLM = 10,000,000 stroops)
-                    v = int(float(v) * 10_000_000)
-                except (ValueError, TypeError) as e:
-                    print(f"Error converting {k} to stroops: {e}")
-                    sys.exit(1)
+        if contract_key == "hvym-collective" and k in ["join_fee", "mint_fee", "reward"]:
+            try:
+                # Convert XLM to stroops (1 XLM = 10,000,000 stroops)
+                v = int(float(v) * 10_000_000)
+            except (ValueError, TypeError) as e:
+                print(f"Error converting {k} to stroops: {e}")
+                sys.exit(1)
         
         # Convert snake_case to kebab-case for argument names
         arg_name = k.replace('_', '-')
@@ -507,56 +510,34 @@ def main():
         print("Using official release WASM files from 'wasm_release' directory")
     
     deployments = load_deployments()
-    # Always process constructor args through load_args_from_json for consistent handling
-    if args.constructor_args is not None:
-        # Convert command line args to a dict format that load_args_from_json expects
-        args_dict = {}
-        i = 0
-        while i < len(args.constructor_args):
-            if args.constructor_args[i].startswith('--'):
-                arg_name = args.constructor_args[i][2:].replace('-', '_')
-                if i + 1 < len(args.constructor_args) and not args.constructor_args[i+1].startswith('--'):
-                    args_dict[arg_name] = args.constructor_args[i+1]
-                    i += 2
-                else:
-                    args_dict[arg_name] = True  # For flags without values
-                    i += 1
-            else:
-                i += 1
-        
-        # Save to a temp file to use load_args_from_json
-        import tempfile
-        import json
-        with tempfile.NamedTemporaryFile(mode='w+', suffix='.json', delete=False) as temp:
-            json.dump(args_dict, temp)
-            temp_path = temp.name
-        
-        # Process through load_args_from_json
-        constructor_args = load_args_from_json(args.contract if args.contract else 'temp')
-        
-        # Clean up temp file
-        try:
-            os.unlink(temp_path)
-        except:
-            pass
-    else:
-        if args.contract:
-            constructor_args = load_args_from_json(args.contract)
-        else:
-            constructor_args = []
-    
-    # Ensure admin is set
-    if constructor_args is not None and '--admin' not in constructor_args:
-        constructor_args = constructor_args + ['--admin', args.deployer_acct]
+    # Always load constructor args from JSON file and ensure admin is set
+    constructor_args = []
     if args.contract:
         if args.contract not in CONTRACTS:
             print(f"Contract '{args.contract}' not in deploy list. Valid options:")
             for c in CONTRACT_ORDER:
                 print(f"  {c}")
             sys.exit(1)
+            
+        constructor_args = load_args_from_json(args.contract)
+        
+        # Ensure admin is set to deployer account
+        admin_set = False
+        for i, arg in enumerate(constructor_args):
+            if arg == '--admin':
+                # Update existing admin argument
+                if i + 1 < len(constructor_args):
+                    constructor_args[i+1] = args.deployer_acct
+                admin_set = True
+                break
+        
+        if not admin_set:
+            constructor_args.extend(['--admin', args.deployer_acct])
+            
         contract_dir = CONTRACTS[args.contract]
         if args.official_release:
             contract_dir = OFFICIAL_CONTRACTS[args.contract]
+            
         if args.contract in UPLOAD_ONLY_CONTRACTS:
             upload_only(contract_key=args.contract, contract_dir=contract_dir, deployer_acct=args.deployer_acct, network=args.network, deployments=deployments, official_release=args.official_release)
         elif args.contract in DEPLOY_ONLY_CONTRACTS:
