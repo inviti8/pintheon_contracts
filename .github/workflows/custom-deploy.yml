@@ -3,7 +3,8 @@ name: Deploy Soroban Contracts
 on:
   push:
     tags:
-      - 'deploy-v*'  # Format: deploy-vX.Y.Z-{testnet|mainnet|futurenet}
+      - 'deploy-v*'       # Standard build (builds CLI from source), format: deploy-vX.Y.Z-{testnet|mainnet|futurenet}
+      - 'fast-deploy-v*'  # Fast build (downloads pre-built binary), format: fast-deploy-vX.Y.Z-{testnet|mainnet|futurenet}
 
 permissions:
   contents: write
@@ -75,13 +76,51 @@ jobs:
           components: rustfmt, clippy
           override: true
 
-      - name: Install Stellar CLI ${{ env.STELLAR_CLI_VERSION }}
+      - name: Determine build type
+        id: build_type
+        run: |
+          if [[ ${{ github.ref_name }} == fast-* ]]; then
+            echo "BUILD_TYPE=fast" >> $GITHUB_ENV
+            echo "::set-output name=type::fast"
+          else
+            echo "BUILD_TYPE=standard" >> $GITHUB_ENV
+            echo "::set-output name=type::standard"
+          fi
+          echo "Build type: ${{ env.BUILD_TYPE }}"
+
+      - name: Install Stellar CLI (Standard Build)
+        if: env.BUILD_TYPE == 'standard'
         env:
           PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig
           RUSTFLAGS: '-C target-cpu=native'
         run: |
+          echo "Installing Stellar CLI from source..."
           cargo install --locked --version ${{ env.STELLAR_CLI_VERSION }} stellar-cli --force
           stellar --version
+
+      - name: Install Stellar CLI (Fast Build)
+        if: env.BUILD_TYPE == 'fast'
+        run: |
+          echo "Downloading pre-built Stellar CLI..."
+          VERSION=${{ env.STELLAR_CLI_VERSION }}
+          
+          # Download the pre-built binary
+          curl -L -o stellar-cli.tar.gz \
+            "https://github.com/stellar/stellar-cli/releases/download/v${VERSION}/stellar-cli-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          
+          # Extract the binary
+          tar -xzf stellar-cli.tar.gz
+          
+          # Make it executable and move to PATH
+          chmod +x stellar
+          sudo mv stellar /usr/local/bin/
+          
+          # Verify installation
+          echo "Stellar CLI version:"
+          stellar --version
+          
+          # Clean up
+          rm -f stellar-cli.tar.gz
 
       - name: Extract version and network from tag
         id: extract
