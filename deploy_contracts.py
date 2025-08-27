@@ -432,12 +432,14 @@ def load_args_from_json(contract_key):
     args = []
     for k, v in data.items():
         # Handle special conversions for hvym-collective
-        if contract_key == "hvym-collective" and k in ["join_fee", "mint_fee", "reward"]:
-            try:
-                v = int(float(v) * 10_000_000)  # Convert XLM to stroops
-            except (ValueError, TypeError) as e:
-                print(f"Error converting {k} to stroops: {e}")
-                sys.exit(1)
+        if contract_key == "hvym-collective":
+            if k in ["join_fee", "mint_fee", "reward"]:
+                try:
+                    # Convert XLM to stroops (1 XLM = 10,000,000 stroops)
+                    v = int(float(v) * 10_000_000)
+                except (ValueError, TypeError) as e:
+                    print(f"Error converting {k} to stroops: {e}")
+                    sys.exit(1)
         
         # Convert snake_case to kebab-case for argument names
         arg_name = k.replace('_', '-')
