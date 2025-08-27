@@ -328,7 +328,8 @@ jobs:
             
           # Verify the identity is usable
           echo "🔍 Verifying identity is usable..."
-          IDENTITY_NAME="${{ env.NETWORK | upper }}_DEPLOYER"
+          IDENTITY_NAME="${{ env.NETWORK }}_DEPLOYER"
+          IDENTITY_NAME=$(echo "$IDENTITY_NAME" | tr '[:lower:]' '[:upper:]')
           
           # Get public key from identity
           PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME" 2>&1)
@@ -362,7 +363,8 @@ jobs:
           fi
           
           # Get the identity name based on network (already verified in setup step)
-          IDENTITY_NAME="${{ env.NETWORK | upper }}_DEPLOYER"
+          IDENTITY_NAME="${{ env.NETWORK }}_DEPLOYER"
+          IDENTITY_NAME=$(echo "$IDENTITY_NAME" | tr '[:lower:]' '[:upper:]')
           
           # Get the deployer's public key (already verified in setup step)
           DEPLOYER_PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME")
