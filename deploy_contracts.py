@@ -116,11 +116,16 @@ def upload_contract(contract_name: str, deployer_acct: str):
         sys.exit(1)
 
     print(f"\n📤 Uploading {contract_name}...")
+    # Clean up environment to prevent any RPC URL conflicts
+    env = os.environ.copy()
+    env.pop('RPC_URL', None)
+    env.pop('STELLAR_RPC_URL', None)
+    
     cmd = [
         "stellar", "contract", "deploy",
         "--wasm", str(wasm_file),
         "--source", deployer_acct,
-        f"--network={NETWORK}",  # This sets both rpc-url and network-passphrase
+        f"--network={NETWORK}"  # This will use the built-in network config
     ]
     result = run_command(cmd)
     wasm_hash = result.strip()
@@ -129,12 +134,17 @@ def upload_contract(contract_name: str, deployer_acct: str):
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
     """Deploy a contract with the given wasm hash and arguments."""
+    # Clean up environment to prevent any RPC URL conflicts
+    env = os.environ.copy()
+    env.pop('RPC_URL', None)
+    env.pop('STELLAR_RPC_URL', None)
+    
     # Build command with network configuration
     cmd = [
         "stellar", "contract", "deploy",
         f"--wasm-hash={wasm_hash}",
         f"--source-account={deployer_acct}",
-        f"--network={NETWORK}",  # This sets both rpc-url and network-passphrase
+        f"--network={NETWORK}",  # This will use the built-in network config
         "--fee=1000000",
         "--"
     ]
