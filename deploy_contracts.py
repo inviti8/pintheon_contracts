@@ -110,7 +110,7 @@ def run_command(cmd: list, cwd: str = ".") -> str:
 
 def upload_contract(contract_name: str, deployer_acct: str):
     """Upload a contract and return the wasm hash."""
-    wasm_file = WASM_DIR / f"{contract_name}.wasm"
+    wasm_file = WASM_DIR / f"{contract_name}.optimized.wasm"
     if not wasm_file.exists():
         print(f"❌ Error: {wasm_file} not found. Build the contract first.")
         sys.exit(1)
