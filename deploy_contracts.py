@@ -262,7 +262,7 @@ def generate_deployments_md(deployments: dict) -> None:
             if isinstance(contract_id, dict):
                 contract_id = contract_id.get('address', 'Not deployed')
                 
-            md += f"| {contract_name} | {network} | `{contract_id}` | `{wasm_hash}` |\n"
+            md += f"| {contract_name} | {network} | `[{contract_id}](https://stellar.expert/explorer/testnet/contract/{contract_id})` | `{wasm_hash}` |\n"
     
     # Process direct contract entries (new format)
     for contract, info in deployments.items():
