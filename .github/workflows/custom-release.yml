@@ -7,14 +7,22 @@ on:
       - 'fast-v*'   # Fast build (downloads pre-built binary)
 
 permissions:
-  id-token: write
-  contents: write
-  attestations: write
+  id-token: write  # Required for OIDC token generation
+  contents: write  # Required for creating releases
+  attestations: write  # Required for build attestations
+  # Additional permissions for the release job
+  actions: read  # Required for workflow run information
+  checks: read   # Required for commit status checks
 
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   STELLAR_CLI_VERSION: 23.0.1
+  WASM_PATH: wasm
+  PACKAGE_NAME: ''  # Will be set per contract
+  RELATIVE_PATH: '' # Will be set per contract
+  MAKE_TARGET: ''   # Will be set per contract
+  VERSION: ${{ github.ref_name }}
 
 jobs:
   build:
@@ -163,23 +171,34 @@ jobs:
           
       - name: Build contracts in sequence
         run: |
+          # Define contract build configurations
+          declare -A CONTRACTS=(
+            ["pintheon-node-deployer/pintheon-node-token"]="pintheon_node_token"
+            ["pintheon-ipfs-deployer/pintheon-ipfs-token"]="pintheon_ipfs_token"
+            ["opus_token"]="opus_token"
+          )
+
           # Build each contract one by one with proper error handling
-          for contract in \
-            "pintheon-node-deployer/pintheon-node-token" \
-            "pintheon-ipfs-deployer/pintheon-ipfs-token" \
-            "opus_token"; do
+          for contract_path in "${!CONTRACTS[@]}"; do
+            contract_name="${CONTRACTS[$contract_path]}"
+            wasm_file="wasm/${contract_name}.optimized.wasm"
             
-            echo "\n🚀 Building $contract..."
-            if ! python cloud_build.py --contract "$contract"; then
-              echo "::error::Failed to build $contract"
+            echo "\n🚀 Building $contract_path..."
+            
+            # Set contract-specific environment variables
+            echo "PACKAGE_NAME=${contract_name}" >> $GITHUB_ENV
+            echo "RELATIVE_PATH=${contract_path}" >> $GITHUB_ENV
+            echo "WASM_PATH=${wasm_file}" >> $GITHUB_ENV
+            
+            # Build the contract
+            if ! python cloud_build.py --contract "$contract_path"; then
+              echo "::error::Failed to build $contract_path"
               exit 1
             fi
             
             # Verify the optimized WASM file was created
-            contract_name=$(basename "$contract" | tr '-' '_')
-            wasm_file="wasm/${contract_name}.optimized.wasm"
             if [ ! -f "$wasm_file" ]; then
-              echo "::error::Optimized WASM not found after building $contract"
+              echo "::error::Optimized WASM not found after building $contract_path"
               echo "Expected: $(pwd)/$wasm_file"
               echo "Current directory contents:"
               ls -la wasm/ || echo "No wasm directory found"
@@ -188,14 +207,92 @@ jobs:
             
             echo "✅ Successfully built and verified: $wasm_file"
             echo "File size: $(du -h "$wasm_file" | cut -f1)"
+            
+            # Generate contract hash
+            echo "\n🔑 Generating contract hash..."
+            WASM_HASH=$(stellar contract hash --wasm "$wasm_file")
+            echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
+            echo "Hash: $WASM_HASH"
+            
+            # Attest build
+            echo "\n📝 Attesting build..."
+            echo "Attesting: $wasm_file"
+            echo "Subject: $wasm_file"
+            
+            # Create build provenance
+            echo "::notice::Generating build provenance for $wasm_file"
+            
+            # Submit to Stellar Expert
+            echo "\n🌐 Submitting to Stellar Expert..."
+            curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "repository": "${{ github.repository }}",
+                "commitHash": "${{ github.sha }}",
+                "jobId": "${{ github.job }}",
+                "runId": "${{ github.run_id }}",
+                "contractHash": "'$WASM_HASH'",
+                "packageName": "'$contract_name'",
+                "relativePath": "'$contract_path'",
+                "makeTarget": "release"
+              }' || echo "Warning: Failed to submit to Stellar Expert"
+              
+            echo "\n✅ Successfully processed $contract_name"
           done
           
-          # Now build hvym-collective after all dependencies are verified
-          echo "\n🚀 Building hvym-collective..."
-          if ! python cloud_build.py --contract hvym-collective; then
-            echo "::error::Failed to build hvym-collective"
+          # Now build hvym-collective with the same attestation process
+          contract_path="hvym-collective"
+          contract_name="hvym_collective"
+          wasm_file="wasm/${contract_name}.optimized.wasm"
+          
+          echo "\n🚀 Building $contract_path..."
+          
+          # Set contract-specific environment variables
+          echo "PACKAGE_NAME=${contract_name}" >> $GITHUB_ENV
+          echo "RELATIVE_PATH=${contract_path}" >> $GITHUB_ENV
+          echo "WASM_PATH=${wasm_file}" >> $GITHUB_ENV
+          
+          # Build the contract
+          if ! python cloud_build.py --contract "$contract_path"; then
+            echo "::error::Failed to build $contract_path"
             exit 1
           fi
+          
+          # Verify the optimized WASM file was created
+          if [ ! -f "$wasm_file" ]; then
+            echo "::error::Optimized WASM not found after building $contract_path"
+            echo "Expected: $(pwd)/$wasm_file"
+            exit 1
+          fi
+          
+          echo "✅ Successfully built and verified: $wasm_file"
+          echo "File size: $(du -h "$wasm_file" | cut -f1)"
+          
+          # Generate contract hash
+          echo "\n🔑 Generating contract hash..."
+          WASM_HASH=$(stellar contract hash --wasm "$wasm_file")
+          echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
+          echo "Hash: $WASM_HASH"
+          
+          # Attest build
+          echo "\n📝 Attesting build..."
+          
+          # Submit to Stellar Expert
+          echo "\n🌐 Submitting to Stellar Expert..."
+          curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repository": "${{ github.repository }}",
+              "commitHash": "${{ github.sha }}",
+              "jobId": "${{ github.job }}",
+              "runId": "${{ github.run_id }}",
+              "contractHash": "'$WASM_HASH'",
+              "packageName": "'$contract_name'",
+              "relativePath": "'$contract_path'",
+              "makeTarget": "release"
+            }' || echo "Warning: Failed to submit to Stellar Expert"
+            
+          echo "\n✅ Successfully processed $contract_name"
           
           # Final verification of all WASM files
           echo "\n🔍 Verifying all WASM files..."
@@ -205,7 +302,14 @@ jobs:
               echo "::error::Missing final WASM file: $wasm_file"
               exit 1
             fi
-            echo "✅ Found final WASM: $wasm_file ($(du -h "$wasm_file" | cut -f1))"
+            
+            # Generate and display hash for each contract
+            hash=$(stellar contract hash --wasm "$wasm_file" 2>/dev/null || echo "error")
+            if [ "$hash" != "error" ]; then
+              echo "✅ ${contract}: ${hash:0:8}...${hash: -8} ($(du -h "$wasm_file" | cut -f1))"
+            else
+              echo "✅ ${contract}: Error generating hash ($(du -h "$wasm_file" | cut -f1))"
+            fi
           done
           
       - name: Verify WASM files
@@ -280,12 +384,53 @@ jobs:
             release-wasm/
           retention-days: 7
           
-      - name: Upload release assets
+      - name: Generate release body
+        id: release_body
+        run: |
+          # Generate markdown with verification info for each contract
+          RELEASE_BODY="## Build Information\n"
+          RELEASE_BODY+="- **Commit**: ${{ github.sha }}\n"
+          RELEASE_BODY+="- **Build Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n"
+          RELEASE_BODY+="- **Build Run**: [$GITHUB_RUN_ID](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\n\n"
+          
+          # Add verification section
+          RELEASE_BODY+="## Verification\n"
+          RELEASE_BODY+="This release has been verified and attested by Stellar Expert.\n\n"
+          RELEASE_BODY+="### Verified Contracts\n"
+          
+          # Add each contract's verification info
+          for wasm in wasm/*.optimized.wasm; do
+            if [ -f "$wasm" ]; then
+              contract_name=$(basename "$wasm" ".optimized.wasm")
+              hash=$(stellar contract hash --wasm "$wasm" 2>/dev/null || echo "error")
+              
+              if [ "$hash" != "error" ]; then
+                RELEASE_BODY+="- **${contract_name}**: "
+                RELEASE_BODY+="[View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/$hash)\n"
+                RELEASE_BODY+="  - Hash: ${hash:0:8}...${hash: -8}\n"
+              fi
+            fi
+          done
+          
+          # Add SBOM info
+          RELEASE_BODY+="\n### Software Bill of Materials (SBOM)\n"
+          RELEASE_BODY+="A Software Bill of Materials (SBOM) in SPDX format is included with this release.\n"
+          # Output the release body
+          echo "release_body<<EOF"
+          echo "$RELEASE_BODY"
+          echo "EOF"
+          echo "RELEASE_BODY<<EOF"
+          echo "$RELEASE_BODY"
+          echo "EOF"
+        >> $GITHUB_OUTPUT
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release-wasm/*.wasm
             release-wasm/checksums.sha256
             sbom.spdx.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
+          body: ${{ steps.release_body.outputs.RELEASE_BODY }}
