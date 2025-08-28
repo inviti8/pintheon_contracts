@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import sys
+import argparse
+from decimal import Decimal, ROUND_DOWN
 
 def load_deployments():
     if not os.path.isfile("deployments.json"):
@@ -47,17 +49,37 @@ def get_public_key(identity_name):
         print(f"Error: {e.stderr}")
         sys.exit(1)
 
+# Maximum XLM that can be safely converted to u32 (4,294,967,295 stroops)
+MAX_XLM_U32 = Decimal('429.4967295')
+
+def xlm_to_stroops(xlm_amount):
+    """Convert XLM to stroops with validation against u32 max."""
+    try:
+        amount = Decimal(str(xlm_amount))
+        if amount > MAX_XLM_U32:
+            print(f"⚠️ Warning: Amount {xlm_amount} XLM exceeds maximum for u32. Capping at {MAX_XLM_U32} XLM")
+            amount = MAX_XLM_U32
+        
+        stroops = (amount * Decimal('10000000')).quantize(Decimal('1.'), rounding=ROUND_DOWN)
+        return str(int(stroops))
+    except (ValueError, TypeError) as e:
+        print(f"❌ Error converting amount {xlm_amount} to stroops: {e}")
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(description="Fund hvym-collective and set opus token via CLI, updating deployments.json.")
     parser.add_argument("--deployer-acct", required=True, help="Stellar CLI account name or secret to use as source")
     parser.add_argument("--network", default="testnet", help="Network name (default: testnet)")
-    parser.add_argument("--fund-amount", required=True, type=float, help="Amount to fund hvym-collective contract (whole number, e.g. 30 XLM)")
-    parser.add_argument("--initial-opus-alloc", required=True, type=float, help="Initial opus token allocation to mint to admin (whole number, e.g. 10 XLM)")
+    parser.add_argument("--fund-amount", required=True, type=float, help=f"Amount to fund hvym-collective contract (whole number, e.g. 30 XLM, max {MAX_XLM_U32} XLM)")
+    parser.add_argument("--initial-opus-alloc", required=True, type=float, help=f"Initial opus token allocation (whole number, e.g. 10 XLM, max {MAX_XLM_U32} XLM)")
     args = parser.parse_args()
 
-    # Convert to stroops (1 XLM = 10^7 stroops)
-    fund_amount_stroops = str(int(args.fund_amount * 10**7))
-    initial_opus_alloc_stroops = str(int(args.initial_opus_alloc * 10**7))
+    # Convert to stroops with validation
+    fund_amount_stroops = xlm_to_stroops(args.fund_amount)
+    initial_opus_alloc_stroops = xlm_to_stroops(args.initial_opus_alloc)
+    
+    print(f"Using fund amount: {args.fund_amount} XLM ({fund_amount_stroops} stroops)")
+    print(f"Using initial opus allocation: {args.initial_opus_alloc} XLM ({initial_opus_alloc_stroops} stroops)")
 
     deployments = load_deployments()
     
