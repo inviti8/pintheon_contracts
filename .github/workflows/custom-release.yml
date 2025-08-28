@@ -208,9 +208,19 @@ jobs:
             echo "✅ Successfully built and verified: $wasm_file"
             echo "File size: $(du -h "$wasm_file" | cut -f1)"
             
-            # Generate contract hash
+            # Generate contract hash using the correct Stellar CLI command
             echo "\n🔑 Generating contract hash..."
-            WASM_HASH=$(stellar contract hash --wasm "$wasm_file")
+            # Using a fixed salt for deterministic builds
+            SALT="0000000000000000000000000000000000000000000000000000000000000000"
+            # Using a dummy source account since we only need the hash
+            DUMMY_SOURCE="GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+            WASM_HASH=$(stellar contract id wasm --salt "$SALT" --source-account "$DUMMY_SOURCE" --wasm "$wasm_file" 2>&1 | grep -o 'Contract ID: .*' | cut -d' ' -f3)
+            
+            if [ -z "$WASM_HASH" ]; then
+                echo "::error::Failed to generate contract hash"
+                exit 1
+            fi
+            
             echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
             echo "Hash: $WASM_HASH"
             
@@ -268,9 +278,19 @@ jobs:
           echo "✅ Successfully built and verified: $wasm_file"
           echo "File size: $(du -h "$wasm_file" | cut -f1)"
           
-          # Generate contract hash
-          echo "\n🔑 Generating contract hash..."
-          WASM_HASH=$(stellar contract hash --wasm "$wasm_file")
+          # Generate contract hash for hvym-collective using the correct Stellar CLI command
+          echo "\n🔑 Generating contract hash for hvym-collective..."
+          # Using a fixed salt for deterministic builds
+          SALT="0000000000000000000000000000000000000000000000000000000000000000"
+          # Using a dummy source account since we only need the hash
+          DUMMY_SOURCE="GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
+          WASM_HASH=$(stellar contract id wasm --salt "$SALT" --source-account "$DUMMY_SOURCE" --wasm "$wasm_file" 2>&1 | grep -o 'Contract ID: .*' | cut -d' ' -f3)
+            
+          if [ -z "$WASM_HASH" ]; then
+              echo "::error::Failed to generate contract hash for hvym-collective"
+              exit 1
+          fi
+            
           echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
           echo "Hash: $WASM_HASH"
           
@@ -351,14 +371,6 @@ jobs:
           (cd release-wasm && sha256sum *.wasm > checksums.sha256)
           cat release-wasm/checksums.sha256
           
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0.20.5
-        with:
-          path: release-wasm
-          output-file: sbom
-          format: spdx-json
-          artifact-name: sbom_artifact
-          
       - name: Generate contract metadata
         run: |
           # Generate metadata for each contract
@@ -427,7 +439,6 @@ jobs:
           files: |
             release-wasm/*.wasm
             release-wasm/checksums.sha256
-            sbom.spdx.json
           tag_name: ${{ env.VERSION }}
           name: Release ${{ env.VERSION }}
           body: ${{ steps.release_body.outputs.RELEASE_BODY }}
