@@ -116,14 +116,11 @@ def upload_contract(contract_name: str, deployer_acct: str):
         sys.exit(1)
 
     print(f"\n📤 Uploading {contract_name}...")
-    # Use a single string with proper quoting for the command to handle spaces in passphrase
     cmd = [
         "stellar", "contract", "deploy",
         "--wasm", str(wasm_file),
         "--source", deployer_acct,
-        "--network", NETWORK,
-        "--rpc-url", RPC_URL,
-        f"--network-passphrase={NETWORK_PASSPHRASE}"  # Pass as a single argument with =
+        f"--network={NETWORK}",  # This sets both rpc-url and network-passphrase
     ]
     result = run_command(cmd)
     wasm_hash = result.strip()
@@ -132,14 +129,12 @@ def upload_contract(contract_name: str, deployer_acct: str):
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
     """Deploy a contract with the given wasm hash and arguments."""
-    # Build command with proper argument formatting
+    # Build command with network configuration
     cmd = [
         "stellar", "contract", "deploy",
         f"--wasm-hash={wasm_hash}",
         f"--source-account={deployer_acct}",
-        f"--network={NETWORK}",
-        f"--rpc-url={RPC_URL}",
-        f"--network-passphrase={NETWORK_PASSPHRASE}",
+        f"--network={NETWORK}",  # This sets both rpc-url and network-passphrase
         "--fee=1000000",
         "--"
     ]
