@@ -127,7 +127,7 @@ def upload_contract(contract_name: str, deployer_acct: str):
 
     print(f"\n📤 Uploading {contract_name}...")
     cmd = [
-        "stellar", "contract", "deploy",
+        "stellar", "contract", "upload",
         "--wasm", str(wasm_file),
         "--source", deployer_acct,
         f"--network={NETWORK}"  # Uses built-in network config with passphrase from env
