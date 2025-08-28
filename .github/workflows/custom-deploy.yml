@@ -309,12 +309,8 @@ jobs:
             exit 1
           fi
           
-          # Save public key for subsequent steps
-          echo "PUBLIC_KEY=$PUBLIC_KEY" >> $GITHUB_ENV
-          
           echo "✅ Identity setup complete"
           echo "   Identity: $IDENTITY_NAME"
-          echo "   Public Key: $PUBLIC_KEY"
         env:
           ACCT_SECRET: ${{ secrets.ACCT_SECRET }}
           
@@ -381,10 +377,6 @@ jobs:
       - name: Run post-deployment actions for hvym-collective
         if: success()
         run: |
-          # Use the public key from the environment
-          echo "Using identity: ${{ env.IDENTITY_NAME }}"
-          echo "Using public key: ${{ env.PUBLIC_KEY }}"
-          
           # Check if post-deployment is enabled
           if [ -f "hvym_collective_post_deploy_args.json" ]; then
             ENABLED=$(jq -r '.enabled // true' hvym_collective_post_deploy_args.json)
@@ -398,7 +390,6 @@ jobs:
               # Run post-deployment script
               python hvym_post_deploy.py \
                 --deployer-acct "${{ env.IDENTITY_NAME }}" \
-                --deployer-pubkey "${{ env.PUBLIC_KEY }}" \
                 --network "${{ env.NETWORK }}" \
                 --fund-amount "$FUND_AMOUNT" \
                 --initial-opus-alloc "$INITIAL_OPUS_ALLOC"

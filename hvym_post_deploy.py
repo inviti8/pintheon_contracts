@@ -28,10 +28,28 @@ def extract_last_nonempty_line(output):
     lines = [line.strip() for line in output.splitlines() if line.strip()]
     return lines[-1] if lines else None
 
+def get_public_key(identity_name):
+    """Get public key from Stellar CLI identity."""
+    try:
+        result = subprocess.run(
+            ["stellar", "keys", "public-key", identity_name],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        # Get the last line of output to handle any warnings
+        public_key = result.stdout.strip().splitlines()[-1]
+        if not public_key.startswith('G'):
+            raise ValueError(f"Invalid public key format: {public_key}")
+        return public_key
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to get public key for identity {identity_name}")
+        print(f"Error: {e.stderr}")
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(description="Fund hvym-collective and set opus token via CLI, updating deployments.json.")
     parser.add_argument("--deployer-acct", required=True, help="Stellar CLI account name or secret to use as source")
-    parser.add_argument("--deployer-pubkey", required=True, help="Public key of the deployer account (starts with 'G')")
     parser.add_argument("--network", default="testnet", help="Network name (default: testnet)")
     parser.add_argument("--fund-amount", required=True, type=float, help="Amount to fund hvym-collective contract (whole number, e.g. 30 XLM)")
     parser.add_argument("--initial-opus-alloc", required=True, type=float, help="Initial opus token allocation to mint to admin (whole number, e.g. 10 XLM)")
@@ -67,7 +85,7 @@ def main():
         "--source", args.deployer_acct,  # Uses identity name or secret key
         "--network", args.network,
         "--", "fund-contract",
-        "--caller", args.deployer_pubkey,  # Uses the provided public key
+        "--caller", get_public_key(args.deployer_acct),  # Get public key from identity
         "--fund-amount", fund_amount_stroops
     ]
     fund_out = run_cmd(fund_cmd)
@@ -82,7 +100,7 @@ def main():
         "--source", args.deployer_acct,  # Uses identity name or secret key
         "--network", args.network,
         "--", "set-opus-token",
-        "--caller", args.deployer_pubkey,  # Uses the provided public key
+        "--caller", get_public_key(args.deployer_acct),  # Get public key from identity
         "--opus-contract-id", opus_contract_id,
         "--initial-alloc", initial_opus_alloc_stroops
     ]
