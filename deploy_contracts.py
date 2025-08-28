@@ -95,16 +95,26 @@ def load_contract_args(contract_name: str) -> dict:
         print(f"No argument file found for {contract_name}")
         return {}
 
-def run_command(cmd: list, cwd: str = ".") -> str:
+def run_command(cmd: List[str]) -> str:
     """Run a shell command and return its output."""
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
-    
-    if result.returncode != 0:
-        print(f"Error: {result.stderr}")
-        raise RuntimeError(f"Command failed: {' '.join(cmd)}")
+    try:
+        # Prepare environment with network passphrase
+        env = os.environ.copy()
+        env['STELLAR_NETWORK_PASSPHRASE'] = NETWORK_PASSPHRASE
         
-    return result.stdout.strip()
+        result = subprocess.run(
+            cmd,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Command failed: {e.stderr.strip()}")
+        print(f"   Command: {' '.join(cmd)}")
+        raise
 
 # These are now defined at the top of the file using pathlib
 
@@ -116,16 +126,11 @@ def upload_contract(contract_name: str, deployer_acct: str):
         sys.exit(1)
 
     print(f"\n📤 Uploading {contract_name}...")
-    # Clean up environment to prevent any RPC URL conflicts
-    env = os.environ.copy()
-    env.pop('RPC_URL', None)
-    env.pop('STELLAR_RPC_URL', None)
-    
     cmd = [
         "stellar", "contract", "deploy",
         "--wasm", str(wasm_file),
         "--source", deployer_acct,
-        f"--network={NETWORK}"  # This will use the built-in network config
+        f"--network={NETWORK}"  # Uses built-in network config with passphrase from env
     ]
     result = run_command(cmd)
     wasm_hash = result.strip()
@@ -134,17 +139,12 @@ def upload_contract(contract_name: str, deployer_acct: str):
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
     """Deploy a contract with the given wasm hash and arguments."""
-    # Clean up environment to prevent any RPC URL conflicts
-    env = os.environ.copy()
-    env.pop('RPC_URL', None)
-    env.pop('STELLAR_RPC_URL', None)
-    
     # Build command with network configuration
     cmd = [
         "stellar", "contract", "deploy",
         f"--wasm-hash={wasm_hash}",
         f"--source-account={deployer_acct}",
-        f"--network={NETWORK}",  # This will use the built-in network config
+        f"--network={NETWORK}",  # Uses built-in network config with passphrase from env
         "--fee=1000000",
         "--"
     ]
