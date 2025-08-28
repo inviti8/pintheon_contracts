@@ -121,7 +121,8 @@ def upload_contract(contract_name: str, deployer_acct: str):
         "--wasm", str(wasm_file),
         "--source", deployer_acct,
         "--network", NETWORK,
-        "--rpc-url", RPC_URL
+        "--rpc-url", RPC_URL,
+        "--network-passphrase", NETWORK_PASSPHRASE
     ]
     result = run_command(cmd)
     wasm_hash = result.strip()
