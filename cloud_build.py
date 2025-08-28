@@ -8,6 +8,7 @@ import os
 import sys
 import shutil
 import subprocess
+import argparse
 from pathlib import Path
 
 # Add parent directory to path to import build_contracts
@@ -17,7 +18,6 @@ from build_contracts import (
     clean_targets,
     find_wasm_file
 )
-import subprocess
 
 def setup_cloud_environment():
     """Set up the cloud build environment."""
@@ -94,8 +94,14 @@ def ensure_wasm_files_for_collective():
     
     return len(missing_files) == 0
 
-def build_contract_cloud(contract_dir, optimize=True):
-    """Build a contract in the cloud environment."""
+def build_contract_cloud(contract_dir, optimize=True, source_repo=None):
+    """Build a contract in the cloud environment.
+    
+    Args:
+        contract_dir: Directory containing the contract to build
+        optimize: Whether to optimize the WASM output
+        source_repo: Source repository in format "github:owner/repo"
+    """
     print(f"\n=== Building {contract_dir} in cloud ===")
     print(f"Current working directory: {os.getcwd()}")
     
@@ -132,8 +138,12 @@ def build_contract_cloud(contract_dir, optimize=True):
     try:
         # Build the contract using stellar cli
         print(f"\nBuilding {contract_name}...")
+        cmd = ["stellar", "contract", "build"]
+        if source_repo:
+            cmd.extend(["--meta", f"source_repo={source_repo}"])
+        
         subprocess.run(
-            ["stellar", "contract", "build"],
+            cmd,
             cwd=contract_dir,
             check=True,
             capture_output=True,
@@ -204,19 +214,18 @@ def build_contract_cloud(contract_dir, optimize=True):
         traceback.print_exc()
         return False
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Build Soroban contracts with metadata')
+    parser.add_argument('--contract', help='Specific contract to build')
+    parser.add_argument('--source-repo', 
+                      default='github:inviti8/philos_contracts',
+                      help='Source repository in format "github:owner/repo"')
+    return parser.parse_args()
+
 def main():
     """Main entry point for cloud builds."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Build Soroban contracts in cloud environment.")
-    parser.add_argument(
-        "--contract",
-        type=str,
-        help="Build only the specified contract directory (relative path)",
-    )
-    args = parser.parse_args()
-    
-    # Set up cloud environment
+    args = parse_args()
     setup_cloud_environment()
     
     # Create wasm directory if it doesn't exist
@@ -242,11 +251,11 @@ def main():
         if args.contract == "hvym-collective":
             for dep in build_order[:-1]:  # All except hvym-collective itself
                 contract_path = os.path.join(os.getcwd(), dep)
-                if not build_contract_cloud(contract_path):
+                if not build_contract_cloud(contract_path, source_repo=args.source_repo):
                     return 1
         
         contract_path = os.path.join(os.getcwd(), args.contract)
-        success = build_contract_cloud(contract_path)
+        success = build_contract_cloud(contract_path, source_repo=args.source_repo)
         return 0 if success else 1
     else:
         # Build all contracts in the specified order
@@ -254,7 +263,7 @@ def main():
         for contract_dir in build_order:
             if contract_dir in CONTRACTS:
                 contract_path = os.path.join(os.getcwd(), contract_dir)
-                if not build_contract_cloud(contract_path):
+                if not build_contract_cloud(contract_path, source_repo=args.source_repo):
                     all_success = False
                     # Don't continue if a dependency fails
                     if contract_dir != build_order[-1]:  # If not the last contract

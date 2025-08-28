@@ -190,8 +190,8 @@ jobs:
             echo "RELATIVE_PATH=${contract_path}" >> $GITHUB_ENV
             echo "WASM_PATH=${wasm_file}" >> $GITHUB_ENV
             
-            # Build the contract
-            if ! python cloud_build.py --contract "$contract_path"; then
+            # Build the contract with source repo info
+            if ! python cloud_build.py --contract "$contract_path" --source-repo "github:${{ github.repository }}"; then
               echo "::error::Failed to build $contract_path"
               exit 1
             fi
@@ -208,16 +208,24 @@ jobs:
             echo "✅ Successfully built and verified: $wasm_file"
             echo "File size: $(du -h "$wasm_file" | cut -f1)"
             
-            # Generate contract hash using the correct Stellar CLI command
+            # Generate contract hash using the metadata approach
             echo "\n🔑 Generating contract hash..."
-            # Using a fixed salt for deterministic builds
-            SALT="0000000000000000000000000000000000000000000000000000000000000000"
-            # Using a dummy source account since we only need the hash
-            DUMMY_SOURCE="GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
-            WASM_HASH=$(stellar contract id wasm --salt "$SALT" --source-account "$DUMMY_SOURCE" --wasm "$wasm_file" 2>&1 | grep -o 'Contract ID: .*' | cut -d' ' -f3)
+            
+            # First try with the with_meta version if it exists
+            wasm_with_meta="${wasm_file%.optimized.wasm}.with_meta.wasm"
+            if [ -f "$wasm_with_meta" ]; then
+                echo "Using WASM with metadata: $(basename "$wasm_with_meta")"
+                wasm_file="$wasm_with_meta"
+            fi
+            
+            # Get the hash using the build info command
+            WASM_HASH=$(stellar contract info build --wasm "$wasm_file" 2>&1 | grep -o 'Wasm Hash: .*' | cut -d' ' -f3)
             
             if [ -z "$WASM_HASH" ]; then
                 echo "::error::Failed to generate contract hash"
+                echo "Tried to get hash from: $wasm_file"
+                echo "Command output was:"
+                stellar contract info build --wasm "$wasm_file" || true
                 exit 1
             fi
             
@@ -262,8 +270,8 @@ jobs:
           echo "RELATIVE_PATH=${contract_path}" >> $GITHUB_ENV
           echo "WASM_PATH=${wasm_file}" >> $GITHUB_ENV
           
-          # Build the contract
-          if ! python cloud_build.py --contract "$contract_path"; then
+          # Build the contract with source repo info
+          if ! python cloud_build.py --contract "$contract_path" --source-repo "github:${{ github.repository }}"; then
             echo "::error::Failed to build $contract_path"
             exit 1
           fi
@@ -278,19 +286,27 @@ jobs:
           echo "✅ Successfully built and verified: $wasm_file"
           echo "File size: $(du -h "$wasm_file" | cut -f1)"
           
-          # Generate contract hash for hvym-collective using the correct Stellar CLI command
+          # Generate contract hash using the metadata approach for hvym-collective
           echo "\n🔑 Generating contract hash for hvym-collective..."
-          # Using a fixed salt for deterministic builds
-          SALT="0000000000000000000000000000000000000000000000000000000000000000"
-          # Using a dummy source account since we only need the hash
-          DUMMY_SOURCE="GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"
-          WASM_HASH=$(stellar contract id wasm --salt "$SALT" --source-account "$DUMMY_SOURCE" --wasm "$wasm_file" 2>&1 | grep -o 'Contract ID: .*' | cut -d' ' -f3)
-            
+          
+          # First try with the with_meta version if it exists
+          wasm_with_meta="${wasm_file%.optimized.wasm}.with_meta.wasm"
+          if [ -f "$wasm_with_meta" ]; then
+              echo "Using WASM with metadata: $(basename "$wasm_with_meta")"
+              wasm_file="$wasm_with_meta"
+          fi
+          
+          # Get the hash using the build info command
+          WASM_HASH=$(stellar contract info build --wasm "$wasm_file" 2>&1 | grep -o 'Wasm Hash: .*' | cut -d' ' -f3)
+          
           if [ -z "$WASM_HASH" ]; then
               echo "::error::Failed to generate contract hash for hvym-collective"
+              echo "Tried to get hash from: $wasm_file"
+              echo "Command output was:"
+              stellar contract info build --wasm "$wasm_file" || true
               exit 1
           fi
-            
+          
           echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
           echo "Hash: $WASM_HASH"
           
