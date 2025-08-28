@@ -415,14 +415,11 @@ jobs:
           # Add SBOM info
           RELEASE_BODY+="\n### Software Bill of Materials (SBOM)\n"
           RELEASE_BODY+="A Software Bill of Materials (SBOM) in SPDX format is included with this release.\n"
-          # Output the release body
-          echo "release_body<<EOF"
-          echo "$RELEASE_BODY"
-          echo "EOF"
-          echo "RELEASE_BODY<<EOF"
-          echo "$RELEASE_BODY"
-          echo "EOF"
-        >> $GITHUB_OUTPUT
+          # Set the output for the release step
+          delimiter="EOF_$(date +%s)"
+          echo "RELEASE_BODY<<$delimiter" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "$delimiter" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
