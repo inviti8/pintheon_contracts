@@ -139,7 +139,7 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
         f"--source-account={deployer_acct}",
         f"--network={NETWORK}",
         f"--rpc-url={RPC_URL}",
-        f'--network-passphrase="{NETWORK_PASSPHRASE}"',  # Quote the entire argument
+        f"--network-passphrase={NETWORK_PASSPHRASE}",
         "--fee=1000000",
         "--"
     ]
