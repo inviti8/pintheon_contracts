@@ -6,16 +6,52 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Constants
-NETWORK = "testnet"  # or take from env/args
-NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"  # Testnet passphrase
-WASM_DIR = "wasm"
+# Network configurations
+NETWORK_CONFIGS = {
+    "testnet": {
+        "passphrase": "Test SDF Network ; September 2015",
+        "rpc_url": "https://soroban-testnet.stellar.org"
+    },
+    "futurenet": {
+        "passphrase": "Test SDF Future Network ; October 2022",
+        "rpc_url": "https://rpc-futurenet.stellar.org"
+    },
+    "public": {
+        "passphrase": "Public Global Stellar Network ; September 2015",
+        "rpc_url": "https://horizon.stellar.org"
+    },
+    "standalone": {
+        "passphrase": "Standalone Network ; February 2017",
+        "rpc_url": "http://localhost:8000"
+    }
+}
+
+# Default to testnet
+NETWORK = "testnet"
+
+# Get network from environment variable if set
+if os.environ.get("STELLAR_NETWORK"):
+    NETWORK = os.environ["STELLAR_NETWORK"]
+
+# Validate network
+if NETWORK not in NETWORK_CONFIGS:
+    print(f"❌ Error: Unsupported network '{NETWORK}'. Supported networks: {', '.join(NETWORK_CONFIGS.keys())}")
+    sys.exit(1)
+
+# Set network-specific constants
+NETWORK_PASSPHRASE = NETWORK_CONFIGS[NETWORK]["passphrase"]
+RPC_URL = NETWORK_CONFIGS[NETWORK]["rpc_url"]
+
+# Contract list
 CONTRACTS = [
     "pintheon_ipfs_token",
     "pintheon_node_token",
     "opus_token",
     "hvym_collective"
 ]
+
+print(f"ℹ️  Using network: {NETWORK}")
+print(f"   RPC URL: {RPC_URL}")
 
 # Global variable to store the project root directory
 PROJECT_ROOT = Path(__file__).parent.resolve()
@@ -71,21 +107,25 @@ def run_command(cmd: list, cwd: str = ".") -> str:
 
 # These are now defined at the top of the file using pathlib
 
-def upload_contract(contract_name: str, deployer_acct: str) -> str:
+def upload_contract(contract_name: str, deployer_acct: str):
     """Upload a contract and return the wasm hash."""
-    wasm_file = WASM_DIR / f"{contract_name}.optimized.wasm"
+    wasm_file = WASM_DIR / f"{contract_name}.wasm"
     if not wasm_file.exists():
-        raise FileNotFoundError(f"WASM file not found: {wasm_file}")
-        
+        print(f"❌ Error: {wasm_file} not found. Build the contract first.")
+        sys.exit(1)
+
+    print(f"\n📤 Uploading {contract_name}...")
     cmd = [
-        "stellar", "contract", "upload",
-        f"--source-account={deployer_acct}",
-        f"--wasm={wasm_file}",
-        f"--network={NETWORK}",
-        f"--network-passphrase={NETWORK_PASSPHRASE}",
-        "--fee=1000000"
+        "stellar", "contract", "deploy",
+        "--wasm", str(wasm_file),
+        "--source", deployer_acct,
+        "--network", NETWORK,
+        "--rpc-url", RPC_URL
     ]
-    return run_command(cmd)
+    result = run_command(cmd)
+    wasm_hash = result.strip()
+    print(f"✅ Uploaded {contract_name} with hash: {wasm_hash}")
+    return wasm_hash
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
     """Deploy a contract with the given wasm hash and arguments."""
@@ -94,6 +134,7 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
         f"--wasm-hash={wasm_hash}",
         f"--source-account={deployer_acct}",
         f"--network={NETWORK}",
+        f"--rpc-url={RPC_URL}",
         f"--network-passphrase={NETWORK_PASSPHRASE}",
         "--fee=1000000",
         "--"
