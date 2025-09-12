@@ -5,17 +5,14 @@ use crate::{contract::Token, TokenClient};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, IntoVal, Symbol,
+    Address, Env, FromVal, IntoVal, String, Symbol,
 };
 
 fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
-    let token_contract = e.register(
-        Token,
-        (
-            admin,
-        ),
-    );
-    TokenClient::new(e, &token_contract)
+    let token_contract = e.register_contract(None, Token);
+    let client = TokenClient::new(e, &token_contract);
+    client.initialize(admin);
+    client
 }
 
 #[test]
@@ -233,6 +230,22 @@ fn transfer_from_insufficient_allowance() {
     assert_eq!(token.allowance(&user1, &user3), 100);
 
     token.transfer_from(&user3, &user1, &user2, &101);
+}
+
+#[test]
+fn test_decimal_is_over_eighteen() {
+    let e = Env::default();
+    let admin = Address::generate(&e);
+    let token_contract = e.register_contract(None, Token);
+    let client = TokenClient::new(&e, &token_contract);
+    
+    // Initialize with just the admin
+    client.initialize(&admin);
+    
+    // Verify the decimal is hardcoded to 7 and strings match expected values
+    assert_eq!(client.decimals(), 7);
+    assert_eq!(client.name(), String::from_str(&e, "__META OPUS TOKEN TESTNET__"));
+    assert_eq!(client.symbol(), String::from_str(&e, "OPUS"));
 }
 
 #[test]
