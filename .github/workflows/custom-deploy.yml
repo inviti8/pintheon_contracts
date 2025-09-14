@@ -407,6 +407,50 @@ jobs:
               --fund-amount 30 \
               --initial-opus-alloc 1000
           fi
+
+      - name: Submit to Stellar Expert
+        if: success()
+        run: |
+          echo "🌐 Submitting to Stellar Expert..."
+          
+          # Verify deployments.json exists
+          if [ ! -f "deployments.json" ]; then
+            echo "Error: deployments.json not found"
+            exit 0  # Don't fail the workflow
+          fi
+          
+          # Get list of contracts from deployments.json
+          CONTRACTS=$(jq -r 'keys[] | select(. != "network" and . != "timestamp" and . != "cli_version" and . != "note")' deployments.json)
+          
+          for CONTRACT in $CONTRACTS; do
+            # Extract contract details
+            CONTRACT_DATA=$(jq -r ".[\"$CONTRACT\"]" deployments.json)
+            WASM_HASH=$(echo "$CONTRACT_DATA" | jq -r '.wasm_hash // empty')
+            CONTRACT_ID=$(echo "$CONTRACT_DATA" | jq -r '.contract_id // empty')
+            
+            if [ -n "$WASM_HASH" ] && [ -n "$CONTRACT_ID" ]; then
+              echo "Submitting $CONTRACT to Stellar Expert..."
+              echo "  Contract ID: $CONTRACT_ID"
+              echo "  WASM Hash: $WASM_HASH"
+              
+              # Submit to Stellar Expert
+              curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "repository": "${{ github.repository }}",
+                  "commitHash": "${{ github.sha }}",
+                  "jobId": "${{ github.job }}",
+                  "runId": "${{ github.run_id }}",
+                  "contractHash": "'$WASM_HASH'",
+                  "contractId": "'$CONTRACT_ID'",
+                  "packageName": "'$CONTRACT'",
+                  "network": "'${{ env.NETWORK }}'",
+                  "makeTarget": "deploy"
+                }' || echo "Warning: Failed to submit $CONTRACT to Stellar Expert"
+            else
+              echo "Skipping $CONTRACT - missing wasm_hash or contract_id"
+            fi
+          done
           
       - name: Upload deployments.md as artifact
         uses: actions/upload-artifact@v4

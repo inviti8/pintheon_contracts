@@ -240,21 +240,6 @@ jobs:
             # Create build provenance
             echo "::notice::Generating build provenance for $wasm_file"
             
-            # Submit to Stellar Expert
-            echo "\n🌐 Submitting to Stellar Expert..."
-            curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
-              -H "Content-Type: application/json" \
-              -d '{
-                "repository": "${{ github.repository }}",
-                "commitHash": "${{ github.sha }}",
-                "jobId": "${{ github.job }}",
-                "runId": "${{ github.run_id }}",
-                "contractHash": "'$WASM_HASH'",
-                "packageName": "'$contract_name'",
-                "relativePath": "'$contract_path'",
-                "makeTarget": "release"
-              }' || echo "Warning: Failed to submit to Stellar Expert"
-              
             echo "\n✅ Successfully processed $contract_name"
           done
           
@@ -313,21 +298,6 @@ jobs:
           # Attest build
           echo "\n📝 Attesting build..."
           
-          # Submit to Stellar Expert
-          echo "\n🌐 Submitting to Stellar Expert..."
-          curl -X POST "https://api.stellar.expert/explorer/public/contract-validation/match" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "repository": "${{ github.repository }}",
-              "commitHash": "${{ github.sha }}",
-              "jobId": "${{ github.job }}",
-              "runId": "${{ github.run_id }}",
-              "contractHash": "'$WASM_HASH'",
-              "packageName": "'$contract_name'",
-              "relativePath": "'$contract_path'",
-              "makeTarget": "release"
-            }' || echo "Warning: Failed to submit to Stellar Expert"
-            
           echo "\n✅ Successfully processed $contract_name"
           
           # Final verification of all WASM files
