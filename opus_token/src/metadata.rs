@@ -1,19 +1,25 @@
-use soroban_sdk::{Env, String as SorobanString, symbol_short};
+use soroban_sdk::{Env, String, symbol_short};
+use soroban_token_sdk::metadata::TokenMetadata;
 
 pub fn read_decimal(e: &Env) -> u32 {
-    e.storage().instance().get(&symbol_short!("decimal")).unwrap()
+    read_metadata(e).decimal
 }
 
-pub fn read_name(e: &Env) -> SorobanString {
-    e.storage().instance().get(&symbol_short!("name")).unwrap()
+pub fn read_name(e: &Env) -> String {
+    read_metadata(e).name
 }
 
-pub fn read_symbol(e: &Env) -> SorobanString {
-    e.storage().instance().get(&symbol_short!("symbol")).unwrap()
+pub fn read_symbol(e: &Env) -> String {
+    read_metadata(e).symbol
 }
 
-pub fn write_metadata(e: &Env, decimal: u32, name: SorobanString, symbol: SorobanString) {
-    e.storage().instance().set(&symbol_short!("decimal"), &decimal);
-    e.storage().instance().set(&symbol_short!("name"), &name);
-    e.storage().instance().set(&symbol_short!("symbol"), &symbol);
+pub fn write_metadata(e: &Env, metadata: TokenMetadata) {
+    e.storage().instance().set(&symbol_short!("Metadata"), &metadata);
+}
+
+fn read_metadata(e: &Env) -> TokenMetadata {
+    e.storage()
+        .instance()
+        .get(&symbol_short!("Metadata"))
+        .unwrap()
 }

@@ -1,9 +1,9 @@
 [package]
-name = "soroban-token-contract"
-description = "Soroban standard token contract"
-version = "0.0.6"
+name = "opus-token"
+version = "0.1.0"
+description = "OPUS Token Contract"
 edition = "2021"
-rust-version = "1.89.0"
+publish = false
 
 [lib]
 crate-type = ["cdylib"]

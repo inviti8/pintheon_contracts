@@ -12,6 +12,7 @@ use soroban_sdk::{
     String,
 };
 use soroban_token_sdk::events;
+use soroban_token_sdk::metadata::TokenMetadata;
 
 fn check_nonnegative_amount(amount: i128) {
     if amount < 0 {
@@ -19,30 +20,33 @@ fn check_nonnegative_amount(amount: i128) {
     }
 }
 
-#[contract]
+# [contract]
 pub struct Token;
 
 // SetAdmin is not a standardized token event, so we just define a custom event
 // for our token.
-#[contractevent(data_format = "single-value")]
+# [contractevent(data_format = "single-value")]
 pub struct SetAdmin {
     #[topic]
     admin: Address,
     new_admin: Address,
 }
 
-#[contractimpl]
+# [contractimpl]
 impl Token {
-    pub fn initialize(e: Env, admin: Address) {
+    pub fn __constructor(e: Env, admin: Address) {
         let decimal: u32 = 7_u32;
         let name = String::from_str(&e, "__META OPUS TOKEN TESTNET__");
         let symbol = String::from_str(&e, "OPUS");
-        
-        if decimal > 18 {
-            panic!("Decimal must not be greater than 18");
-        }
         write_administrator(&e, &admin);
-        write_metadata(&e, decimal, name, symbol);
+        write_metadata(
+            &e,
+            TokenMetadata {
+                decimal,
+                name,
+                symbol,
+            },
+        )
     }
 
     pub fn mint(e: Env, to: Address, amount: i128) {
