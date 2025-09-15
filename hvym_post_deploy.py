@@ -114,17 +114,17 @@ def main():
     print(fund_out)
 
     # First set the admin of the OPUS token to the collective contract
-    print(f"\n=== Setting OPUS token admin to collective contract {contract_id} ===")
-    set_admin_cmd = [
-        "stellar", "contract", "invoke",
-        "--id", opus_contract_id,
-        "--source", args.deployer_acct,
-        "--network", args.network,
-        "--", "set-admin",
-        "--new-admin", contract_id
-    ]
-    set_admin_out = run_cmd(set_admin_cmd)
-    print(set_admin_out)
+    # print(f"\n=== Setting OPUS token admin to collective contract {contract_id} ===")
+    # set_admin_cmd = [
+    #     "stellar", "contract", "invoke",
+    #     "--id", opus_contract_id,
+    #     "--source", args.deployer_acct,
+    #     "--network", args.network,
+    #     "--", "set-admin",
+    #     "--new-admin", contract_id
+    # ]
+    # set_admin_out = run_cmd(set_admin_cmd)
+    # print(set_admin_out)
     
     # Now set the opus token in the collective contract
     print(f"\n=== Setting opus token in hvym-collective {contract_id} ===")
