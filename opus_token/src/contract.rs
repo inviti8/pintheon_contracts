@@ -36,7 +36,7 @@ pub struct SetAdmin {
 impl Token {
     pub fn __constructor(e: Env, admin: Address) {
         let decimal: u32 = 7_u32;
-        let name = String::from_str(&e, "__META OPUS TOKEN TESTNET__");
+        let name = String::from_str(&e, "__META OPUS TOKEN__");
         let symbol = String::from_str(&e, "OPUS");
         write_administrator(&e, &admin);
         write_metadata(
