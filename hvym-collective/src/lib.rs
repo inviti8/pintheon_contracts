@@ -315,11 +315,13 @@ impl CollectiveContract{
 
         Self::require_admin_auth(e.clone(), caller.clone());
         
+        // Get the OPUS token client
+        let opus_client = token::StellarAssetClient::new(&e, &opus_contract_id);
+        
         // Set the opus token contract ID
         e.storage().instance().set(&OPUS, &opus_contract_id);
         
-        // Transfer ownership to the collective contract so it can mint rewards
-        let opus_client = token::StellarAssetClient::new(&e, &opus_contract_id);
+        // Set this contract as the admin of the OPUS token
         opus_client.set_admin(&e.current_contract_address());
         
         // Mint initial allocation to the caller
