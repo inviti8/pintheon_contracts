@@ -8,4 +8,5 @@ mod metadata;
 mod storage_types;
 mod test;
 
-pub use crate::contract::TokenClient;
+pub use crate::contract::{Token, TokenClient};
+pub use soroban_sdk::Address;
