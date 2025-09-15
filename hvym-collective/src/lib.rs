@@ -327,6 +327,11 @@ impl CollectiveContract{
         // Set the opus token contract ID
         e.storage().instance().set(&OPUS, &opus_contract_id);
         
+        // Set this contract as the admin of the OPUS token
+        // Note: This will only work if the caller is the current admin of the OPUS token
+        // and has properly authorized this call
+        opus_client.set_admin(&e.current_contract_address());
+        
         // Mint initial allocation to the caller
         let allocation = initial_alloc as i128;
         opus_client.mint(&caller, &allocation);
