@@ -308,6 +308,12 @@ impl CollectiveContract{
         e.events().publish((PUBLISH, symbol_short!("encrypted")), (publisher, recipient, ipfs_hash));
     }
 
+    /// Sets the OPUS token contract address and mints initial allocation to the caller.
+    /// 
+    /// # Important
+    /// The collective contract must be set as the admin of the OPUS token contract
+    /// before calling this function. This can be done by calling `set_admin` on the
+    /// OPUS token contract with the collective contract's address.
     pub fn set_opus_token(e: Env, caller: Address, opus_contract_id: Address, initial_alloc: u32) -> bool {
         if Self::is_launched(e.clone()) {
             panic!("opus already set");
@@ -320,9 +326,6 @@ impl CollectiveContract{
         
         // Set the opus token contract ID
         e.storage().instance().set(&OPUS, &opus_contract_id);
-        
-        // Set this contract as the admin of the OPUS token
-        opus_client.set_admin(&e.current_contract_address());
         
         // Mint initial allocation to the caller
         let allocation = initial_alloc as i128;

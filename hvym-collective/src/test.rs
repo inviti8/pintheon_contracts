@@ -110,7 +110,11 @@ fn setup_test_env_with_opus(e: &Env) -> (Address, Address, Address, token::Clien
     // The contract is already initialized during deployment with constructor parameters
     let collective = CollectiveContractClient::new(e, &collective_address);
     
-    // Set the OPUS token
+    // First, set the collective contract as the admin of the OPUS token
+    let opus_admin = token::StellarAssetClient::new(e, &opus_token_addr);
+    opus_admin.set_admin(&collective_address);
+    
+    // Then set the OPUS token in the collective contract
     collective.set_opus_token(&admin, &opus_token_addr, &100);
     
     (admin, user1, collective_address, opus_token, pay_token)
@@ -351,10 +355,11 @@ fn test_deploy_ipfs_token() {
 
     collective.join(&user);
     
-    // In v23.0.1, admin is set during token initialization
-    // No need to set it again here
+    // First, set the collective contract as the admin of the OPUS token
+    let opus_admin = token::StellarAssetClient::new(&env, &opus_token_addr);
+    opus_admin.set_admin(&collective.address);
     
-    // Now set the opus token
+    // Now set the opus token in the collective contract
     collective.set_opus_token(&admin, &opus_token_addr, &100);
 
     let name = String::from_val(&env, &"MyFile");
