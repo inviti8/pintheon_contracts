@@ -3,8 +3,8 @@ name: Deploy Soroban Contracts
 on:
   push:
     tags:
-      - 'deploy-*-v*'       # Standard build (builds CLI from source), format: deploy-vX.Y.Z-{testnet|mainnet|futurenet}
-      - 'fast-*-deploy-v*'  # Fast build (downloads pre-built binary), format: fast-deploy-vX.Y.Z-{testnet|mainnet|futurenet}
+      - 'deploy-*-v*'       # Format: deploy-{release_name}-vX.Y.Z-{network}
+      - 'fast-*-deploy-v*'  # Format: fast-{release_name}-deploy-vX.Y.Z-{network}
 
 permissions:
   contents: write
@@ -83,7 +83,7 @@ jobs:
             # For fast-{release}-deploy-vX.Y.Z-{network}
             TAG_PREFIX=${GITHUB_REF_NAME%%-deploy-*}
             RELEASE_NAME=${TAG_PREFIX#fast-}
-            VERSION_WITH_NETWORK=${GITHUB_REF_NAME#*deploy-}
+            VERSION_WITH_NETWORK=${GITHUB_REF_NAME##*-v}
             VERSION=${VERSION_WITH_NETWORK%-*}
             NETWORK=${GITHUB_REF_NAME##*-}
           else
@@ -114,20 +114,9 @@ jobs:
           components: rustfmt, clippy
           override: true
 
-      - name: Determine build type
-        id: build_type
-        run: |
-          if [[ ${{ github.ref_name }} == fast-* ]]; then
-            echo "BUILD_TYPE=fast" >> $GITHUB_ENV
-            echo "::set-output name=type::fast"
-          else
-            echo "BUILD_TYPE=standard" >> $GITHUB_ENV
-            echo "::set-output name=type::standard"
-          fi
-          echo "Build type: ${{ env.BUILD_TYPE }}"
 
       - name: Install Stellar CLI (Standard Build)
-        if: env.BUILD_TYPE == 'standard'
+        if: env.IS_FAST_DEPLOY == 'false'
         env:
           PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/local/lib/pkgconfig
           RUSTFLAGS: '-C target-cpu=native'
@@ -137,7 +126,7 @@ jobs:
           stellar --version
 
       - name: Install Stellar CLI (Fast Build)
-        if: env.BUILD_TYPE == 'fast'
+        if: env.IS_FAST_DEPLOY == 'true'
         run: |
           echo "Downloading pre-built Stellar CLI..."
           VERSION=${{ env.STELLAR_CLI_VERSION }}
@@ -159,42 +148,6 @@ jobs:
           
           # Clean up
           rm -f stellar-cli.tar.gz
-
-      - name: Extract version and network from tag
-        id: extract
-        run: |
-          TAG_NAME=${{ github.ref_name }}
-          if [[ $TAG_NAME =~ ^(fast-)?deploy-v([0-9.]+)-([a-z]+)$ ]]; then
-            VERSION=${BASH_REMATCH[2]}
-            NETWORK=${BASH_REMATCH[3]}
-            echo "VERSION=$VERSION" >> $GITHUB_ENV
-            echo "NETWORK=$NETWORK" >> $GITHUB_ENV
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-            echo "NETWORK=$NETWORK" >> $GITHUB_OUTPUT
-            if [[ ! "$NETWORK" =~ ^(testnet|mainnet|futurenet)$ ]]; then
-              echo "Invalid network: $NETWORK. Must be testnet, mainnet, or futurenet"
-              exit 1
-            fi
-            
-            # Set BUILD_TYPE based on tag prefix
-            if [[ ${BASH_REMATCH[1]} == "fast-" ]]; then
-              echo "BUILD_TYPE=fast" >> $GITHUB_ENV
-            else
-              echo "BUILD_TYPE=standard" >> $GITHUB_ENV
-            fi
-          else
-            echo "Invalid tag format: $TAG_NAME. Expected [fast-]deploy-vX.Y.Z-{testnet|mainnet|futurenet}"
-            exit 1
-          fi
-
-      - name: Debug version and network
-        run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Tag: ${{ github.ref_name }}"
-          echo "Version: ${{ env.VERSION }}"
-          echo "Network: ${{ env.NETWORK }}"
-          echo "Stellar CLI version: $(stellar --version)"
 
       - name: Create wasm directory
         run: mkdir -p wasm
@@ -493,10 +446,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get the full tag name (e.g., deploy-v0.03-testnet)
-          FULL_TAG="${{ github.ref_name}}"
-          echo "Updating release notes for tag: $FULL_TAG"
-          
+          # Construct the full tag name from environment variables
+          if [[ "${{ env.IS_FAST_DEPLOY }}" == "true" ]]; then
+            FULL_TAG="fast-${{ env.RELEASE_NAME }}-deploy-v${{ env.VERSION }}-${{ env.NETWORK }}"
+          else
+            FULL_TAG="deploy-${{ env.RELEASE_NAME }}-v${{ env.VERSION }}-${{ env.NETWORK }}"
+          fi
+          echo "Full tag for release lookup: $FULL_TAG"
           # Get the release info using the full tag name
           RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}/releases/tags/$FULL_TAG")
