@@ -3,8 +3,8 @@ name: Build and Release Soroban Contracts
 on:
   push: 
     tags:
-      - 'v*'        # Standard build (builds CLI from source)
-      - 'fast-v*'   # Fast build (downloads pre-built binary)
+      - '*-v*'        # Standard build (builds CLI from source)
+      - 'fast-*-v*'   # Fast build (downloads pre-built binary)
 
 permissions:
   id-token: write  # Required for OIDC token generation
@@ -18,11 +18,13 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   STELLAR_CLI_VERSION: 23.0.1
+  TAG_NAME: ${{ github.ref_name }}
+  RELEASE_NAME: ${{ contains(github.ref, 'fast-') && 'fast' || split(github.ref_name, '-v')[0] }}
+  VERSION: ${{ contains(github.ref, 'fast-') && split(github.ref_name, '-v')[1] || split(github.ref_name, '-v')[1] }}
   WASM_PATH: wasm
   PACKAGE_NAME: ''  # Will be set per contract
   RELATIVE_PATH: '' # Will be set per contract
   MAKE_TARGET: ''   # Will be set per contract
-  VERSION: ${{ github.ref_name }}
 
 jobs:
   build:
@@ -338,14 +340,25 @@ jobs:
           # Create release directory
           mkdir -p release-wasm
           
-          # Copy all optimized WASM files from wasm/ to release directory
+          # Copy all optimized WASM and metadata files from wasm/ to release directory
           for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective; do
             wasm_file="wasm/${contract}.optimized.wasm"
+            meta_file="${wasm_file}.meta.json"
+            
+            # Copy WASM file
             if [ -f "$wasm_file" ]; then
               cp "$wasm_file" "release-wasm/$(basename "$wasm_file")"
               echo "✅ Copied $wasm_file to release directory"
             else
               echo "::warning::WASM file not found: $wasm_file"
+            fi
+            
+            # Copy metadata file if it exists
+            if [ -f "$meta_file" ]; then
+              cp "$meta_file" "release-wasm/$(basename "$meta_file")"
+              echo "✅ Copied $meta_file to release directory"
+            else
+              echo "::warning::Metadata file not found: $meta_file"
             fi
           done
           
@@ -385,16 +398,25 @@ jobs:
       - name: Generate release body
         id: release_body
         run: |
-          # Generate markdown with verification info for each contract
-          RELEASE_BODY="## Build Information\n"
-          RELEASE_BODY+="- **Commit**: ${{ github.sha }}\n"
+          # Get the release name and format it nicely
+          RELEASE_NAME="${{ env.RELEASE_NAME }}"
+          VERSION="${{ env.VERSION }}"
+          
+          # Generate markdown with release info and verification
+          RELEASE_BODY="# $RELEASE_NAME Release - $VERSION\n\n"
+          
+          # Add build information section
+          RELEASE_BODY+="## 📦 Build Information\n"
+          RELEASE_BODY+="- **Release Type**: ${{ contains(github.ref, 'fast-') && '🚀 Fast Build' || '🏗️ Standard Build' }}\n"
+          RELEASE_BODY+="- **Version**: $VERSION\n"
+          RELEASE_BODY+="- **Commit**: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})\n"
           RELEASE_BODY+="- **Build Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n"
-          RELEASE_BODY+="- **Build Run**: [$GITHUB_RUN_ID](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\n\n"
+          RELEASE_BODY+="- **Build Run**: [#$GITHUB_RUN_ID](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\n\n"
           
           # Add verification section
-          RELEASE_BODY+="## Verification\n"
+          RELEASE_BODY+="## 🔍 Verification\n"
           RELEASE_BODY+="This release has been verified and attested by Stellar Expert.\n\n"
-          RELEASE_BODY+="### Verified Contracts\n"
+          RELEASE_BODY+="### 📜 Verified Contracts\n"
           
           # Add each contract's verification info
           for wasm in wasm/*.optimized.wasm; do
@@ -421,6 +443,7 @@ jobs:
         with:
           files: |
             release-wasm/*.wasm
+            release-wasm/*.meta.json
             release-wasm/checksums.sha256
           tag_name: ${{ env.VERSION }}
           name: Release ${{ env.VERSION }}

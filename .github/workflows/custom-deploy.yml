@@ -3,8 +3,8 @@ name: Deploy Soroban Contracts
 on:
   push:
     tags:
-      - 'deploy-v*'       # Standard build (builds CLI from source), format: deploy-vX.Y.Z-{testnet|mainnet|futurenet}
-      - 'fast-deploy-v*'  # Fast build (downloads pre-built binary), format: fast-deploy-vX.Y.Z-{testnet|mainnet|futurenet}
+      - 'deploy-*-v*'       # Standard build (builds CLI from source), format: deploy-vX.Y.Z-{testnet|mainnet|futurenet}
+      - 'fast-*-deploy-v*'  # Fast build (downloads pre-built binary), format: fast-deploy-vX.Y.Z-{testnet|mainnet|futurenet}
 
 permissions:
   contents: write
@@ -14,6 +14,12 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
   STELLAR_CLI_VERSION: 23.0.1
+  TAG_NAME: ${{ github.ref_name }}
+  # Extract release name and version based on tag format
+  # For deploy-{release}-vX.Y.Z or fast-{release}-deploy-vX.Y.Z
+  IS_FAST_DEPLOY: ${{ contains(github.ref, 'fast-') }}
+  RELEASE_NAME: ${{ contains(github.ref, 'fast-') && split(github.ref_name, '-deploy-')[0] || split(github.ref_name, '-v')[0] }}
+  VERSION: ${{ contains(github.ref, 'fast-') && split(github.ref_name, '-v')[1] || split(github.ref_name, '-v')[1] }}
 
 jobs:
   deploy:
@@ -356,15 +362,25 @@ jobs:
             --network "${{ env.NETWORK }}" \
             --wasm-dir wasm
           
-          # Save deployment details as an artifact
+          # Save deployment details as an artifact with release information
           if [ -f deployments.json ]; then
-            cp deployments.json deployment_details.json
+            # Add release info to deployments.json
+            jq --arg release "${{ env.RELEASE_NAME }}" --arg version "${{ env.VERSION }}" \
+              '. + {release: $release, version: $version}' deployments.json > deployment_details.json
+            mv deployment_details.json deployments.json  # Update original file too
+            cp deployments.json deployment_details.json  # Create a copy for the artifact
           else
-            echo "{\"status\": \"error\", \"message\": \"Deployment failed or deployments.json not created\"}" > deployment_details.json
+            echo "{\"status\": \"error\", \"message\": \"Deployment failed or deployments.json not created\", \"release\": \"${{ env.RELEASE_NAME }}\", \"version\": \"${{ env.VERSION }}\"}" > deployment_details.json
           fi
           
           # Create a summary of the deployment
-          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 ${{ env.RELEASE_NAME }} Deployment Summary (v${{ env.VERSION }})" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release Name**: ${{ env.RELEASE_NAME}}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment Type**: ${{ env.IS_FAST_DEPLOY == 'true' && 'Fast' || 'Standard' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Details" >> $GITHUB_STEP_SUMMARY
           if [ -f deployments.md ]; then
             cat deployments.md >> $GITHUB_STEP_SUMMARY
           else
