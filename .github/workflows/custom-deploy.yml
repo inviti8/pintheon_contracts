@@ -324,11 +324,14 @@ jobs:
           # Ensure the config directory exists
           mkdir -p config
           
-          # Run the deployment script with the correct identity name
-          python deploy_contracts.py \
+          # Run the deployment script with the correct identity name and exit on failure
+          if ! python deploy_contracts.py \
             --deployer-acct "$IDENTITY_NAME" \
             --network "${{ env.NETWORK }}" \
-            --wasm-dir wasm
+            --wasm-dir wasm; then
+            echo "::error::deploy_contracts.py script failed."
+            exit 1
+          fi
           
           # Save deployment details as an artifact with release information
           if [ -f deployments.json ]; then
