@@ -211,68 +211,51 @@ jobs:
             "hvym_collective"
           )
           
-          # Try both fast-vX.XX and vX.XX formats
-          RELEASE_TAGS=("v$VERSION" "fast-v$VERSION")
-          
-          for RELEASE_TAG in "${RELEASE_TAGS[@]}"; do
-            echo "Trying release tag: $RELEASE_TAG"
-            RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/$RELEASE_TAG" 2>/dev/null)
-              
-            # Check if release exists and has assets
-            if [ "$(echo "$RELEASE_INFO" | jq -r '.message // "success"')" != "Not Found" ]; then
-              ASSET_COUNT=$(echo "$RELEASE_INFO" | jq -r '.assets | length // 0')
-              if [ "$ASSET_COUNT" -gt 0 ]; then
-                echo "Found release with $ASSET_COUNT assets at tag: $RELEASE_TAG"
-                echo "$RELEASE_INFO" > wasm/release_info.json
-                
-                # Download all contract wasm files
-                for CONTRACT in "${CONTRACTS[@]}"; do
-                  # Try both optimized and non-optimized filenames
-                  for SUFFIX in ".optimized.wasm" ".wasm"; do
-                    WASM_FILE="${CONTRACT}${SUFFIX}"
-                    ASSET_URL=$(echo "$RELEASE_INFO" | jq -r ".assets[] | select(.name == \"$WASM_FILE\") | .url")
-                    if [ -n "$ASSET_URL" ]; then
-                      # Preserve the original filename including .optimized.wasm
-                      OUTPUT_FILE="wasm/$(basename "$WASM_FILE")"
-                      echo "Downloading $WASM_FILE from $RELEASE_TAG as $OUTPUT_FILE"
-                      curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
-                           -H "Accept: application/octet-stream" \
-                           "$ASSET_URL" -o "$OUTPUT_FILE"
-                      break  # Found the file, move to next contract
-                    fi
-                  done
-                  
-                  if [ ! -f "wasm/${CONTRACT}.wasm" ] && [ ! -f "wasm/${CONTRACT}.optimized.wasm" ]; then
-                    echo "Warning: Neither ${CONTRACT}.wasm nor ${CONTRACT}.optimized.wasm found in release $RELEASE_TAG"
-                  fi
-                done
-                
-                # Verify we got all required files
-                ALL_FOUND=true
-                for CONTRACT in "${CONTRACTS[@]}"; do
-                  if [ ! -f "wasm/${CONTRACT}.wasm" ] && [ ! -f "wasm/${CONTRACT}.optimized.wasm" ]; then
-                    echo "Error: Neither ${CONTRACT}.wasm nor ${CONTRACT}.optimized.wasm found in release $RELEASE_TAG"
-                    ALL_FOUND=false
-                  fi
-                done
-                
-                if [ "$ALL_FOUND" = true ]; then
-                  echo "Successfully downloaded all contract wasm files from $RELEASE_TAG"
-                  exit 0
-                else
-                  echo "Some contract wasm files missing from $RELEASE_TAG, trying next tag..."
-                  # Clear any partially downloaded files
-                  rm -f wasm/*.wasm
-                fi
+          # Fetch all releases and find the latest one matching the version
+          echo "Fetching releases to find the latest for version '$VERSION'..."
+          RELEASES_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases")
+
+          # Filter releases for the correct tags (vX.Y.Z or fast-release-vX.Y.Z) and find the most recent
+          LATEST_RELEASE_INFO=$(echo "$RELEASES_INFO" | jq -r --arg VERSION "$VERSION" '[
+            .[] | select(.tag_name == "v\($VERSION)" or .tag_name == "fast-v\($VERSION)")
+          ] | sort_by(.created_at) | .[-1] // null')
+
+          if [ -z "$LATEST_RELEASE_INFO" ] || [ "$LATEST_RELEASE_INFO" == "null" ]; then
+            echo "::error::No release found for version '$VERSION'."
+            exit 1
+          fi
+
+          RELEASE_TAG=$(echo "$LATEST_RELEASE_INFO" | jq -r '.tag_name')
+          echo "Found latest release for version '$VERSION' with tag: $RELEASE_TAG"
+          echo "$LATEST_RELEASE_INFO" > wasm/release_info.json
+
+          # Download all contract wasm files from the latest release
+          for CONTRACT in "${CONTRACTS[@]}"; do
+            # Try both optimized and non-optimized filenames
+            for SUFFIX in ".optimized.wasm" ".wasm"; do
+              WASM_FILE="${CONTRACT}${SUFFIX}"
+              ASSET_URL=$(echo "$LATEST_RELEASE_INFO" | jq -r --arg WASM_FILE "$WASM_FILE" '.assets[] | select(.name == $WASM_FILE) | .url')
+              if [ -n "$ASSET_URL" ]; then
+                OUTPUT_FILE="wasm/$(basename "$WASM_FILE")"
+                echo "Downloading $WASM_FILE from release $RELEASE_TAG..."
+                curl -s -L -H "Authorization: Bearer $GITHUB_TOKEN" \
+                     -H "Accept: application/octet-stream" \
+                     "$ASSET_URL" -o "$OUTPUT_FILE"
+                break # Move to the next contract
               fi
+            done
+          done
+
+          # Verify all required files were downloaded
+          for CONTRACT in "${CONTRACTS[@]}"; do
+            if [ ! -f "wasm/${CONTRACT}.wasm" ] && [ ! -f "wasm/${CONTRACT}.optimized.wasm" ]; then
+              echo "::error::Failed to download WASM for contract '${CONTRACT}' from release '$RELEASE_TAG'."
+              exit 1
             fi
           done
-          
-          # If we get here, we failed to find a suitable release
-          echo "Error: Failed to find a release with all required contract wasm files"
-          echo "Tried tags: ${RELEASE_TAGS[*]}"
-          exit 1
+
+          echo "All required WASM files downloaded successfully."
 
       - name: List downloaded WASM files
         run: |

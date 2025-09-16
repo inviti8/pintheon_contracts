@@ -19,7 +19,7 @@ NETWORK_CONFIGS = {
     },
     "public": {
         "passphrase": "Public Global Stellar Network ; September 2015",
-        "rpc_url": "https://horizon.stellar.org"
+        "rpc_url": "https://mainnet.sorobanrpc.com"
     },
     "standalone": {
         "passphrase": "Standalone Network ; February 2017",
