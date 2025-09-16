@@ -3,8 +3,8 @@ name: Deploy Soroban Contracts
 on:
   push:
     tags:
-      - 'deploy-*-v*'       # Format: deploy-{release_name}-vX.Y.Z-{network}
-      - 'fast-*-deploy-v*'  # Format: fast-{release_name}-deploy-vX.Y.Z-{network}
+      - 'deploy-*-v*'        # Format: deploy-{release_name}-vX.Y.Z-{network}
+      - 'fast-deploy-*-v*'   # Format: fast-deploy-{release_name}-vX.Y.Z-{network}
 
 permissions:
   contents: write
@@ -77,21 +77,21 @@ jobs:
         id: set_env
         run: |
           # Set IS_FAST_DEPLOY
-          if [[ ${{ github.ref }} == refs/tags/fast-* ]]; then
+          if [[ ${{ github.ref }} == refs/tags/fast-deploy-* ]]; then
             echo "IS_FAST_DEPLOY=true" >> $GITHUB_ENV
             
-            # For fast-{release}-deploy-vX.Y.Z-{network}
-            TAG_PREFIX=${GITHUB_REF_NAME%%-deploy-*}
-            RELEASE_NAME=${TAG_PREFIX#fast-}
+            # For fast-deploy-{release_name}-vX.Y.Z-{network}
+            TAG_PREFIX=${GITHUB_REF_NAME#fast-deploy-}
+            RELEASE_NAME=${TAG_PREFIX%%-v*}
             VERSION_WITH_NETWORK=${GITHUB_REF_NAME##*-v}
             VERSION=${VERSION_WITH_NETWORK%-*}
             NETWORK=${GITHUB_REF_NAME##*-}
           else
-            # For deploy-{release}-vX.Y.Z-{network}
+            # For deploy-{release_name}-vX.Y.Z-{network}
             echo "IS_FAST_DEPLOY=false" >> $GITHUB_ENV
-            TAG_PREFIX=${GITHUB_REF_NAME%%-v*}
-            RELEASE_NAME=${TAG_PREFIX#deploy-}
-            VERSION_WITH_NETWORK=${GITHUB_REF_NAME#*v}
+            TAG_PREFIX=${GITHUB_REF_NAME#deploy-}
+            RELEASE_NAME=${TAG_PREFIX%%-v*}
+            VERSION_WITH_NETWORK=${GITHUB_REF_NAME##*-v}
             VERSION=${VERSION_WITH_NETWORK%-*}
             NETWORK=${GITHUB_REF_NAME##*-}
           fi
@@ -169,9 +169,9 @@ jobs:
           RELEASES_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}/releases")
 
-          # Filter releases for the correct tags (vX.Y.Z or fast-release-vX.Y.Z) and find the most recent
+          # Filter releases for the correct tag (e.g., 0.00) and find the most recent
           LATEST_RELEASE_INFO=$(echo "$RELEASES_INFO" | jq -r --arg VERSION "$VERSION" '[
-            .[] | select(.tag_name == "v\($VERSION)" or .tag_name == "fast-v\($VERSION)")
+            .[] | select(.tag_name == $VERSION)
           ] | sort_by(.created_at) | .[-1] // null')
 
           if [ -z "$LATEST_RELEASE_INFO" ] || [ "$LATEST_RELEASE_INFO" == "null" ]; then
@@ -448,7 +448,7 @@ jobs:
         run: |
           # Construct the full tag name from environment variables
           if [[ "${{ env.IS_FAST_DEPLOY }}" == "true" ]]; then
-            FULL_TAG="fast-${{ env.RELEASE_NAME }}-deploy-v${{ env.VERSION }}-${{ env.NETWORK }}"
+            FULL_TAG="fast-deploy-${{ env.RELEASE_NAME }}-v${{ env.VERSION }}-${{ env.NETWORK }}"
           else
             FULL_TAG="deploy-${{ env.RELEASE_NAME }}-v${{ env.VERSION }}-${{ env.NETWORK }}"
           fi
