@@ -3,8 +3,8 @@ name: Build and Release Soroban Contracts
 on:
   push: 
     tags:
-      - '*-v*'        # Standard build (builds CLI from source)
-      - 'fast-*-v*'   # Fast build (downloads pre-built binary)
+      - 'release-*-v*'        # Standard build (builds CLI from source)
+      - 'fast-release-*-v*'   # Fast build (downloads pre-built binary)
 
 permissions:
   id-token: write  # Required for OIDC token generation
@@ -19,8 +19,10 @@ env:
   RUST_BACKTRACE: full
   STELLAR_CLI_VERSION: 23.0.1
   TAG_NAME: ${{ github.ref_name }}
-  RELEASE_NAME: ${{ contains(github.ref, 'fast-') && 'fast' || split(github.ref_name, '-v')[0] }}
-  VERSION: ${{ contains(github.ref, 'fast-') && split(github.ref_name, '-v')[1] || split(github.ref_name, '-v')[1] }}
+  # Default values that will be set in a setup step
+  IS_FAST_RELEASE: "false"
+  RELEASE_NAME: ""
+  VERSION: ""
   WASM_PATH: wasm
   PACKAGE_NAME: ''  # Will be set per contract
   RELATIVE_PATH: '' # Will be set per contract
@@ -31,6 +33,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Set up environment variables
+        id: set_env
+        run: |
+          # Set IS_FAST_RELEASE
+          if [[ ${{ github.ref }} == refs/tags/fast-release-* ]]; then
+            echo "IS_FAST_RELEASE=true" >> $GITHUB_ENV
+            
+            # For fast-release-{name}-vX.Y.Z
+            TAG_PREFIX=${GITHUB_REF_NAME#fast-release-}
+            RELEASE_NAME=${TAG_PREFIX%%-v*}
+            VERSION=${GITHUB_REF_NAME##*-v}
+          else
+            # For release-{name}-vX.Y.Z
+            echo "IS_FAST_RELEASE=false" >> $GITHUB_ENV
+            TAG_PREFIX=${GITHUB_REF_NAME#release-}
+            RELEASE_NAME=${TAG_PREFIX%%-v*}
+            VERSION=${GITHUB_REF_NAME##*-v}
+          fi
+          
+          echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          
+          # Debug output
+          echo "Release name: $RELEASE_NAME"
+          echo "Version: $VERSION"
+          echo "Is fast release: $IS_FAST_RELEASE"
       
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -81,12 +110,12 @@ jobs:
       - name: Determine build type
         id: build_type
         run: |
-          if [[ ${{ github.ref_name }} == fast-v* ]]; then
+          if [[ "${{ env.IS_FAST_RELEASE }}" == "true" ]]; then
             echo "BUILD_TYPE=fast" >> $GITHUB_ENV
-            echo "::set-output name=type::fast"
+            echo "type=fast" >> $GITHUB_OUTPUT
           else
             echo "BUILD_TYPE=standard" >> $GITHUB_ENV
-            echo "::set-output name=type::standard"
+            echo "type=standard" >> $GITHUB_OUTPUT
           fi
           echo "Build type: ${{ env.BUILD_TYPE }}"
 
