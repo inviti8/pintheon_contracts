@@ -593,7 +593,7 @@ fn test_add_admin_unauthorized() {
 }
 
 #[test]
-fn test_remove_admin() {
+fn test_remove() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
@@ -610,7 +610,7 @@ fn test_remove_admin() {
     assert_eq!(collective.is_admin(&new_admin), true);
 
     // Remove the new admin
-    let result = collective.remove_admin(&admin, &new_admin);
+    let result = collective.remove(&admin, &new_admin);
     assert_eq!(result, true);
     assert_eq!(collective.is_admin(&new_admin), false);
 
@@ -635,7 +635,7 @@ fn test_remove_initial_admin() {
     );
 
     // Try to remove initial admin
-    collective.remove_admin(&admin, &admin);
+    collective.remove(&admin, &admin);
 }
 
 #[test]
@@ -658,7 +658,7 @@ fn test_remove_nonexistent_admin() {
 
 #[test]
 #[should_panic(expected = "unauthorized: admin access required")]
-fn test_remove_admin_unauthorized() {
+fn test_remove_unauthorized() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
@@ -675,7 +675,7 @@ fn test_remove_admin_unauthorized() {
     collective.add_admin(&admin, &new_admin);
 
     // Non-admin tries to remove admin
-    collective.remove_admin(&non_admin, &new_admin);
+    collective.remove(&non_admin, &new_admin);
 }
 
 #[test]
@@ -714,7 +714,7 @@ fn test_multi_admin_functionality() {
     assert_eq!(collective.is_member(&user), false);
 
     // Admin2 can remove admin3
-    collective.remove_admin(&admin2, &admin3);
+    collective.remove(&admin2, &admin3);
     assert_eq!(collective.is_admin(&admin3), false);
     assert_eq!(collective.is_admin(&admin2), true);
 }
@@ -747,7 +747,7 @@ fn test_admin_events() {
     assert!(admin_list.contains(&admin3));
 
     // Remove one admin
-    collective.remove_admin(&admin, &admin2);
+    collective.remove(&admin, &admin2);
     
     // Check updated admin list
     let admin_list = collective.get_admin_list();

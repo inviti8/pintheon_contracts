@@ -8,11 +8,12 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-soroban-sdk = { version = "22.0.8", default-features = false }
-hvym-file-token = { version = "0.0.4", default-features = false }
+soroban-sdk = { version = "23.0.1", default-features = false }
+soroban-token-sdk = "23.0.1"
+hvym-file-token = { version = "0.0.7", default-features = false }
 
 [dev-dependencies]
-soroban-sdk = { version = "22.0.8", features = ["testutils"] }
+soroban-sdk = { version = "23.0.1", features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"
