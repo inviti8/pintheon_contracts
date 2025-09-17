@@ -27,4 +27,11 @@ pub enum DataKey {
     Balance(Address),
     State(Address),
     Admin,
+    Metadata,
+    // File metadata keys
+    FileMetadata,
+    FileType,
+    Published,
+    Gateways,
+    IpnsHash,
 }
