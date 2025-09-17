@@ -1,11 +1,13 @@
 #![no_std]
 
-mod admin;
-mod allowance;
-mod balance;
-mod contract;
-mod metadata;
-mod storage_types;
-mod test;
+// Core token implementation
+mod token;
 
-pub use crate::contract::TokenClient;
+// Custom metadata implementation
+mod metadata;
+
+// Re-export the token implementation
+pub use token::{Token, TokenClient};
+
+// Re-export the metadata interface
+pub use metadata::NodeTokenInterface;

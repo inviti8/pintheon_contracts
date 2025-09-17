@@ -1,188 +1,111 @@
-//! This contract demonstrates a sample implementation of the Soroban token
-//! interface.
-use crate::admin::{read_administrator, write_administrator};
-use crate::allowance::{read_allowance, spend_allowance, write_allowance};
-use crate::balance::{read_balance, receive_balance, spend_balance};
-use crate::metadata::{NodeTokenInterface, read_decimal, read_name, read_symbol, read_node_id, read_descriptor, read_established, write_metadata};
-#[cfg(test)]
-use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
-use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
-use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
-use hvym_node_token::nodemetadata::NodeTokenMetadata;
-use hvym_node_token::TokenUtils;
+//! This is the main entry point for the Pintheon Node Token contract.
+//! It implements the standard Soroban token interface with custom metadata.
 
-fn check_nonnegative_amount(amount: i128) {
-    if amount < 0 {
-        panic!("negative amount is not allowed: {}", amount)
-    }
-}
+use soroban_sdk::{contract, contractimpl, Address, Env, String as SorobanString};
+
+// Import our token implementation
+use crate::token::{Token, TokenClient};
 
 #[contract]
-pub struct Token;
+pub struct Contract;
 
 #[contractimpl]
-impl Token {
-    pub fn __constructor(e: Env, admin: Address, name: String, symbol: String, node_id: String, descriptor: String, established: u64) {
-        write_administrator(&e, &admin);
-        write_metadata(
-            &e,
-            NodeTokenMetadata {
-                decimal:0_u32,
-                name,
-                symbol,
-                node_id,
-                descriptor,
-                established
-            },
-        )
+impl Contract {
+    // Delegate all token functionality to the Token implementation
+    
+    pub fn initialize(
+        e: Env,
+        admin: Address,
+        decimal: u32,
+        name: SorobanString,
+        symbol: SorobanString,
+        node_id: SorobanString,
+        descriptor: SorobanString,
+        established: u64,
+    ) {
+        Token::initialize(e, admin, decimal, name, symbol, node_id, descriptor, established);
     }
-
+    
     pub fn mint(e: Env, to: Address, amount: i128) {
-        check_nonnegative_amount(amount);
-        let admin = read_administrator(&e);
-        admin.require_auth();
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().mint(admin, to, amount);
+        Token::mint(e, to, amount);
     }
-
+    
     pub fn set_admin(e: Env, new_admin: Address) {
-        let admin = read_administrator(&e);
-        admin.require_auth();
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        write_administrator(&e, &new_admin);
-        TokenUtils::new(&e).events().set_admin(admin, new_admin);
+        Token::set_admin(e, new_admin);
     }
-
-    #[cfg(test)]
-    pub fn get_allowance(e: Env, from: Address, spender: Address) -> Option<AllowanceValue> {
-        let key = DataKey::Allowance(AllowanceDataKey { from, spender });
-        let allowance = e.storage().temporary().get::<_, AllowanceValue>(&key);
-        allowance
+    
+    // Standard token methods
+    pub fn allowance(e: Env, from: Address, spender: Address) -> i128 {
+        Token::allowance(e, from, spender)
     }
-}
-
-#[contractimpl]
-impl token::Interface for Token {
-    fn allowance(e: Env, from: Address, spender: Address) -> i128 {
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        read_allowance(&e, from, spender).amount
+    
+    pub fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
+        Token::approve(e, from, spender, amount, expiration_ledger);
     }
-
-    fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
-        from.require_auth();
-
-        check_nonnegative_amount(amount);
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        write_allowance(&e, from.clone(), spender.clone(), amount, expiration_ledger);
-        TokenUtils::new(&e)
-            .events()
-            .approve(from, spender, amount, expiration_ledger);
+    
+    pub fn balance(e: Env, id: Address) -> i128 {
+        Token::balance(e, id)
     }
-
-    fn balance(e: Env, id: Address) -> i128 {
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-        read_balance(&e, id)
+    
+    pub fn transfer(e: Env, from: Address, to: Address, amount: i128) {
+        Token::transfer(e, from, to, amount);
     }
-
-    fn transfer(e: Env, from: Address, to: Address, amount: i128) {
-        from.require_auth();
-
-        check_nonnegative_amount(amount);
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        spend_balance(&e, from.clone(), amount);
-        receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().transfer(from, to, amount);
+    
+    pub fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
+        Token::transfer_from(e, spender, from, to, amount);
     }
-
-    fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
-        spender.require_auth();
-
-        check_nonnegative_amount(amount);
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        spend_allowance(&e, from.clone(), spender, amount);
-        spend_balance(&e, from.clone(), amount);
-        receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().transfer(from, to, amount)
+    
+    pub fn burn(e: Env, from: Address, amount: i128) {
+        Token::burn(e, from, amount);
     }
-
-    fn burn(e: Env, from: Address, amount: i128) {
-        from.require_auth();
-
-        check_nonnegative_amount(amount);
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        spend_balance(&e, from.clone(), amount);
-        TokenUtils::new(&e).events().burn(from, amount);
+    
+    pub fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
+        Token::burn_from(e, spender, from, amount);
     }
-
-    fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
-        spender.require_auth();
-
-        check_nonnegative_amount(amount);
-
-        e.storage()
-            .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
-
-        spend_allowance(&e, from.clone(), spender, amount);
-        spend_balance(&e, from.clone(), amount);
-        TokenUtils::new(&e).events().burn(from, amount)
+    
+    pub fn decimals(e: Env) -> u32 {
+        Token::decimals(e)
     }
-
-    fn decimals(e: Env) -> u32 {
-        read_decimal(&e)
+    
+    pub fn name(e: Env) -> SorobanString {
+        Token::name(e)
     }
-
-    fn name(e: Env) -> String {
-        read_name(&e)
+    
+    pub fn symbol(e: Env) -> SorobanString {
+        Token::symbol(e)
     }
-
-    fn symbol(e: Env) -> String {
-        read_symbol(&e)
+    
+    // Node-specific methods
+    pub fn node_id(e: Env) -> SorobanString {
+        crate::metadata::read_node_id(&e)
+    }
+    
+    pub fn descriptor(e: Env) -> SorobanString {
+        crate::metadata::read_descriptor(&e)
+    }
+    
+    pub fn established(e: Env) -> u64 {
+        crate::metadata::read_established(&e)
     }
 }
 
-#[contractimpl]
-impl NodeTokenInterface for Token {
+// Client implementation for easier testing
+pub struct ContractClient<'a> {
+    env: &'a Env,
+    contract_id: Address,
+}
 
-    fn node_id(e: Env) -> String {
-        read_node_id(&e)
+impl<'a> ContractClient<'a> {
+    pub fn new(env: &'a Env, contract_id: &Address) -> Self {
+        Self {
+            env,
+            contract_id: contract_id.clone(),
+        }
     }
-
-    fn descriptor(e: Env) -> String {
-        read_descriptor(&e)
+    
+    pub fn token(&self) -> TokenClient {
+        TokenClient::new(self.env, &self.contract_id)
     }
-
-    fn established(e: Env) -> u64 {
-        read_established(&e)
-    }
+    
+    // Add any contract-specific client methods here
 }
