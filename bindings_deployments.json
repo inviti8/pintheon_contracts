@@ -1,0 +1,26 @@
+{
+  "pintheon_ipfs_token": {
+    "contract_id": "CC6O5WGWFOFNGPSIN4Z4TJX4EBATCR5QPGVEDMKSFFZVADXNH2QNQ7JM",
+    "wasm_hash": "aef766c84a2e255f28dda87fcee660e00d738dd380cffb4ec68573682d40c9d1",
+    "network": "testnet",
+    "timestamp": 1758144713
+  },
+  "opus_token": {
+    "contract_id": "CCFDKISPTSRFAZB27SP4QASZKPHQJISVV2UKKMCU2VXEREFWKWPL6WJU",
+    "wasm_hash": "533c41e2bf1e6ee4d4416736a20721550069deee7f85f1865db9381baa8141a2",
+    "network": "testnet",
+    "timestamp": 1758144723
+  },
+  "pintheon_node_token": {
+    "contract_id": "CAZ3X3MR4N7L5WWGZYTU3RVQ7ETS2EDZ4QA3TPEJTI4UVVHFIUFWUYVN",
+    "wasm_hash": "f4a2ed069c9b183549add71c50b7826a0e786ed9d40306a7c5ee925a2a2364db",
+    "network": "testnet",
+    "timestamp": 1758144743
+  },
+  "hvym_collective": {
+    "contract_id": "CCB4ZPBNQFVJRZ27JUQIKWW6XYVVJUFMUKT4TZCTV6M5QSL26KBZK7SV",
+    "wasm_hash": "b9fbfc1ba75b96927c69c2cd71a48b1e5dbdac4e2ed6b52440146932228b75c7",
+    "network": "testnet",
+    "timestamp": 1758144733
+  }
+}
