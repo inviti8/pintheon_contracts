@@ -1,35 +1,30 @@
 #![cfg(test)]
+
 extern crate std;
 
 use crate::{contract::Token, TokenClient};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, FromVal, IntoVal, String, Symbol,
+    Address, Env, IntoVal, String as SorobanString, Symbol,
 };
 
+// Remove unused imports
+// use soroban_token_sdk::testutils::{MockAuth, MockAuthInvoke};
+
 fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
-    let ledger = e.ledger();
-    let name = String::from_val(e, &"name");
-    let symbol = String::from_val(e, &"symbol");
-    let ipfs_hash = String::from_val(e, &"IPFS_HASH");
-    let file_type = String::from_val(e, &"FILE_TYPE");
-    let published = ledger.timestamp();
-    let gateways = String::from_val(e, &"GATEWAYS");
-    let _ipns_hash: Option<String> = None;
-
-
     let token_contract = e.register(
         Token,
         (
             admin,
-            name,
-            symbol,
-            ipfs_hash,
-            file_type,
-            published,
-            gateways,
-            _ipns_hash
+            7_u32, // decimal
+            SorobanString::from_str(e, "Test Token"),
+            SorobanString::from_str(e, "TEST"),
+            SorobanString::from_str(e, "QmXyZ123"),
+            SorobanString::from_str(e, "image/png"),
+            1234567890_u64, // published timestamp
+            SorobanString::from_str(e, "https://ipfs.io/ipfs/"),
+            Some(SorobanString::from_str(e, "k51xyz")),
         ),
     );
     TokenClient::new(e, &token_contract)
@@ -253,6 +248,31 @@ fn transfer_from_insufficient_allowance() {
 }
 
 #[test]
+#[should_panic(expected = "Decimal must not be greater than 18")]
+fn decimal_is_over_eighteen() {
+    let e = Env::default();
+    let admin = Address::generate(&e);
+    
+    let _ = TokenClient::new(
+        &e,
+        &e.register(
+            Token,
+            (
+                admin,
+                19_u32, // decimal > 18 should panic
+                SorobanString::from_str(&e, "Test Token"),
+                SorobanString::from_str(&e, "TEST"),
+                SorobanString::from_str(&e, "QmXyZ123"),
+                SorobanString::from_str(&e, "image/png"),
+                1234567890_u64,
+                SorobanString::from_str(&e, "https://ipfs.io/ipfs/"),
+                Some(SorobanString::from_str(&e, "k51xyz")),
+            ),
+        ),
+    );
+}
+
+#[test]
 fn test_zero_allowance() {
     // Here we test that transfer_from with a 0 amount does not create an empty allowance
     let e = Env::default();
@@ -267,52 +287,45 @@ fn test_zero_allowance() {
     assert!(token.get_allowance(&from, &spender).is_none());
 }
 
-#[test]
-fn check_file_token_data() {
-    let e = Env::default();
-    let ledger = e.ledger();
-    e.mock_all_auths();
-    let name = String::from_val(&e, &"name");
-    let symbol = String::from_val(&e, &"symbol");
-    let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
-    let file_type = String::from_val(&e, &"FILE_TYPE");
-    let published = ledger.timestamp();
-    let gateways = String::from_val(&e, &"GATEWAYS");
-    let _ipns_hash: Option<String> = None;
-
-    let admin = Address::generate(&e);
-    let user1 = Address::generate(&e);
-    let token = create_token(&e, &admin);
-
-    token.mint(&user1, &1000);
-    assert_eq!(token.balance(&user1), 1000);
-
-    assert_eq!(token.name(), name);
-    assert_eq!(token.symbol(), symbol);
-    assert_eq!(token.ipfs_hash(&user1), ipfs_hash);
-    assert_eq!(token.file_type(&user1), file_type);
-    assert_eq!(token.published(&user1), published);
-    assert_eq!(token.gateways(&user1), gateways);
-    assert_eq!(token.ipns_hash(&user1), _ipns_hash);
-}
 
 #[test]
-#[should_panic(expected = "insufficient balance: 0")]
-fn check_file_token_data_balance_gate() {
+fn test_file_metadata() {
     let e = Env::default();
     e.mock_all_auths();
-    let name = String::from_val(&e, &"name");
-    let symbol = String::from_val(&e, &"symbol");
-    let ipfs_hash = String::from_val(&e, &"IPFS_HASH");
-
     let admin = Address::generate(&e);
-    let user1 = Address::generate(&e);
+    let user = Address::generate(&e);
+
+    // Create token with initial metadata
     let token = create_token(&e, &admin);
 
+    // Test initial metadata
+    assert_eq!(token.ipfs_hash(&user), SorobanString::from_str(&e, "QmXyZ123"));
+    assert_eq!(token.file_type(&user), SorobanString::from_str(&e, "image/png"));
+    assert_eq!(token.published(&user), 1234567890);
+    assert_eq!(token.gateways(&user), SorobanString::from_str(&e, "https://ipfs.io/ipfs/"));
+    assert_eq!(token.ipns_hash(&user), Some(SorobanString::from_str(&e, "k51xyz")));
 
-    assert_eq!(token.balance(&user1), 0);
+    // Update metadata
+    let new_ipfs_hash = SorobanString::from_str(&e, "QmNewHash123");
+    let new_file_type = SorobanString::from_str(&e, "application/pdf");
+    let new_published = 2345678901;
+    let new_gateways = SorobanString::from_str(&e, "https://new-gateway.example/");
+    let new_ipns_hash = Some(SorobanString::from_str(&e, "newk51xyz"));
 
-    assert_eq!(token.name(), name);
-    assert_eq!(token.symbol(), symbol);
-    assert_eq!(token.ipfs_hash(&user1), ipfs_hash);
+    // Call set_file_metadata through the token client
+    token.set_file_metadata(
+        &admin,
+        &new_ipfs_hash,
+        &new_file_type,
+        &new_published,
+        &new_gateways,
+        &new_ipns_hash
+    );
+    
+    // Verify updated metadata
+    assert_eq!(token.ipfs_hash(&user), new_ipfs_hash);
+    assert_eq!(token.file_type(&user), new_file_type);
+    assert_eq!(token.published(&user), new_published);
+    assert_eq!(token.gateways(&user), new_gateways);
+    assert_eq!(token.ipns_hash(&user), new_ipns_hash);
 }

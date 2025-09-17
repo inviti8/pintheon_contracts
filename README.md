@@ -46,6 +46,65 @@ This means the standard stellar-expert workflow won't work because it builds con
    - Generate build attestations
    - Submit contract validation data to StellarExpert
 
+## Python Bindings
+
+This repository includes scripts to generate Python bindings for interacting with the Soroban smart contracts using the `stellar-contract-bindings` tool.
+
+### Prerequisites
+
+1. Activate the Python virtual environment:
+   ```bash
+   pyenv activate pintheon_contracts
+   ```
+
+2. Install development dependencies:
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+
+### Generating Bindings
+
+1. First, ensure you have built the contract WASM files (they should be in the `wasm/` directory).
+
+2. Generate Python bindings for all contracts:
+   ```bash
+   python generate_bindings.py
+   ```
+
+3. Or generate bindings for a specific contract:
+   ```bash
+   python generate_bindings.py --contract hvym-collective
+   ```
+
+### Using the Generated Bindings
+
+Example of using the generated Python bindings:
+
+```python
+from stellar_sdk import Keypair, Network
+from bindings.hvym_collective.client import Client as HvymCollectiveClient
+
+# Initialize the client
+client = HvymCollectiveClient(
+    contract_id="YOUR_CONTRACT_ID",
+    rpc_url="https://soroban-testnet.stellar.org",
+    network_passphrase=Network.TESTNET_NETWORK_PASSPHRASE
+)
+
+# Call contract methods
+admin_list = client.get_admin_list()
+print("Admin list:", admin_list)
+
+# For transactions that require signing
+source_kp = Keypair.from_secret("YOUR_SECRET_KEY")
+tx = client.add_admin(
+    admin_to_add="GB123...",
+    source=source_kp
+)
+result = tx.sign_and_send()
+print("Transaction result:", result)
+```
+
 ## Contract ID Extraction
 
 The deployment script includes a robust contract ID extraction mechanism that works around limitations in the Stellar network's transaction result processing. This is particularly important for Soroban smart contracts where the contract ID is not always directly available in the transaction result.

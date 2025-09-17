@@ -1,15 +1,16 @@
 //! This contract demonstrates a sample implementation of the Soroban token
 //! interface.
+
 use crate::admin::{read_administrator, write_administrator};
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
 use crate::balance::{read_balance, receive_balance, spend_balance};
-use crate::metadata::{NodeTokenInterface, read_decimal, read_name, read_symbol, read_node_id, read_descriptor, read_established, write_metadata};
-#[cfg(test)]
-use crate::storage_types::{AllowanceDataKey, AllowanceValue, DataKey};
+use crate::metadata::{
+    read_descriptor, read_established, read_node_id, NodeTokenInterface, write_metadata, NodeTokenMetadata
+};
+use soroban_token_sdk::metadata::TokenMetadata as StandardTokenMetadata;
 use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
 use soroban_sdk::token::{self, Interface as _};
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
-use hvym_node_token::nodemetadata::NodeTokenMetadata;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, MuxedAddress};
 use hvym_node_token::TokenUtils;
 
 fn check_nonnegative_amount(amount: i128) {
@@ -23,17 +24,27 @@ pub struct Token;
 
 #[contractimpl]
 impl Token {
-    pub fn __constructor(e: Env, admin: Address, name: String, symbol: String, node_id: String, descriptor: String, established: u64) {
+    pub fn __constructor(
+        e: Env,
+        admin: Address,
+        name: String,
+        symbol: String,
+        node_id: String,
+        descriptor: String,
+        established: u64,
+    ) {
         write_administrator(&e, &admin);
         write_metadata(
             &e,
             NodeTokenMetadata {
-                decimal:0_u32,
-                name,
-                symbol,
+                token: StandardTokenMetadata {
+                    decimal: 0,
+                    name: name.clone(),
+                    symbol: symbol.clone(),
+                },
                 node_id,
                 descriptor,
-                established
+                established,
             },
         )
     }
@@ -62,13 +73,6 @@ impl Token {
         write_administrator(&e, &new_admin);
         TokenUtils::new(&e).events().set_admin(admin, new_admin);
     }
-
-    #[cfg(test)]
-    pub fn get_allowance(e: Env, from: Address, spender: Address) -> Option<AllowanceValue> {
-        let key = DataKey::Allowance(AllowanceDataKey { from, spender });
-        let allowance = e.storage().temporary().get::<_, AllowanceValue>(&key);
-        allowance
-    }
 }
 
 #[contractimpl]
@@ -82,7 +86,6 @@ impl token::Interface for Token {
 
     fn approve(e: Env, from: Address, spender: Address, amount: i128, expiration_ledger: u32) {
         from.require_auth();
-
         check_nonnegative_amount(amount);
 
         e.storage()
@@ -102,23 +105,22 @@ impl token::Interface for Token {
         read_balance(&e, id)
     }
 
-    fn transfer(e: Env, from: Address, to: Address, amount: i128) {
+    fn transfer(e: Env, from: Address, to: MuxedAddress, amount: i128) {
         from.require_auth();
-
         check_nonnegative_amount(amount);
 
         e.storage()
             .instance()
             .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT);
 
+        let to_address = to.address();
         spend_balance(&e, from.clone(), amount);
-        receive_balance(&e, to.clone(), amount);
-        TokenUtils::new(&e).events().transfer(from, to, amount);
+        receive_balance(&e, to_address.clone(), amount);
+        TokenUtils::new(&e).events().transfer(from, to_address, amount);
     }
 
     fn transfer_from(e: Env, spender: Address, from: Address, to: Address, amount: i128) {
         spender.require_auth();
-
         check_nonnegative_amount(amount);
 
         e.storage()
@@ -133,7 +135,6 @@ impl token::Interface for Token {
 
     fn burn(e: Env, from: Address, amount: i128) {
         from.require_auth();
-
         check_nonnegative_amount(amount);
 
         e.storage()
@@ -146,7 +147,6 @@ impl token::Interface for Token {
 
     fn burn_from(e: Env, spender: Address, from: Address, amount: i128) {
         spender.require_auth();
-
         check_nonnegative_amount(amount);
 
         e.storage()
@@ -159,21 +159,20 @@ impl token::Interface for Token {
     }
 
     fn decimals(e: Env) -> u32 {
-        read_decimal(&e)
+        crate::metadata::read_decimal(&e)
     }
 
     fn name(e: Env) -> String {
-        read_name(&e)
+        crate::metadata::read_name(&e)
     }
 
     fn symbol(e: Env) -> String {
-        read_symbol(&e)
+        crate::metadata::read_symbol(&e)
     }
 }
 
 #[contractimpl]
 impl NodeTokenInterface for Token {
-
     fn node_id(e: Env) -> String {
         read_node_id(&e)
     }
