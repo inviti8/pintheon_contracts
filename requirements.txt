@@ -17,4 +17,4 @@ typing_extensions==4.14.1
 urllib3==2.5.0
 xdrlib3==0.1.1
 selenium>=4.35.0
-stellar-contract-bindings>=0.1.0
+stellar-contract-bindings>=0.5.0b0
