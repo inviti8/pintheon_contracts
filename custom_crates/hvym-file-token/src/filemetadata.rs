@@ -5,12 +5,10 @@ const METADATA_KEY: Symbol = symbol_short!("HVYMFILE");
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[contracttype]
 pub struct FileTokenMetadata {
-    pub decimal: u32,
     pub name: String,
     pub symbol: String,
     pub ipfs_hash: String,
     pub file_type: String,
-    pub published: u64,
     pub gateways: String,
     pub ipns_hash: Option<String>,
 }
