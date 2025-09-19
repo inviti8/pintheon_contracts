@@ -309,7 +309,7 @@ impl CollectiveContract {
         let published = ledger.timestamp();
         let wasm_hash = e.deployer().upload_contract_wasm(PINTHEON_IPFS_TOKEN_WASM);
         let salt = hash_string(&e, &ipfs_hash);
-        let constructor_args: Vec<Val> = (caller.clone(), name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), published.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
+        let constructor_args: Vec<Val> = (caller.clone(), name.clone(), symbol.clone(), ipfs_hash.clone(), file_type.clone(), gateways.clone(), _ipns_hash.clone()).into_val(&e);
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
 

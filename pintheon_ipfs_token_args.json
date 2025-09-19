@@ -4,7 +4,6 @@
   "symbol": "SAMPLE",
   "ipfs_hash": "QmSampleHash123456789",
   "file_type": "image/png",
-  "published": 1640995200,
   "gateways": "ipfs.io,gateway.pinata.cloud",
   "ipns_hash": null
 } 

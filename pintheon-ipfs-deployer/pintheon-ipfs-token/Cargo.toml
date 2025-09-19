@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 soroban-sdk = "23.0.1"
 soroban-token-sdk = "23.0.1"
-hvym-file-token = "0.0.7"
+hvym-file-token = "0.0.8"
 
 [dev-dependencies]
 soroban-sdk = { version = "23.0.1", features = ["testutils"] }

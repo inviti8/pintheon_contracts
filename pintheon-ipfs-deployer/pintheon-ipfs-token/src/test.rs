@@ -17,12 +17,10 @@ fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
         Token,
         (
             admin,
-            7_u32, // decimal
             SorobanString::from_str(e, "Test Token"),
             SorobanString::from_str(e, "TEST"),
             SorobanString::from_str(e, "QmXyZ123"),
             SorobanString::from_str(e, "image/png"),
-            1234567890_u64, // published timestamp
             SorobanString::from_str(e, "https://ipfs.io/ipfs/"),
             Some(SorobanString::from_str(e, "k51xyz")),
         ),
@@ -248,28 +246,10 @@ fn transfer_from_insufficient_allowance() {
 }
 
 #[test]
-#[should_panic(expected = "Decimal must not be greater than 18")]
 fn decimal_is_over_eighteen() {
-    let e = Env::default();
-    let admin = Address::generate(&e);
-    
-    let _ = TokenClient::new(
-        &e,
-        &e.register(
-            Token,
-            (
-                admin,
-                19_u32, // decimal > 18 should panic
-                SorobanString::from_str(&e, "Test Token"),
-                SorobanString::from_str(&e, "TEST"),
-                SorobanString::from_str(&e, "QmXyZ123"),
-                SorobanString::from_str(&e, "image/png"),
-                1234567890_u64,
-                SorobanString::from_str(&e, "https://ipfs.io/ipfs/"),
-                Some(SorobanString::from_str(&e, "k51xyz")),
-            ),
-        ),
-    );
+    // This test is no longer needed as we've removed the decimal parameter
+    // and hardcoded it to 0 in the contract
+    assert!(true);
 }
 
 #[test]
@@ -301,14 +281,12 @@ fn test_file_metadata() {
     // Test initial metadata
     assert_eq!(token.ipfs_hash(&user), SorobanString::from_str(&e, "QmXyZ123"));
     assert_eq!(token.file_type(&user), SorobanString::from_str(&e, "image/png"));
-    assert_eq!(token.published(&user), 1234567890);
     assert_eq!(token.gateways(&user), SorobanString::from_str(&e, "https://ipfs.io/ipfs/"));
     assert_eq!(token.ipns_hash(&user), Some(SorobanString::from_str(&e, "k51xyz")));
 
     // Update metadata
     let new_ipfs_hash = SorobanString::from_str(&e, "QmNewHash123");
     let new_file_type = SorobanString::from_str(&e, "application/pdf");
-    let new_published = 2345678901;
     let new_gateways = SorobanString::from_str(&e, "https://new-gateway.example/");
     let new_ipns_hash = Some(SorobanString::from_str(&e, "newk51xyz"));
 
@@ -317,15 +295,13 @@ fn test_file_metadata() {
         &admin,
         &new_ipfs_hash,
         &new_file_type,
-        &new_published,
         &new_gateways,
-        &new_ipns_hash
+        &new_ipns_hash,
     );
     
     // Verify updated metadata
     assert_eq!(token.ipfs_hash(&user), new_ipfs_hash);
     assert_eq!(token.file_type(&user), new_file_type);
-    assert_eq!(token.published(&user), new_published);
     assert_eq!(token.gateways(&user), new_gateways);
     assert_eq!(token.ipns_hash(&user), new_ipns_hash);
 }

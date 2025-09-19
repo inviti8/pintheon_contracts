@@ -4,18 +4,18 @@
 use soroban_sdk::{
     contract, contractevent, contractimpl, token::TokenInterface, Address, Env, MuxedAddress, String,
 };
-use soroban_token_sdk::events;
-use crate::storage_types::{DataKey, AllowanceDataKey, AllowanceValue};
-use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
+use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, DataKey, AllowanceDataKey};
 use hvym_file_token::filemetadata::FileTokenMetadata;
 
 use crate::admin::{read_administrator, write_administrator};
 use crate::allowance::{read_allowance, spend_allowance, write_allowance};
+use crate::storage_types::AllowanceValue;
 use crate::balance::{read_balance, receive_balance, spend_balance};
 use crate::metadata::{
-    read_decimal, read_file_type, read_gateways, read_ipfs_hash, read_ipns_hash, read_name,
-    read_published, read_symbol, write_metadata, FileTokenInterface,
+    read_file_type, read_gateways, read_ipfs_hash, read_ipns_hash, read_name,
+    read_symbol, write_metadata, FileTokenInterface,
 };
+use soroban_token_sdk::events;
 
 fn check_nonnegative_amount(amount: i128) {
     if amount < 0 {
@@ -37,7 +37,6 @@ pub struct SetAdmin {
 
 #[contractevent]
 pub struct Initialize {
-    pub decimal: u32,
     pub name: String,
     pub symbol: String,
 }
@@ -48,29 +47,21 @@ impl Token {
     pub fn __constructor(
         e: Env,
         admin: Address,
-        decimal: u32,
         name: String,
         symbol: String,
         ipfs_hash: String,
         file_type: String,
-        published: u64,
         gateways: String,
         ipns_hash: Option<String>,
     ) {
-        if decimal > 18 {
-            panic!("Decimal must not be greater than 18");
-        }
-        
         write_administrator(&e, &admin);
         
         // Create and write combined metadata
         let metadata = FileTokenMetadata {
-            decimal,
             name: name.clone(),
             symbol: symbol.clone(),
             ipfs_hash,
             file_type,
-            published,
             gateways,
             ipns_hash,
         };
@@ -79,7 +70,6 @@ impl Token {
         
         // Emit initialization event
         Initialize {
-            decimal,
             name: name.clone(),
             symbol: symbol.clone(),
         }
@@ -92,25 +82,21 @@ impl Token {
         admin: Address,
         ipfs_hash: String,
         file_type: String,
-        published: u64,
         gateways: String,
         ipns_hash: Option<String>,
     ) {
         admin.require_auth();
         
         // Read existing metadata
-        let decimal = read_decimal(&e);
         let name = read_name(&e);
         let symbol = read_symbol(&e);
         
         // Create and write updated metadata
         let metadata = FileTokenMetadata {
-            decimal,
             name,
             symbol,
             ipfs_hash,
             file_type,
-            published,
             gateways,
             ipns_hash,
         };
@@ -159,10 +145,6 @@ impl FileTokenInterface for Token {
 
     fn file_type(e: Env, _caller: Address) -> String {
         read_file_type(&e)
-    }
-
-    fn published(e: Env, _caller: Address) -> u64 {
-        read_published(&e)
     }
 
     fn gateways(e: Env, _caller: Address) -> String {
@@ -277,8 +259,8 @@ impl TokenInterface for Token {
         events::Burn { from, amount }.publish(&e);
     }
 
-    fn decimals(e: Env) -> u32 {
-        read_decimal(&e)
+    fn decimals(_e: Env) -> u32 {
+        0
     }
 
     fn name(e: Env) -> String {
