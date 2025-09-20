@@ -155,6 +155,47 @@ class DataKey:
         return hash(self.kind)
 
 
+class TokenMetadata:
+    decimal: int
+    name: bytes
+    symbol: bytes
+
+    def __init__(self, decimal: int, name: bytes, symbol: bytes):
+        self.decimal = decimal
+        self.name = name
+        self.symbol = symbol
+
+    def to_scval(self) -> xdr.SCVal:
+        return scval.to_struct(
+            {
+                "decimal": scval.to_uint32(self.decimal),
+                "name": scval.to_string(self.name),
+                "symbol": scval.to_string(self.symbol),
+            }
+        )
+
+    @classmethod
+    def from_scval(cls, val: xdr.SCVal):
+        elements = scval.from_struct(val)
+        return cls(
+            scval.from_uint32(elements["decimal"]),
+            scval.from_string(elements["name"]),
+            scval.from_string(elements["symbol"]),
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TokenMetadata):
+            return NotImplemented
+        return (
+            self.decimal == other.decimal
+            and self.name == other.name
+            and self.symbol == other.symbol
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.decimal, self.name, self.symbol))
+
+
 class Client(ContractClient):
     def mint(
         self,
@@ -289,7 +330,7 @@ class Client(ContractClient):
     def transfer(
         self,
         from_: Union[Address, str],
-        to: Union[Address, str],
+        to_muxed: Union[Address, str],
         amount: int,
         source: Union[str, MuxedAccount] = NULL_ACCOUNT,
         signer: Optional[Keypair] = None,
@@ -301,7 +342,11 @@ class Client(ContractClient):
     ) -> AssembledTransaction[None]:
         return self.invoke(
             "transfer",
-            [scval.to_address(from_), scval.to_address(to), scval.to_int128(amount)],
+            [
+                scval.to_address(from_),
+                scval.to_address(to_muxed),
+                scval.to_int128(amount),
+            ],
             parse_result_xdr_fn=lambda _: None,
             source=source,
             signer=signer,
@@ -431,11 +476,11 @@ class Client(ContractClient):
         submit_timeout: int = 30,
         simulate: bool = True,
         restore: bool = True,
-    ) -> AssembledTransaction[SorobanString]:
+    ) -> AssembledTransaction[bytes]:
         return self.invoke(
             "name",
             [],
-            parse_result_xdr_fn=lambda v: SorobanString.from_scval(v),
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -454,11 +499,11 @@ class Client(ContractClient):
         submit_timeout: int = 30,
         simulate: bool = True,
         restore: bool = True,
-    ) -> AssembledTransaction[SorobanString]:
+    ) -> AssembledTransaction[bytes]:
         return self.invoke(
             "symbol",
             [],
-            parse_result_xdr_fn=lambda v: SorobanString.from_scval(v),
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -603,7 +648,7 @@ class ClientAsync(ContractClientAsync):
     async def transfer(
         self,
         from_: Union[Address, str],
-        to: Union[Address, str],
+        to_muxed: Union[Address, str],
         amount: int,
         source: Union[str, MuxedAccount] = NULL_ACCOUNT,
         signer: Optional[Keypair] = None,
@@ -615,7 +660,11 @@ class ClientAsync(ContractClientAsync):
     ) -> AssembledTransactionAsync[None]:
         return await self.invoke(
             "transfer",
-            [scval.to_address(from_), scval.to_address(to), scval.to_int128(amount)],
+            [
+                scval.to_address(from_),
+                scval.to_address(to_muxed),
+                scval.to_int128(amount),
+            ],
             parse_result_xdr_fn=lambda _: None,
             source=source,
             signer=signer,
@@ -745,11 +794,11 @@ class ClientAsync(ContractClientAsync):
         submit_timeout: int = 30,
         simulate: bool = True,
         restore: bool = True,
-    ) -> AssembledTransactionAsync[SorobanString]:
+    ) -> AssembledTransactionAsync[bytes]:
         return await self.invoke(
             "name",
             [],
-            parse_result_xdr_fn=lambda v: SorobanString.from_scval(v),
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -768,11 +817,11 @@ class ClientAsync(ContractClientAsync):
         submit_timeout: int = 30,
         simulate: bool = True,
         restore: bool = True,
-    ) -> AssembledTransactionAsync[SorobanString]:
+    ) -> AssembledTransactionAsync[bytes]:
         return await self.invoke(
             "symbol",
             [],
-            parse_result_xdr_fn=lambda v: SorobanString.from_scval(v),
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
             source=source,
             signer=signer,
             base_fee=base_fee,

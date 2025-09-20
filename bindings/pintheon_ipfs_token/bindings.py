@@ -86,6 +86,12 @@ class DataKeyKind(Enum):
     Balance = "Balance"
     State = "State"
     Admin = "Admin"
+    Metadata = "Metadata"
+    FileMetadata = "FileMetadata"
+    FileType = "FileType"
+    Published = "Published"
+    Gateways = "Gateways"
+    IpnsHash = "IpnsHash"
 
 
 class DataKey:
@@ -113,6 +119,18 @@ class DataKey:
             return scval.to_enum(self.kind.name, scval.to_address(self.state))
         if self.kind == DataKeyKind.Admin:
             return scval.to_enum(self.kind.name, None)
+        if self.kind == DataKeyKind.Metadata:
+            return scval.to_enum(self.kind.name, None)
+        if self.kind == DataKeyKind.FileMetadata:
+            return scval.to_enum(self.kind.name, None)
+        if self.kind == DataKeyKind.FileType:
+            return scval.to_enum(self.kind.name, None)
+        if self.kind == DataKeyKind.Published:
+            return scval.to_enum(self.kind.name, None)
+        if self.kind == DataKeyKind.Gateways:
+            return scval.to_enum(self.kind.name, None)
+        if self.kind == DataKeyKind.IpnsHash:
+            return scval.to_enum(self.kind.name, None)
         raise ValueError(f"Invalid kind: {self.kind}")
 
     @classmethod
@@ -129,6 +147,18 @@ class DataKey:
             assert elements[1] is not None and isinstance(elements[1], xdr.SCVal)
             return cls(kind, state=scval.from_address(elements[1]))
         if kind == DataKeyKind.Admin:
+            return cls(kind)
+        if kind == DataKeyKind.Metadata:
+            return cls(kind)
+        if kind == DataKeyKind.FileMetadata:
+            return cls(kind)
+        if kind == DataKeyKind.FileType:
+            return cls(kind)
+        if kind == DataKeyKind.Published:
+            return cls(kind)
+        if kind == DataKeyKind.Gateways:
+            return cls(kind)
+        if kind == DataKeyKind.IpnsHash:
             return cls(kind)
         raise ValueError(f"Invalid kind: {kind}")
 
@@ -155,50 +185,21 @@ class DataKey:
         return hash(self.kind)
 
 
-class FileTokenMetadata:
+class TokenMetadata:
     decimal: int
-    file_type: bytes
-    gateways: bytes
-    ipfs_hash: bytes
-    ipns_hash: Optional[bytes]
     name: bytes
-    published: int
     symbol: bytes
 
-    def __init__(
-        self,
-        decimal: int,
-        file_type: bytes,
-        gateways: bytes,
-        ipfs_hash: bytes,
-        ipns_hash: Optional[bytes],
-        name: bytes,
-        published: int,
-        symbol: bytes,
-    ):
+    def __init__(self, decimal: int, name: bytes, symbol: bytes):
         self.decimal = decimal
-        self.file_type = file_type
-        self.gateways = gateways
-        self.ipfs_hash = ipfs_hash
-        self.ipns_hash = ipns_hash
         self.name = name
-        self.published = published
         self.symbol = symbol
 
     def to_scval(self) -> xdr.SCVal:
         return scval.to_struct(
             {
                 "decimal": scval.to_uint32(self.decimal),
-                "file_type": scval.to_string(self.file_type),
-                "gateways": scval.to_string(self.gateways),
-                "ipfs_hash": scval.to_string(self.ipfs_hash),
-                "ipns_hash": (
-                    scval.to_string(self.ipns_hash)
-                    if self.ipns_hash is not None
-                    else scval.to_void()
-                ),
                 "name": scval.to_string(self.name),
-                "published": scval.to_uint64(self.published),
                 "symbol": scval.to_string(self.symbol),
             }
         )
@@ -208,6 +209,67 @@ class FileTokenMetadata:
         elements = scval.from_struct(val)
         return cls(
             scval.from_uint32(elements["decimal"]),
+            scval.from_string(elements["name"]),
+            scval.from_string(elements["symbol"]),
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TokenMetadata):
+            return NotImplemented
+        return (
+            self.decimal == other.decimal
+            and self.name == other.name
+            and self.symbol == other.symbol
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.decimal, self.name, self.symbol))
+
+
+class FileTokenMetadata:
+    file_type: bytes
+    gateways: bytes
+    ipfs_hash: bytes
+    ipns_hash: Optional[bytes]
+    name: bytes
+    symbol: bytes
+
+    def __init__(
+        self,
+        file_type: bytes,
+        gateways: bytes,
+        ipfs_hash: bytes,
+        ipns_hash: Optional[bytes],
+        name: bytes,
+        symbol: bytes,
+    ):
+        self.file_type = file_type
+        self.gateways = gateways
+        self.ipfs_hash = ipfs_hash
+        self.ipns_hash = ipns_hash
+        self.name = name
+        self.symbol = symbol
+
+    def to_scval(self) -> xdr.SCVal:
+        return scval.to_struct(
+            {
+                "file_type": scval.to_string(self.file_type),
+                "gateways": scval.to_string(self.gateways),
+                "ipfs_hash": scval.to_string(self.ipfs_hash),
+                "ipns_hash": (
+                    scval.to_string(self.ipns_hash)
+                    if self.ipns_hash is not None
+                    else scval.to_void()
+                ),
+                "name": scval.to_string(self.name),
+                "symbol": scval.to_string(self.symbol),
+            }
+        )
+
+    @classmethod
+    def from_scval(cls, val: xdr.SCVal):
+        elements = scval.from_struct(val)
+        return cls(
             scval.from_string(elements["file_type"]),
             scval.from_string(elements["gateways"]),
             scval.from_string(elements["ipfs_hash"]),
@@ -217,7 +279,6 @@ class FileTokenMetadata:
                 else scval.from_void(elements["ipns_hash"])
             ),
             scval.from_string(elements["name"]),
-            scval.from_uint64(elements["published"]),
             scval.from_string(elements["symbol"]),
         )
 
@@ -225,32 +286,67 @@ class FileTokenMetadata:
         if not isinstance(other, FileTokenMetadata):
             return NotImplemented
         return (
-            self.decimal == other.decimal
-            and self.file_type == other.file_type
+            self.file_type == other.file_type
             and self.gateways == other.gateways
             and self.ipfs_hash == other.ipfs_hash
             and self.ipns_hash == other.ipns_hash
             and self.name == other.name
-            and self.published == other.published
             and self.symbol == other.symbol
         )
 
     def __hash__(self) -> int:
         return hash(
             (
-                self.decimal,
                 self.file_type,
                 self.gateways,
                 self.ipfs_hash,
                 self.ipns_hash,
                 self.name,
-                self.published,
                 self.symbol,
             )
         )
 
 
 class Client(ContractClient):
+    def set_file_metadata(
+        self,
+        admin: Union[Address, str],
+        ipfs_hash: bytes,
+        file_type: bytes,
+        gateways: bytes,
+        ipns_hash: Optional[bytes],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[None]:
+        """Additional function to update file metadata after initialization"""
+        return self.invoke(
+            "set_file_metadata",
+            [
+                scval.to_address(admin),
+                scval.to_string(ipfs_hash),
+                scval.to_string(file_type),
+                scval.to_string(gateways),
+                (
+                    scval.to_string(ipns_hash)
+                    if ipns_hash is not None
+                    else scval.to_void()
+                ),
+            ],
+            parse_result_xdr_fn=lambda _: None,
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
     def mint(
         self,
         to: Union[Address, str],
@@ -291,6 +387,106 @@ class Client(ContractClient):
             "set_admin",
             [scval.to_address(new_admin)],
             parse_result_xdr_fn=lambda _: None,
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    def ipfs_hash(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[bytes]:
+        return self.invoke(
+            "ipfs_hash",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    def file_type(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[bytes]:
+        return self.invoke(
+            "file_type",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    def gateways(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[bytes]:
+        return self.invoke(
+            "gateways",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    def ipns_hash(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[Optional[bytes]]:
+        return self.invoke(
+            "ipns_hash",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: (
+                scval.from_string(v)
+                if v.type != xdr.SCValType.SCV_VOID
+                else scval.from_void(v)
+            ),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -384,7 +580,7 @@ class Client(ContractClient):
     def transfer(
         self,
         from_: Union[Address, str],
-        to: Union[Address, str],
+        to_muxed: Union[Address, str],
         amount: int,
         source: Union[str, MuxedAccount] = NULL_ACCOUNT,
         signer: Optional[Keypair] = None,
@@ -396,7 +592,11 @@ class Client(ContractClient):
     ) -> AssembledTransaction[None]:
         return self.invoke(
             "transfer",
-            [scval.to_address(from_), scval.to_address(to), scval.to_int128(amount)],
+            [
+                scval.to_address(from_),
+                scval.to_address(to_muxed),
+                scval.to_int128(amount),
+            ],
             parse_result_xdr_fn=lambda _: None,
             source=source,
             signer=signer,
@@ -563,132 +763,47 @@ class Client(ContractClient):
             restore=restore,
         )
 
-    def ipfs_hash(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransaction[bytes]:
-        return self.invoke(
-            "ipfs_hash",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    def file_type(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransaction[bytes]:
-        return self.invoke(
-            "file_type",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    def published(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransaction[int]:
-        return self.invoke(
-            "published",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_uint64(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    def gateways(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransaction[bytes]:
-        return self.invoke(
-            "gateways",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    def ipns_hash(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransaction[Optional[bytes]]:
-        return self.invoke(
-            "ipns_hash",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: (
-                scval.from_string(v)
-                if v.type != xdr.SCValType.SCV_VOID
-                else scval.from_void(v)
-            ),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
 
 class ClientAsync(ContractClientAsync):
+    async def set_file_metadata(
+        self,
+        admin: Union[Address, str],
+        ipfs_hash: bytes,
+        file_type: bytes,
+        gateways: bytes,
+        ipns_hash: Optional[bytes],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[None]:
+        """Additional function to update file metadata after initialization"""
+        return await self.invoke(
+            "set_file_metadata",
+            [
+                scval.to_address(admin),
+                scval.to_string(ipfs_hash),
+                scval.to_string(file_type),
+                scval.to_string(gateways),
+                (
+                    scval.to_string(ipns_hash)
+                    if ipns_hash is not None
+                    else scval.to_void()
+                ),
+            ],
+            parse_result_xdr_fn=lambda _: None,
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
     async def mint(
         self,
         to: Union[Address, str],
@@ -729,6 +844,106 @@ class ClientAsync(ContractClientAsync):
             "set_admin",
             [scval.to_address(new_admin)],
             parse_result_xdr_fn=lambda _: None,
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def ipfs_hash(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[bytes]:
+        return await self.invoke(
+            "ipfs_hash",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def file_type(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[bytes]:
+        return await self.invoke(
+            "file_type",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def gateways(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[bytes]:
+        return await self.invoke(
+            "gateways",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: scval.from_string(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def ipns_hash(
+        self,
+        caller: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[Optional[bytes]]:
+        return await self.invoke(
+            "ipns_hash",
+            [scval.to_address(caller)],
+            parse_result_xdr_fn=lambda v: (
+                scval.from_string(v)
+                if v.type != xdr.SCValType.SCV_VOID
+                else scval.from_void(v)
+            ),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -822,7 +1037,7 @@ class ClientAsync(ContractClientAsync):
     async def transfer(
         self,
         from_: Union[Address, str],
-        to: Union[Address, str],
+        to_muxed: Union[Address, str],
         amount: int,
         source: Union[str, MuxedAccount] = NULL_ACCOUNT,
         signer: Optional[Keypair] = None,
@@ -834,7 +1049,11 @@ class ClientAsync(ContractClientAsync):
     ) -> AssembledTransactionAsync[None]:
         return await self.invoke(
             "transfer",
-            [scval.to_address(from_), scval.to_address(to), scval.to_int128(amount)],
+            [
+                scval.to_address(from_),
+                scval.to_address(to_muxed),
+                scval.to_int128(amount),
+            ],
             parse_result_xdr_fn=lambda _: None,
             source=source,
             signer=signer,
@@ -992,130 +1211,6 @@ class ClientAsync(ContractClientAsync):
             "symbol",
             [],
             parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    async def ipfs_hash(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransactionAsync[bytes]:
-        return await self.invoke(
-            "ipfs_hash",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    async def file_type(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransactionAsync[bytes]:
-        return await self.invoke(
-            "file_type",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    async def published(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransactionAsync[int]:
-        return await self.invoke(
-            "published",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_uint64(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    async def gateways(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransactionAsync[bytes]:
-        return await self.invoke(
-            "gateways",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: scval.from_string(v),
-            source=source,
-            signer=signer,
-            base_fee=base_fee,
-            transaction_timeout=transaction_timeout,
-            submit_timeout=submit_timeout,
-            simulate=simulate,
-            restore=restore,
-        )
-
-    async def ipns_hash(
-        self,
-        caller: Union[Address, str],
-        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
-        signer: Optional[Keypair] = None,
-        base_fee: int = 100,
-        transaction_timeout: int = 300,
-        submit_timeout: int = 30,
-        simulate: bool = True,
-        restore: bool = True,
-    ) -> AssembledTransactionAsync[Optional[bytes]]:
-        return await self.invoke(
-            "ipns_hash",
-            [scval.to_address(caller)],
-            parse_result_xdr_fn=lambda v: (
-                scval.from_string(v)
-                if v.type != xdr.SCValType.SCV_VOID
-                else scval.from_void(v)
-            ),
             source=source,
             signer=signer,
             base_fee=base_fee,
