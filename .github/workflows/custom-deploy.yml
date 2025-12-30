@@ -281,7 +281,7 @@ jobs:
             exit 1
           fi
           
-          PUBLIC_KEY=$(python -c "import toml; print(toml.load('.stellar/identity/${IDENTITY_NAME}.toml')['public_key']")
+          PUBLIC_KEY=$(python -c "import toml; print(toml.load(open('.stellar/identity/${IDENTITY_NAME}.toml'))['public_key'])")
           if [ $? -ne 0 ]; then
             echo "::error::Failed to read public key from identity file"
             exit 1
