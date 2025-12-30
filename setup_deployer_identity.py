@@ -286,32 +286,29 @@ def main() -> int:
         print(f"   Network: {args.network}")
         print(f"   RPC URL: {args.rpc_url}")
         
-        # Verify the identity can be used by the Stellar CLI
+        # Get the identity name based on network
+        identity_name = f"{args.network.upper()}_DEPLOYER"
+        
+        # Final verification that everything is working
+        print("\n🔍 Verifying identity is usable...")
         try:
-            # Get the identity name based on network
-            identity_name = f"{args.network.upper()}_DEPLOYER"
-            
-            # Verify the identity is accessible
-            print(f"\n🔍 Verifying identity with Stellar CLI: {identity_name}")
+            # Verify we can still get the public key
             result = subprocess.run(
                 ["stellar", "keys", "public-key", identity_name],
                 capture_output=True,
                 text=True,
-                env=os.environ  # Pass the current environment
+                env=os.environ
             )
-            
-            if result.returncode != 0:
-                print(f"❌ Failed to verify identity with Stellar CLI: {result.stderr}")
+            if result.returncode == 0:
+                print(f"✅ Successfully verified identity is usable: {result.stdout.strip()}")
+                return 0
+            else:
+                print(f"❌ Error verifying identity: {result.stderr}")
                 return 1
                 
-            public_key = result.stdout.strip()
-            print(f"✅ Successfully verified identity with Stellar CLI: {public_key}")
-            
         except Exception as e:
-            print(f"❌ Error verifying identity with Stellar CLI: {str(e)}")
+            print(f"❌ Error during final verification: {str(e)}")
             return 1
-            
-        return 0
         
     except Exception as e:
         print(f"❌ Error: {str(e)}", file=sys.stderr)
