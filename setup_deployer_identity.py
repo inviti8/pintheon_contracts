@@ -107,6 +107,68 @@ def verify_with_cli(network: str) -> bool:
     try:
         # Set STELLAR_HOME to our project's .stellar directory
         stellar_home = os.path.join(os.getcwd(), '.stellar')
+        
+        # Create the necessary subdirectories if they don't exist
+        os.makedirs(os.path.join(stellar_home, 'keys'), exist_ok=True)
+        
+        # Set the environment variable for the subprocess
+        env = os.environ.copy()
+        env['STELLAR_HOME'] = stellar_home
+        
+        identity_name = get_identity_name(network).replace('.toml', '')
+        print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
+        
+        # First, check if the identity file exists
+        identity_file = os.path.join(stellar_home, 'identity', f"{identity_name}.toml")
+        if not os.path.exists(identity_file):
+            print(f"❌ Identity file not found: {identity_file}")
+            return False
+            
+        print(f"✅ Identity file exists at: {identity_file}")
+        
+        # Try to get the public key using the environment variable
+        cmd = ["stellar", "keys", "public-key", identity_name]
+        print(f"\n🔍 Running: STELLAR_HOME={stellar_home} {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True,
+            env=env  # Pass the custom environment
+        )
+        
+        if result.returncode == 0:
+            public_key = result.stdout.strip()
+            print(f"✅ Successfully verified identity: {public_key}")
+            return True
+        else:
+            print(f"❌ Failed to verify identity")
+            if result.stderr:
+                print("Error details:")
+                for line in result.stderr.split('\n'):
+                    if line.strip() and "stack backtrace" not in line:
+                        print(f"  {line}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Unexpected error during CLI verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+    """
+    Verify the identity works with the Stellar CLI.
+    
+    Args:
+        network: Network name (e.g., 'testnet', 'public')
+        
+    Returns:
+        bool: True if verification succeeded, False otherwise
+    """
+    try:
+        # Set STELLAR_HOME to our project's .stellar directory
+        stellar_home = os.path.join(os.getcwd(), '.stellar')
         os.environ['STELLAR_HOME'] = stellar_home
         
         identity_name = get_identity_name(network).replace('.toml', '')
