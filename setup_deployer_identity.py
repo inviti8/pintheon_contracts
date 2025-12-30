@@ -105,37 +105,63 @@ def verify_with_cli(network: str) -> bool:
         bool: True if verification succeeded, False otherwise
     """
     try:
-        # Set STELLAR_HOME to our project's .stellar directory
+        # Set up paths
         stellar_home = os.path.join(os.getcwd(), '.stellar')
+        identity_name = get_identity_name(network).replace('.toml', '')
         
-        # Create the necessary subdirectories if they don't exist
-        os.makedirs(os.path.join(stellar_home, 'keys'), exist_ok=True)
+        # Create all necessary directories
+        required_dirs = [
+            stellar_home,
+            os.path.join(stellar_home, 'keys'),
+            os.path.join(stellar_home, 'identity'),
+            os.path.join(stellar_home, 'network'),
+            os.path.join(stellar_home, 'soroban')
+        ]
         
-        # Set the environment variable for the subprocess
+        for dir_path in required_dirs:
+            os.makedirs(dir_path, exist_ok=True)
+            print(f"✅ Ensured directory exists: {dir_path}")
+        
+        # Set up environment
         env = os.environ.copy()
         env['STELLAR_HOME'] = stellar_home
+        env['XDG_CONFIG_HOME'] = stellar_home  # Some versions use XDG config
         
-        identity_name = get_identity_name(network).replace('.toml', '')
-        print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
+        print(f"\n🔧 Environment:")
+        print(f"  STELLAR_HOME: {env.get('STELLAR_HOME')}")
+        print(f"  XDG_CONFIG_HOME: {env.get('XDG_CONFIG_HOME')}")
+        print(f"  PWD: {os.getcwd()}")
         
-        # First, check if the identity file exists
+        # Check identity file
         identity_file = os.path.join(stellar_home, 'identity', f"{identity_name}.toml")
         if not os.path.exists(identity_file):
             print(f"❌ Identity file not found: {identity_file}")
             return False
             
-        print(f"✅ Identity file exists at: {identity_file}")
+        print(f"\n🔍 Identity file exists: {identity_file}")
+        with open(identity_file, 'r') as f:
+            content = f.read()
+            print(f"File contents (redacted): {content.split('=')[0]}=[REDACTED]")
         
-        # Try to get the public key using the environment variable
-        cmd = ["stellar", "keys", "public-key", identity_name]
-        print(f"\n🔍 Running: STELLAR_HOME={stellar_home} {' '.join(cmd)}")
-        
-        result = subprocess.run(
-            cmd,
-            cwd=os.getcwd(),
+        # First, try to list keys to see if the CLI is working
+        print("\n🔍 Running: stellar --version")
+        version_result = subprocess.run(
+            ["stellar", "--version"],
+            cwd=stellar_home,  # Run from the stellar home directory
             capture_output=True,
             text=True,
-            env=env  # Pass the custom environment
+            env=env
+        )
+        print(f"Stellar CLI version: {version_result.stdout.strip() if version_result.returncode == 0 else 'Error: ' + version_result.stderr}")
+        
+        # Try to get the public key
+        print(f"\n🔍 Running: stellar keys public-key {identity_name}")
+        result = subprocess.run(
+            ["stellar", "keys", "public-key", identity_name],
+            cwd=stellar_home,  # Run from the stellar home directory
+            capture_output=True,
+            text=True,
+            env=env
         )
         
         if result.returncode == 0:
@@ -149,6 +175,18 @@ def verify_with_cli(network: str) -> bool:
                 for line in result.stderr.split('\n'):
                     if line.strip() and "stack backtrace" not in line:
                         print(f"  {line}")
+            
+            # Try to get more debug info
+            print("\n🔍 Running: stellar keys list")
+            list_result = subprocess.run(
+                ["stellar", "keys", "list"],
+                cwd=stellar_home,
+                capture_output=True,
+                text=True,
+                env=env
+            )
+            print(f"Keys list: {list_result.stdout if list_result.returncode == 0 else 'Error: ' + list_result.stderr}")
+            
             return False
             
     except Exception as e:
@@ -156,153 +194,6 @@ def verify_with_cli(network: str) -> bool:
         import traceback
         traceback.print_exc()
         return False
-
-    """
-    Verify the identity works with the Stellar CLI.
-    
-    Args:
-        network: Network name (e.g., 'testnet', 'public')
-        
-    Returns:
-        bool: True if verification succeeded, False otherwise
-    """
-    try:
-        # Set STELLAR_HOME to our project's .stellar directory
-        stellar_home = os.path.join(os.getcwd(), '.stellar')
-        os.environ['STELLAR_HOME'] = stellar_home
-        
-        identity_name = get_identity_name(network).replace('.toml', '')
-        print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
-        
-        # First, check if the identity file exists
-        identity_file = os.path.join(stellar_home, 'identity', f"{identity_name}.toml")
-        if not os.path.exists(identity_file):
-            print(f"❌ Identity file not found: {identity_file}")
-            return False
-            
-        print(f"✅ Identity file exists at: {identity_file}")
-        
-        # Try to get the public key with explicit --config-dir flag
-        cmd = ["stellar", "--config-dir", stellar_home, "keys", "public-key", identity_name]
-        print(f"\n🔍 Running: {' '.join(cmd)}")
-        
-        result = subprocess.run(
-            cmd,
-            cwd=os.getcwd(),
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            public_key = result.stdout.strip()
-            print(f"✅ Successfully verified identity: {public_key}")
-            return True
-        else:
-            print(f"❌ Failed to verify identity")
-            if result.stderr:
-                print("Error details:")
-                for line in result.stderr.split('\n'):
-                    if line.strip():
-                        print(f"  {line}")
-            return False
-            
-    except Exception as e:
-        print(f"❌ Unexpected error during CLI verification: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-    """
-    Verify the identity works with the Stellar CLI.
-    
-    Args:
-        network: Network name (e.g., 'testnet', 'public')
-        
-    Returns:
-        bool: True if verification succeeded, False otherwise
-    """
-    try:
-        identity_name = get_identity_name(network).replace('.toml', '')
-        print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
-        
-        # Print environment variables for debugging
-        print("\n🔧 Environment Variables:")
-        for var in ['HOME', 'STELLAR_HOME', 'XDG_CONFIG_HOME']:
-            print(f"{var}: {os.environ.get(var, 'Not set')}")
-            
-        # Print current working directory and contents of .stellar directory
-        print(f"\n📂 Working directory: {os.getcwd()}")
-        print("📂 Contents of .stellar directory:")
-        stellar_dir = os.path.join(os.getcwd(), '.stellar')
-        if os.path.exists(stellar_dir):
-            for root, dirs, files in os.walk(stellar_dir):
-                level = root.replace(stellar_dir, '').count(os.sep)
-                indent = ' ' * 4 * level
-                print(f"{indent}{os.path.basename(root)}/")
-                subindent = ' ' * 4 * (level + 1)
-                for f in files:
-                    print(f"{subindent}{f}")
-        
-        # First, list all identities for debugging
-        list_cmd = ["stellar", "--version"]
-        print(f"\n🔍 Running: {' '.join(list_cmd)}")
-        version_result = subprocess.run(
-            list_cmd,
-            cwd=os.getcwd(),
-            capture_output=True,
-            text=True
-        )
-        print(f"Stellar CLI Version: {version_result.stdout.strip() if version_result.returncode == 0 else 'Error: ' + version_result.stderr}")
-        
-        # List all identities
-        list_cmd = ["stellar", "keys", "list"]
-        print(f"\n🔍 Running: {' '.join(list_cmd)}")
-        list_result = subprocess.run(
-            list_cmd,
-            cwd=os.getcwd(),
-            capture_output=True,
-            text=True
-        )
-        print(f"Available identities:\n{list_result.stdout}")
-        if list_result.stderr:
-            print(f"Error listing identities: {list_result.stderr}")
-        
-        # Try to get the public key with more detailed error handling
-        cmd = ["stellar", "keys", "public-key", identity_name]
-        print(f"\n🔍 Running: {' '.join(cmd)}")
-        result = subprocess.run(
-            cmd,
-            cwd=os.getcwd(),
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            public_key = result.stdout.strip()
-            print(f"✅ Successfully verified identity: {public_key}")
-            return True
-        else:
-            print(f"❌ Failed to verify identity: {result.stderr.strip()}")
-            print(f"Command output: {result.stdout.strip()}")
-            
-            # Check if the identity file exists
-            identity_file = os.path.join(stellar_dir, 'identity', f"{identity_name}.toml")
-            print(f"\n🔍 Checking identity file: {identity_file}")
-            if os.path.exists(identity_file):
-                print("✅ Identity file exists")
-                with open(identity_file, 'r') as f:
-                    print(f"File contents:\n{f.read()}")
-            else:
-                print(f"❌ Identity file not found at: {identity_file}")
-                
-            return False
-            
-    except Exception as e:
-        print(f"❌ Unexpected error during CLI verification: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
-
 def setup_network_config(network: str, rpc_url: str) -> None:
     """
     Set up the network configuration for the Stellar CLI.
