@@ -120,8 +120,8 @@ def verify_with_cli(network: str) -> bool:
             
         print(f"✅ Identity file exists at: {identity_file}")
         
-        # Try to get the public key with explicit --config flag
-        cmd = ["stellar", "--config", stellar_home, "keys", "public-key", identity_name]
+        # Try to get the public key with explicit --config-dir flag
+        cmd = ["stellar", "--config-dir", stellar_home, "keys", "public-key", identity_name]
         print(f"\n🔍 Running: {' '.join(cmd)}")
         
         result = subprocess.run(
