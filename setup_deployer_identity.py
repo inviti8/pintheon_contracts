@@ -236,15 +236,23 @@ def main() -> int:
     """
     import argparse
     
-    parser = argparse.ArgumentParser(description='Set up Stellar deployer identity')
+    parser = argparse.ArgumentParser(description="Set up Stellar deployer identity")
+    parser.add_argument('--network', choices=['testnet', 'public', 'futurenet'], default='testnet',
+                      help='Stellar network to use (default: testnet)')
     parser.add_argument('--secret-key-env', default='STELLAR_SECRET_KEY',
                       help='Environment variable containing the secret key (default: STELLAR_SECRET_KEY)')
-    parser.add_argument('--network', default='testnet',
-                      help='Network name (default: testnet)')
     parser.add_argument('--rpc-url', default='https://soroban-testnet.stellar.org',
                       help='RPC URL for the network (default: https://soroban-testnet.stellar.org)')
     
     args = parser.parse_args()
+    
+    # Set up stellar home directory
+    stellar_home = os.path.join(os.getcwd(), '.stellar')
+    os.makedirs(stellar_home, exist_ok=True)
+    
+    # Set environment variables for Stellar CLI
+    os.environ['STELLAR_HOME'] = stellar_home
+    os.environ['XDG_CONFIG_HOME'] = stellar_home
     
     # Get secret key from environment
     secret_key = os.environ.get(args.secret_key_env)
@@ -252,8 +260,9 @@ def main() -> int:
         print(f"❌ Error: Environment variable {args.secret_key_env} not set", file=sys.stderr)
         return 1
     
-    print(f"Setting up Stellar deployer identity for network: {args.network}")
+    print(f"🔧 Setting up Stellar deployer identity for network: {args.network}")
     print(f"Working directory: {os.getcwd()}")
+    print(f"STELLAR_HOME: {stellar_home}")
     
     try:
         # Ensure directories exist and clean up old ones
@@ -283,29 +292,31 @@ def main() -> int:
             identity_name = f"{args.network.upper()}_DEPLOYER"
             
             # Verify the identity is accessible
-            print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
+            print(f"\n🔍 Verifying identity with Stellar CLI: {identity_name}")
             result = subprocess.run(
                 ["stellar", "keys", "public-key", identity_name],
                 capture_output=True,
-                text=True
+                text=True,
+                env=os.environ  # Pass the current environment
             )
             
             if result.returncode != 0:
                 print(f"❌ Failed to verify identity with Stellar CLI: {result.stderr}")
                 return 1
                 
-            print(f"✅ Successfully verified identity: {result.stdout.strip()}")
+            public_key = result.stdout.strip()
+            print(f"✅ Successfully verified identity with Stellar CLI: {public_key}")
             
         except Exception as e:
-            print(f"❌ Error verifying identity: {str(e)}")
+            print(f"❌ Error verifying identity with Stellar CLI: {str(e)}")
             return 1
-        
-        print("\n✅ Deployer identity created and verified successfully")
-        
+            
         return 0
         
     except Exception as e:
         print(f"❌ Error: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
