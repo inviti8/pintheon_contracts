@@ -301,6 +301,8 @@ jobs:
           RPC_URL: https://soroban-testnet.stellar.org
           STELLAR_NETWORK: ${{ env.NETWORK }}
           STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+          STELLAR_HOME: ${{ github.workspace }}/.stellar
+          XDG_CONFIG_HOME: ${{ github.workspace }}/.stellar
         run: |
           # Ensure we're in the repository root
           cd "$GITHUB_WORKSPACE"
