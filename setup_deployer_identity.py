@@ -11,23 +11,9 @@ import os
 import sys
 import toml
 import shutil
-import logging
-import json
-import tempfile
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('stellar_identity_setup.log')
-    ]
-)
-logger = logging.getLogger(__name__)
+from typing import Dict, Any, Optional
 
 # Constants
 STELLAR_DIR = os.path.join(os.getcwd(), ".stellar")
@@ -45,114 +31,42 @@ def get_identity_name(network: str) -> str:
     """Get the identity filename for the given network."""
     return NETWORK_IDENTITY_NAMES.get(network.lower(), 'DEPLOYER') + '.toml'
 
-def check_stellar_cli() -> bool:
-    """Verify that Stellar CLI is installed and in PATH."""
-    try:
-        result = subprocess.run(
-            ["stellar", "--version"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode != 0:
-            logger.error(f"Stellar CLI check failed: {result.stderr}")
-            return False
-        logger.info(f"Stellar CLI version: {result.stdout.strip()}")
-        return True
-    except FileNotFoundError:
-        logger.error("Stellar CLI not found in PATH")
-        return False
-    except Exception as e:
-        logger.error(f"Error checking Stellar CLI: {str(e)}")
-        return False
-
-def ensure_directories() -> Tuple[bool, str]:
-    """
-    Ensure that the required directories exist and are clean.
+def ensure_directories() -> None:
+    """Ensure that the required directories exist and are clean."""
+    # Create fresh .stellar directory
+    if os.path.exists(STELLAR_DIR):
+        shutil.rmtree(STELLAR_DIR)
     
-    Returns:
-        Tuple[bool, str]: (success, error_message)
-    """
-    try:
-        # Debug current working directory and permissions
-        cwd = os.getcwd()
-        logger.info(f"Current working directory: {cwd}")
-        logger.info(f"Directory contents: {os.listdir(cwd)}")
-        
-        # Check if we can write to the current directory
-        test_file = os.path.join(cwd, '.write_test')
-        try:
-            with open(test_file, 'w') as f:
-                f.write('test')
-            os.remove(test_file)
-        except IOError as e:
-            return False, f"Cannot write to directory {cwd}: {str(e)}"
-        
-        # Create fresh .stellar directory
-        if os.path.exists(STELLAR_DIR):
-            logger.info(f"Removing existing directory: {STELLAR_DIR}")
-            try:
-                shutil.rmtree(STELLAR_DIR)
-            except Exception as e:
-                return False, f"Failed to remove {STELLAR_DIR}: {str(e)}"
-        
-        logger.info(f"Creating directory: {IDENTITY_DIR}")
-        os.makedirs(IDENTITY_DIR, exist_ok=True)
-        logger.info(f"Creating directory: {NETWORK_DIR}")
-        os.makedirs(NETWORK_DIR, exist_ok=True)
-        
-        # Verify directories were created
-        if not os.path.isdir(IDENTITY_DIR) or not os.path.isdir(NETWORK_DIR):
-            return False, f"Failed to create required directories in {STELLAR_DIR}"
-            
-        logger.info(f"✅ Created Stellar directories in {STELLAR_DIR}")
-        logger.info(f"Directory structure created at: {os.path.abspath(STELLAR_DIR)}")
-        return True, ""
-        
-    except Exception as e:
-        logger.error(f"Error in ensure_directories: {str(e)}", exc_info=True)
-        return False, str(e)
+    os.makedirs(IDENTITY_DIR, exist_ok=True)
+    os.makedirs(NETWORK_DIR, exist_ok=True)
+    print(f"✅ Created Stellar directories in {STELLAR_DIR}")
 
-def create_identity_file(identity_name: str, secret_key: str) -> bool:
+def create_identity_file(secret_key: str) -> Dict[str, Any]:
     """
-    Create a Stellar identity using the Stellar CLI.
+    Create a Stellar identity file.
     
     Args:
-        identity_name: Name for the identity
         secret_key: The Stellar secret key
         
     Returns:
-        bool: True if identity was created successfully
+        Dict containing the identity data
     """
+    from stellar_sdk import Keypair
+    
     try:
-        # First, create a temporary file with the secret key
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
-            temp_file.write(secret_key)
-            temp_file_path = temp_file.name
+        keypair = Keypair.from_secret(secret_key)
+        public_key = keypair.public_key
         
-        try:
-            # Import the secret key using the file
-            result = subprocess.run(
-                ["stellar", "keys", "import", identity_name, temp_file_path],
-                capture_output=True,
-                text=True
-            )
-        finally:
-            # Clean up the temporary file
-            try:
-                os.unlink(temp_file_path)
-            except:
-                pass
+        identity_data = {
+            'public_key': public_key,
+            'type': 'private_key',
+            'secret_key': secret_key
+        }
         
-        if result.returncode != 0:
-            logger.error(f"Failed to create identity: {result.stderr}")
-            return False
-            
-        logger.info(f"✅ Created identity: {identity_name}")
-        return True
-        
+        return identity_data
     except Exception as e:
-        logger.error(f"Error creating identity: {str(e)}", exc_info=True)
-        return False
+        print(f"❌ Error creating identity: {str(e)}", file=sys.stderr)
+        sys.exit(1)
 
 def save_identity_file(identity_data: Dict[str, Any], network: str) -> str:
     """
@@ -180,40 +94,96 @@ def save_identity_file(identity_data: Dict[str, Any], network: str) -> str:
         print(f"❌ Error saving identity file: {str(e)}", file=sys.stderr)
         sys.exit(1)
 
-def verify_identity(identity_name: str) -> bool:
+def verify_with_cli(network: str) -> bool:
     """
-    Verify the identity exists and can be used with the Stellar CLI.
+    Verify the identity works with the Stellar CLI.
     
     Args:
-        identity_name: Name of the identity to verify
+        network: Network name (e.g., 'testnet', 'public')
         
     Returns:
         bool: True if verification succeeded, False otherwise
     """
     try:
-        logger.info(f"🔍 Verifying identity: {identity_name}")
+        identity_name = get_identity_name(network).replace('.toml', '')
+        print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
         
-        # Get the public key for the identity
+        # Print environment variables for debugging
+        print("\n🔧 Environment Variables:")
+        for var in ['HOME', 'STELLAR_HOME', 'XDG_CONFIG_HOME']:
+            print(f"{var}: {os.environ.get(var, 'Not set')}")
+            
+        # Print current working directory and contents of .stellar directory
+        print(f"\n📂 Working directory: {os.getcwd()}")
+        print("📂 Contents of .stellar directory:")
+        stellar_dir = os.path.join(os.getcwd(), '.stellar')
+        if os.path.exists(stellar_dir):
+            for root, dirs, files in os.walk(stellar_dir):
+                level = root.replace(stellar_dir, '').count(os.sep)
+                indent = ' ' * 4 * level
+                print(f"{indent}{os.path.basename(root)}/")
+                subindent = ' ' * 4 * (level + 1)
+                for f in files:
+                    print(f"{subindent}{f}")
+        
+        # First, list all identities for debugging
+        list_cmd = ["stellar", "--version"]
+        print(f"\n🔍 Running: {' '.join(list_cmd)}")
+        version_result = subprocess.run(
+            list_cmd,
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True
+        )
+        print(f"Stellar CLI Version: {version_result.stdout.strip() if version_result.returncode == 0 else 'Error: ' + version_result.stderr}")
+        
+        # List all identities
+        list_cmd = ["stellar", "keys", "list"]
+        print(f"\n🔍 Running: {' '.join(list_cmd)}")
+        list_result = subprocess.run(
+            list_cmd,
+            cwd=os.getcwd(),
+            capture_output=True,
+            text=True
+        )
+        print(f"Available identities:\n{list_result.stdout}")
+        if list_result.stderr:
+            print(f"Error listing identities: {list_result.stderr}")
+        
+        # Try to get the public key with more detailed error handling
+        cmd = ["stellar", "keys", "public-key", identity_name]
+        print(f"\n🔍 Running: {' '.join(cmd)}")
         result = subprocess.run(
-            ["stellar", "keys", "public-key", identity_name],
+            cmd,
+            cwd=os.getcwd(),
             capture_output=True,
             text=True
         )
         
-        if result.returncode != 0:
-            logger.error(f"Failed to get public key: {result.stderr}")
+        if result.returncode == 0:
+            public_key = result.stdout.strip()
+            print(f"✅ Successfully verified identity: {public_key}")
+            return True
+        else:
+            print(f"❌ Failed to verify identity: {result.stderr.strip()}")
+            print(f"Command output: {result.stdout.strip()}")
+            
+            # Check if the identity file exists
+            identity_file = os.path.join(stellar_dir, 'identity', f"{identity_name}.toml")
+            print(f"\n🔍 Checking identity file: {identity_file}")
+            if os.path.exists(identity_file):
+                print("✅ Identity file exists")
+                with open(identity_file, 'r') as f:
+                    print(f"File contents:\n{f.read()}")
+            else:
+                print(f"❌ Identity file not found at: {identity_file}")
+                
             return False
             
-        public_key = result.stdout.strip()
-        if not public_key.startswith('G'):
-            logger.error(f"Invalid public key format: {public_key}")
-            return False
-            
-        logger.info(f"✅ Verified identity with public key: {public_key}")
-        return True
-        
     except Exception as e:
-        logger.error(f"❌ Error verifying identity: {str(e)}", exc_info=True)
+        print(f"❌ Unexpected error during CLI verification: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def setup_network_config(network: str, rpc_url: str) -> None:
@@ -249,64 +219,6 @@ def get_network_passphrase(network: str) -> str:
     }
     return passphrases.get(network.lower(), passphrases['testnet'])
 
-def run_command(command: list, env: Optional[Dict[str, str]] = None) -> Tuple[bool, str, str]:
-    """
-    Run a shell command with proper environment and error handling.
-    
-    Args:
-        command: List of command arguments
-        env: Optional environment variables to use
-        
-    Returns:
-        Tuple of (success, stdout, stderr)
-    """
-    env = env or os.environ.copy()
-    
-    # Ensure we have a proper PATH
-    if 'PATH' not in env:
-        env['PATH'] = os.environ.get('PATH', '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin')
-    
-    # Ensure HOME is set
-    if 'HOME' not in env:
-        env['HOME'] = os.environ.get('HOME', os.getcwd())
-    
-    logger.info(f"Running command: {' '.join(command)}")
-    logger.debug(f"Environment: {json.dumps({k: v for k, v in env.items() if 'SECRET' not in k}, indent=2)}")
-    
-    try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            env=env
-        )
-        
-        logger.debug(f"Command exited with code {result.returncode}")
-        logger.debug(f"stdout: {result.stdout}")
-        if result.stderr:
-            logger.debug(f"stderr: {result.stderr}")
-            
-        return result.returncode == 0, result.stdout, result.stderr
-        
-    except Exception as e:
-        error_msg = f"Error running command {' '.join(command)}: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return False, "", error_msg
-
-def parse_arguments():
-    """Parse command line arguments."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Set up Stellar deployer identity')
-    parser.add_argument('--secret-key', dest='secret_key', 
-                      help='Stellar secret key (or set ACCT_SECRET env var)')
-    parser.add_argument('--network', default='testnet',
-                      help='Stellar network (testnet, public, futurenet)')
-    parser.add_argument('--rpc-url', default='https://soroban-testnet.stellar.org',
-                      help='Stellar RPC URL')
-    
-    return parser.parse_args()
-
 def main() -> int:
     """
     Main function to set up the deployer identity.
@@ -314,127 +226,71 @@ def main() -> int:
     Returns:
         int: 0 on success, non-zero on error
     """
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Set up Stellar deployer identity')
+    parser.add_argument('--secret-key-env', default='STELLAR_SECRET_KEY',
+                      help='Environment variable containing the secret key (default: STELLAR_SECRET_KEY)')
+    parser.add_argument('--network', default='testnet',
+                      help='Network name (default: testnet)')
+    parser.add_argument('--rpc-url', default='https://soroban-testnet.stellar.org',
+                      help='RPC URL for the network (default: https://soroban-testnet.stellar.org)')
+    
+    args = parser.parse_args()
+    
+    # Get secret key from environment
+    secret_key = os.environ.get(args.secret_key_env)
+    if not secret_key:
+        print(f"❌ Error: Environment variable {args.secret_key_env} not set", file=sys.stderr)
+        return 1
+    
+    print(f"Setting up Stellar deployer identity for network: {args.network}")
+    print(f"Working directory: {os.getcwd()}")
+    
     try:
-        # Parse command line arguments
-        args = parse_arguments()
+        # Ensure directories exist and clean up old ones
+        ensure_directories()
         
-        # Log environment information
-        logger.info("=" * 80)
-        logger.info("Starting Stellar Deployer Identity Setup")
-        logger.info("=" * 80)
+        # Create and save identity
+        identity_data = create_identity_file(secret_key)
+        identity_file = save_identity_file(identity_data, args.network)
         
-        # Log environment variables (excluding sensitive ones)
-        env_vars = {k: v for k, v in os.environ.items() if 'SECRET' not in k and 'KEY' not in k}
-        logger.info(f"Environment variables: {json.dumps(env_vars, indent=2)}")
+        # Set up network configuration
+        setup_network_config(args.network, args.rpc_url)
         
-        # Get secret key from args or environment
-        secret_key = args.secret_key or os.environ.get("ACCT_SECRET")
-        if not secret_key:
-            error_msg = "❌ Error: No secret key provided. Use --secret-key or set ACCT_SECRET environment variable"
-            logger.error(error_msg)
-            print(error_msg)
-            return 1
-            
-        # Get network and RPC URL from args or environment
-        network = (args.network or os.environ.get("NETWORK") or "testnet").lower()
-        rpc_url = args.rpc_url or os.environ.get("RPC_URL") or "https://soroban-testnet.stellar.org"
-        
-        logger.info(f"🔧 Setting up Stellar deployer identity for network: {network}")
-        logger.info(f"Working directory: {os.getcwd()}")
-        logger.info(f"RPC URL: {rpc_url}")
-        
-        # Check if Stellar CLI is available
-        if not check_stellar_cli():
-            error_msg = "❌ Stellar CLI is not available or not in PATH"
-            logger.error(error_msg)
-            print(error_msg)
+        # Verify with Stellar CLI
+        if not verify_with_cli(args.network):
+            print("❌ Failed to verify identity with Stellar CLI", file=sys.stderr)
             return 1
         
-        # Ensure directories exist
-        success, error_msg = ensure_directories()
-        if not success:
-            logger.error(f"Failed to ensure directories: {error_msg}")
-            print(f"❌ {error_msg}")
-            return 1
+        print("\n✅ Deployer identity created and verified successfully")
+        print(f"   Identity file: {os.path.relpath(identity_file)}")
+        print(f"   Public key: {identity_data['public_key']}")
+        print(f"   Network: {args.network}")
+        print(f"   RPC URL: {args.rpc_url}")
         
-        # Create and verify identity
-        identity_name = get_identity_name(network).replace('.toml', '')
-        logger.info(f"Using identity name: {identity_name}")
-        
+        # Verify the identity can be used by the Stellar CLI
         try:
-            # Remove existing identity if it exists
-            logger.info(f"Removing existing identity '{identity_name}' if it exists...")
-            subprocess.run(
-                ["stellar", "keys", "rm", identity_name],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False  # Don't fail if identity doesn't exist
+            # Get the identity name based on network
+            identity_name = f"{args.network.upper()}_DEPLOYER"
+            
+            # Verify the identity is accessible
+            print(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
+            result = subprocess.run(
+                ["stellar", "keys", "public-key", identity_name],
+                capture_output=True,
+                text=True
             )
             
-            # Create new identity
-            logger.info(f"Creating new identity '{identity_name}'...")
-            if not create_identity_file(identity_name, secret_key):
-                error_msg = "Failed to create identity"
-                logger.error(error_msg)
-                print(f"❌ {error_msg}")
+            if result.returncode != 0:
+                print(f"❌ Failed to verify identity with Stellar CLI: {result.stderr}")
                 return 1
                 
-            # Save identity file for reference
-            identity_file = os.path.join(IDENTITY_DIR, f"{identity_name}.toml")
-            with open(identity_file, 'w') as f:
-                toml.dump({
-                    'identity_name': identity_name,
-                    'network': network,
-                    'created_at': datetime.datetime.utcnow().isoformat()
-                }, f)
-                # Set restrictive permissions (read/write for owner only)
-                os.chmod(identity_file, 0o600)
-                logger.info(f"✅ Saved identity to {identity_file}")
-                
-        except Exception as e:
-            error_msg = f"Failed to create identity file: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            print(f"❌ {error_msg}")
-            return 1
-        
-        # Set up network config
-        try:
-            setup_network_config(network, rpc_url)
-            logger.info(f"Network configuration set up for {network}")
-        except Exception as e:
-            error_msg = f"Failed to set up network configuration: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            print(f"❌ {error_msg}")
-            return 1
-        
-        # Verify the identity
-        if not verify_identity(identity_name):
-            error_msg = "❌ Failed to verify identity with Stellar CLI"
-            logger.error(error_msg)
-            print(error_msg)
-            return 1
+            print(f"✅ Successfully verified identity: {result.stdout.strip()}")
             
-        success_msg = "✅ Stellar deployer identity setup completed successfully"
-        logger.info(success_msg)
-        print(success_msg)
-        
-        # Log final directory structure
-        logger.info("Final directory structure:")
-        for root, dirs, files in os.walk(STELLAR_DIR):
-            level = root.replace(STELLAR_DIR, '').count(os.sep)
-            indent = ' ' * 4 * level
-            logger.info(f"{indent}{os.path.basename(root)}/")
-            subindent = ' ' * 4 * (level + 1)
-            for f in files:
-                logger.info(f"{subindent}{f}")
-        
-        return 0
-        
-    except Exception as e:
-        error_msg = f"❌ Unhandled error: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        print(error_msg)
-        return 1
+        except Exception as e:
+            print(f"❌ Error verifying identity: {str(e)}")
+            return 1
         
         print("\n✅ Deployer identity created and verified successfully")
         
