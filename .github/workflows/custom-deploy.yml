@@ -314,11 +314,11 @@ jobs:
           fi
           
           # Get the identity name based on network (already verified in setup step)
-          IDENTITY_NAME="${{ env.NETWORK }}_DEPLOYER"
+          IDENTITY_NAME="testnet_DEPLOYER"
           IDENTITY_NAME=$(echo "$IDENTITY_NAME" | tr '[:lower:]' '[:upper:]')
-          
-          # Get the deployer's public key (already verified in setup step)
-          DEPLOYER_PUBLIC_KEY=$(stellar keys public-key "$IDENTITY_NAME")
+  
+          # Use the public key from the environment (already verified in setup step)
+          DEPLOYER_PUBLIC_KEY="$PUBLIC_KEY"
           echo "🚀 Starting deployment with identity: $IDENTITY_NAME"
           echo "   Public key: $DEPLOYER_PUBLIC_KEY"
           
