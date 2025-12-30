@@ -44,24 +44,24 @@ def get_identity_name(network: str) -> str:
     """Get the identity filename for the given network."""
     return NETWORK_IDENTITY_NAMES.get(network.lower(), 'DEPLOYER') + '.toml'
 
-def check_soroban_cli() -> bool:
-    """Verify that Soroban CLI is installed and in PATH."""
+def check_stellar_cli() -> bool:
+    """Verify that Stellar CLI is installed and in PATH."""
     try:
         result = subprocess.run(
-            ["soroban", "--version"],
+            ["stellar", "--version"],
             capture_output=True,
             text=True
         )
         if result.returncode != 0:
-            logger.error(f"Soroban CLI check failed: {result.stderr}")
+            logger.error(f"Stellar CLI check failed: {result.stderr}")
             return False
-        logger.info(f"Soroban CLI version: {result.stdout.strip()}")
+        logger.info(f"Stellar CLI version: {result.stdout.strip()}")
         return True
     except FileNotFoundError:
-        logger.error("Soroban CLI not found in PATH")
+        logger.error("Stellar CLI not found in PATH")
         return False
     except Exception as e:
-        logger.error(f"Error checking Soroban CLI: {str(e)}")
+        logger.error(f"Error checking Stellar CLI: {str(e)}")
         return False
 
 def ensure_directories() -> Tuple[bool, str]:
@@ -111,32 +111,35 @@ def ensure_directories() -> Tuple[bool, str]:
         logger.error(f"Error in ensure_directories: {str(e)}", exc_info=True)
         return False, str(e)
 
-def create_identity_file(secret_key: str) -> Dict[str, Any]:
+def create_identity_file(identity_name: str, secret_key: str) -> bool:
     """
-    Create a Stellar identity file.
+    Create a Stellar identity using the Stellar CLI.
     
     Args:
+        identity_name: Name for the identity
         secret_key: The Stellar secret key
         
     Returns:
-        Dict containing the identity data
+        bool: True if identity was created successfully
     """
-    from stellar_sdk import Keypair
-    
     try:
-        keypair = Keypair.from_secret(secret_key)
-        public_key = keypair.public_key
+        # First, create the identity using the secret key
+        result = subprocess.run(
+            ["stellar", "keys", "add", identity_name, "--secret-key", secret_key],
+            capture_output=True,
+            text=True
+        )
         
-        identity_data = {
-            'public_key': public_key,
-            'type': 'private_key',
-            'secret_key': secret_key
-        }
+        if result.returncode != 0:
+            logger.error(f"Failed to create identity: {result.stderr}")
+            return False
+            
+        logger.info(f"✅ Created identity: {identity_name}")
+        return True
         
-        return identity_data
     except Exception as e:
-        print(f"❌ Error creating identity: {str(e)}", file=sys.stderr)
-        sys.exit(1)
+        logger.error(f"Error creating identity: {str(e)}", exc_info=True)
+        return False
 
 def save_identity_file(identity_data: Dict[str, Any], network: str) -> str:
     """
@@ -164,46 +167,35 @@ def save_identity_file(identity_data: Dict[str, Any], network: str) -> str:
         print(f"❌ Error saving identity file: {str(e)}", file=sys.stderr)
         sys.exit(1)
 
-def verify_with_cli(network: str) -> bool:
+def verify_identity(identity_name: str) -> bool:
     """
-    Verify the identity works with the Stellar CLI.
+    Verify the identity exists and can be used with the Stellar CLI.
     
+    Args:
+        identity_name: Name of the identity to verify
+        
     Returns:
         bool: True if verification succeeded, False otherwise
     """
     try:
-        identity_name = get_identity_name(network).replace('.toml', '')
-        logger.info(f"🔍 Verifying identity with Stellar CLI: {identity_name}")
+        logger.info(f"🔍 Verifying identity: {identity_name}")
         
-        # Check if Soroban CLI is available
-        if not check_soroban_cli():
-            logger.error("Soroban CLI verification failed")
-            return False
-        
-        # List all identities to verify ours exists
-        success, stdout, stderr = run_command(["soroban", "config", "identity", "list"])
-        
-        if not success:
-            logger.error(f"Failed to list identities: {stderr}")
-            return False
-            
-        logger.info(f"Available identities: {stdout.strip() or 'None found'}")
-        
-        if identity_name not in stdout:
-            logger.error(f"Identity '{identity_name}' not found in CLI configuration")
-            logger.error(f"Available identities: {stdout}")
-            return False
-            
-        # Try to get the public key
-        success, stdout, stderr = run_command(
-            ["soroban", "config", "identity", "show", identity_name]
+        # Get the public key for the identity
+        result = subprocess.run(
+            ["stellar", "keys", "public-key", identity_name],
+            capture_output=True,
+            text=True
         )
         
-        if not success:
-            logger.error(f"Failed to get public key for identity '{identity_name}': {stderr}")
+        if result.returncode != 0:
+            logger.error(f"Failed to get public key: {result.stderr}")
             return False
             
-        public_key = stdout.strip()
+        public_key = result.stdout.strip()
+        if not public_key.startswith('G'):
+            logger.error(f"Invalid public key format: {public_key}")
+            return False
+            
         logger.info(f"✅ Verified identity with public key: {public_key}")
         return True
         
@@ -321,9 +313,9 @@ def main() -> int:
         logger.info(f"Working directory: {os.getcwd()}")
         logger.info(f"RPC URL: {rpc_url}")
         
-        # Check if Soroban CLI is available
-        if not check_soroban_cli():
-            error_msg = "❌ Soroban CLI is not available or not in PATH"
+        # Check if Stellar CLI is available
+        if not check_stellar_cli():
+            error_msg = "❌ Stellar CLI is not available or not in PATH"
             logger.error(error_msg)
             print(error_msg)
             return 1
@@ -335,11 +327,36 @@ def main() -> int:
             print(f"❌ {error_msg}")
             return 1
         
-        # Create identity file
+        # Create and verify identity
+        identity_name = get_identity_name(network).replace('.toml', '')
+        
+        # Remove existing identity if it exists
+        subprocess.run(
+            ["stellar", "keys", "rm", identity_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        # Create new identity
+        if not create_identity_file(identity_name, secret_key):
+            error_msg = "Failed to create identity"
+            logger.error(error_msg)
+            print(f"❌ {error_msg}")
+            return 1
+            
         try:
-            identity_data = create_identity_file(secret_key)
-            identity_file = save_identity_file(identity_data, network)
-            logger.info(f"Created identity file: {identity_file}")
+            # Save identity file for reference
+            identity_file = os.path.join(IDENTITY_DIR, f"{identity_name}.toml")
+            with open(identity_file, 'w') as f:
+                toml.dump({
+                    'identity_name': identity_name,
+                    'network': network,
+                    'created_at': datetime.datetime.utcnow().isoformat()
+                }, f)
+                # Set restrictive permissions (read/write for owner only)
+                os.chmod(identity_file, 0o600)
+                logger.info(f"✅ Saved identity to {identity_file}")
+                
         except Exception as e:
             error_msg = f"Failed to create identity file: {str(e)}"
             logger.error(error_msg, exc_info=True)
@@ -356,9 +373,8 @@ def main() -> int:
             print(f"❌ {error_msg}")
             return 1
         
-        # Verify with CLI
-        logger.info("Starting CLI verification...")
-        if not verify_with_cli(network):
+        # Verify the identity
+        if not verify_identity(identity_name):
             error_msg = "❌ Failed to verify identity with Stellar CLI"
             logger.error(error_msg)
             print(error_msg)
