@@ -13,6 +13,7 @@ import toml
 import shutil
 import logging
 import json
+import tempfile
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
@@ -123,12 +124,24 @@ def create_identity_file(identity_name: str, secret_key: str) -> bool:
         bool: True if identity was created successfully
     """
     try:
-        # First, create the identity using the secret key
-        result = subprocess.run(
-            ["stellar", "keys", "add", identity_name, "--secret-key", secret_key],
-            capture_output=True,
-            text=True
-        )
+        # First, create a temporary file with the secret key
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+            temp_file.write(secret_key)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Import the secret key using the file
+            result = subprocess.run(
+                ["stellar", "keys", "import", identity_name, temp_file_path],
+                capture_output=True,
+                text=True
+            )
+        finally:
+            # Clean up the temporary file
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
         
         if result.returncode != 0:
             logger.error(f"Failed to create identity: {result.stderr}")
@@ -280,6 +293,20 @@ def run_command(command: list, env: Optional[Dict[str, str]] = None) -> Tuple[bo
         logger.error(error_msg, exc_info=True)
         return False, "", error_msg
 
+def parse_arguments():
+    """Parse command line arguments."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Set up Stellar deployer identity')
+    parser.add_argument('--secret-key', dest='secret_key', 
+                      help='Stellar secret key (or set ACCT_SECRET env var)')
+    parser.add_argument('--network', default='testnet',
+                      help='Stellar network (testnet, public, futurenet)')
+    parser.add_argument('--rpc-url', default='https://soroban-testnet.stellar.org',
+                      help='Stellar RPC URL')
+    
+    return parser.parse_args()
+
 def main() -> int:
     """
     Main function to set up the deployer identity.
@@ -288,6 +315,9 @@ def main() -> int:
         int: 0 on success, non-zero on error
     """
     try:
+        # Parse command line arguments
+        args = parse_arguments()
+        
         # Log environment information
         logger.info("=" * 80)
         logger.info("Starting Stellar Deployer Identity Setup")
@@ -297,17 +327,17 @@ def main() -> int:
         env_vars = {k: v for k, v in os.environ.items() if 'SECRET' not in k and 'KEY' not in k}
         logger.info(f"Environment variables: {json.dumps(env_vars, indent=2)}")
         
-        # Get environment variables
-        secret_key = os.environ.get("ACCT_SECRET")
+        # Get secret key from args or environment
+        secret_key = args.secret_key or os.environ.get("ACCT_SECRET")
         if not secret_key:
-            error_msg = "❌ Error: ACCT_SECRET environment variable not set"
+            error_msg = "❌ Error: No secret key provided. Use --secret-key or set ACCT_SECRET environment variable"
             logger.error(error_msg)
             print(error_msg)
             return 1
             
-        # Get network (default to testnet if not specified)
-        network = os.environ.get("NETWORK", "testnet").lower()
-        rpc_url = os.environ.get("RPC_URL", "https://soroban-testnet.stellar.org")
+        # Get network and RPC URL from args or environment
+        network = (args.network or os.environ.get("NETWORK") or "testnet").lower()
+        rpc_url = args.rpc_url or os.environ.get("RPC_URL") or "https://soroban-testnet.stellar.org"
         
         logger.info(f"🔧 Setting up Stellar deployer identity for network: {network}")
         logger.info(f"Working directory: {os.getcwd()}")
@@ -329,22 +359,26 @@ def main() -> int:
         
         # Create and verify identity
         identity_name = get_identity_name(network).replace('.toml', '')
+        logger.info(f"Using identity name: {identity_name}")
         
-        # Remove existing identity if it exists
-        subprocess.run(
-            ["stellar", "keys", "rm", identity_name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        # Create new identity
-        if not create_identity_file(identity_name, secret_key):
-            error_msg = "Failed to create identity"
-            logger.error(error_msg)
-            print(f"❌ {error_msg}")
-            return 1
-            
         try:
+            # Remove existing identity if it exists
+            logger.info(f"Removing existing identity '{identity_name}' if it exists...")
+            subprocess.run(
+                ["stellar", "keys", "rm", identity_name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False  # Don't fail if identity doesn't exist
+            )
+            
+            # Create new identity
+            logger.info(f"Creating new identity '{identity_name}'...")
+            if not create_identity_file(identity_name, secret_key):
+                error_msg = "Failed to create identity"
+                logger.error(error_msg)
+                print(f"❌ {error_msg}")
+                return 1
+                
             # Save identity file for reference
             identity_file = os.path.join(IDENTITY_DIR, f"{identity_name}.toml")
             with open(identity_file, 'w') as f:
