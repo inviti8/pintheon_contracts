@@ -162,6 +162,7 @@ jobs:
             "pintheon_node_token"
             "opus_token"
             "hvym_collective"
+            "hvym_roster"
           )
           
           # Fetch all releases and find the latest one matching the version
