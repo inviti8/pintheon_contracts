@@ -1,9 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal, 
-    TryFromVal, Val, Vec, Error, Symbol, String, BytesN, token,
-    token::StellarAssetClient
+    contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal,
+    TryFromVal, Val, Vec, Error, Symbol, String, token,
 };
 
 // Event types
@@ -96,7 +95,7 @@ impl RosterContract {
 
         caller.require_auth();
 
-        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("cound not find roster");
+        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("could not find roster");
         let client = token::Client::new(&e, &roster.pay_token);
         let balance = client.balance(&caller);
         let amount = fund_amount as i128;
@@ -163,7 +162,7 @@ impl RosterContract {
 
     pub fn withdraw(e:Env, caller: Address, recipient: Address)-> Result<bool, Error> {
         RosterContract::require_admin_auth(e.clone(), caller.clone());
-        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("cound not find roster");
+        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("could not find roster");
         let client = token::Client::new(&e, &roster.pay_token);
         let join_fee = roster.join_fee as i128;
         let totalfees = client.balance(&e.current_contract_address());
@@ -178,12 +177,12 @@ impl RosterContract {
     }
 
     pub fn symbol(e: Env) -> Symbol {
-        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("cound not find roster");
+        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("could not find roster");
         roster.symbol
     }
 
     pub fn join_fee(e: Env) -> i128 {
-        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("cound not find roster");
+        let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("could not find roster");
         roster.join_fee as i128
     }
 
@@ -267,7 +266,7 @@ impl RosterContract {
 
     pub fn update_join_fee(e: Env, caller: Address, new_fee: u32) -> i128 {
         RosterContract::require_admin_auth(e.clone(), caller.clone());
-        let  mut roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("cound find roster");
+        let  mut roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("could not find roster");
         roster.join_fee = new_fee;
 
         if !validate_negative_amount(new_fee as i128) {
@@ -278,24 +277,26 @@ impl RosterContract {
         new_fee as i128
     }
 
-    pub fn add_admin(e: Env, caller: Address, new_admin: Address) {
+    pub fn add_admin(e: Env, caller: Address, new_admin: Address) -> bool {
         RosterContract::require_admin_auth(e.clone(), caller.clone());
-        
+
         let mut admin_list: Vec<Address> = e.storage().persistent().get(&Datakey::AdminList).unwrap();
-        
+
         // Check if admin already exists
         if admin_list.contains(&new_admin) {
             panic!("admin already exists");
         }
-        
+
         admin_list.push_back(new_admin.clone());
         e.storage().persistent().set(&Datakey::AdminList, &admin_list);
-        
+
         // Emit admin added event
         let event = AdminEvent {
             admin: new_admin,
         };
-        e.events().publish((symbol_short!("ADMIN_ADDED"), symbol_short!("admin")), event);
+        e.events().publish((symbol_short!("ADD"), symbol_short!("admin")), event);
+
+        true
     }
 
     pub fn get_admin_list(e: Env) -> Vec<Address> {
@@ -353,16 +354,6 @@ impl RosterContract {
         caller.require_auth();
     }
 
-}
-
-fn hash_string(env: &Env, s: &String) -> BytesN<32> {
-    let len = s.len() as usize;
-    let mut bytes = [0u8; 100];
-    let bytes = &mut bytes[0..len];
-    s.copy_into_slice(bytes);
-    let mut b = Bytes::new(env);
-    b.copy_from_slice(0, bytes);
-    env.crypto().sha256(&b).to_bytes()
 }
 
 /// Validates that an amount is non-negative and within u32 range
