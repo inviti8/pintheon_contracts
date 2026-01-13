@@ -11,7 +11,8 @@ BUILD_ORDER = [
     "pintheon-node-deployer/pintheon-node-token",
     "pintheon-ipfs-deployer/pintheon-ipfs-token",
     "opus_token",
-    "hvym-collective"
+    "hvym-collective",
+    "hvym-roster"
 ]
 
 # For backward compatibility

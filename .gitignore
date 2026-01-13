@@ -63,3 +63,7 @@ wasm/opus_token.optimized.wasm
 wasm/pintheon_ipfs_token.optimized.wasm
 
 wasm/pintheon_node_token.optimized.wasm
+
+wasm/hvym_roster.optimized.wasm
+
+.claude/

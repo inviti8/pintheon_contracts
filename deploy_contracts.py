@@ -48,7 +48,8 @@ CONTRACTS = [
     "pintheon_ipfs_token",
     "pintheon_node_token",
     "opus_token",
-    "hvym_collective"
+    "hvym_collective",
+    "hvym_roster"
 ]
 
 print(f"ℹ️  Using network: {NETWORK}")
@@ -84,9 +85,13 @@ def load_contract_args(contract_name: str) -> dict:
         with open(args_file) as f:
             args = json.load(f)
             
-        # Convert XLM to stroops for hvym_collective
+        # Convert XLM to stroops for hvym_collective and hvym_roster
         if contract_name == "hvym_collective":
             for key in ['join_fee', 'mint_fee', 'reward']:
+                if key in args:
+                    args[key] = int(float(args[key]) * 10_000_000)
+        elif contract_name == "hvym_roster":
+            for key in ['join_fee']:
                 if key in args:
                     args[key] = int(float(args[key]) * 10_000_000)
         
@@ -231,7 +236,8 @@ UPLOAD_ONLY_CONTRACTS = [
 
 DEPLOY_ONLY_CONTRACTS = [
     "opus_token",
-    "hvym_collective"
+    "hvym_collective",
+    "hvym_roster"
 ]
 
 def generate_deployments_md(deployments: dict) -> None:
