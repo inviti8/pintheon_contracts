@@ -1,0 +1,35 @@
+[package]
+name = "hvym-roster"
+description = "Heavymeta Roster Management Contract"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = { version = "23.0.1", default-features = false }
+soroban-token-sdk = "23.0.1"
+
+[dev-dependencies]
+soroban-sdk = { version = "23.0.1", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+[profile.release.package]
+wasm-bindgen = { opt-level = "s" }
+
+[profile.release.build-override]
+opt-level = 3
+
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

@@ -1,0 +1,7 @@
+# Development dependencies
+-r requirements.txt
+stellar-contract-bindings>=0.1.0  # For generating Python bindings
+black>=23.0.0  # Code formatter
+isort>=5.12.0  # Import sorter
+mypy>=1.0.0  # Static type checker
+pytest>=7.0.0  # Testing framework

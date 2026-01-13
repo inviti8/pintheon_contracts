@@ -60,8 +60,6 @@ const PINTHEON_IPFS_TOKEN_WASM: &[u8] =
 
 // Note: opus_token is deployed separately and set via set_opus_token method
 
-// Note: opus_token is deployed separately and set via set_opus_token method
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Datakey {
