@@ -21,17 +21,25 @@
   },
   "opus_token": {
     "contract_dir": "opus_token",
-    "wasm_hash": "",
+    "wasm_hash": "f3850a9b9b47b2f84c899452f8f8ebc919bf9302a1e8f806b76c149ea9bb9b63",
     "contract_id": "CB2TEJFS5FQK66VZEAQXJQPEAOXZNBSYJ5WYH7Q65XHDOPLOEAQRZRXH",
-    "network": "",
+    "network": "testnet",
     "deployer": "",
     "timestamp": 0
   },
   "hvym_collective": {
     "contract_dir": "hvym-collective",
-    "wasm_hash": "",
-    "contract_id": "",
-    "network": "",
+    "wasm_hash": "d961c2172143ce8f92b462639304be318293b8482b1d4c81c97802258ae93aaa",
+    "contract_id": "CDIBEBWJZ3WSMDOPCVMWEKLUJRVBVU2GJSWGYWU6IKJLFKZPP37YSGFG",
+    "network": "testnet",
+    "deployer": "",
+    "timestamp": 0
+  },
+  "hvym_roster": {
+    "contract_dir": "hvym-roster",
+    "wasm_hash": "83884bad0f0b9ff6f7b81fa2ad6335c04597b6eae362bad39b19a64742eea33f",
+    "contract_id": "CDKCP2OMO3NJM2JS33EXPJVQS4YT2TAIA5WC4JTO4P6KHNXN6AYKPWKH",
+    "network": "testnet",
     "deployer": "",
     "timestamp": 0
   }

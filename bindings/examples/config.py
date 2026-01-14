@@ -12,9 +12,9 @@ NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
 # Deployed contract addresses (update these with your actual contract IDs)
 # These are example addresses - replace with your deployed contracts
 CONTRACTS = {
-    "hvym_collective": "CDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "hvym_roster": "CDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "opus_token": "CDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "hvym_collective": "CDIBEBWJZ3WSMDOPCVMWEKLUJRVBVU2GJSWGYWU6IKJLFKZPP37YSGFG",
+    "hvym_roster": "CDKCP2OMO3NJM2JS33EXPJVQS4YT2TAIA5WC4JTO4P6KHNXN6AYKPWKH",
+    "opus_token": "CB2TEJFS5FQK66VZEAQXJQPEAOXZNBSYJ5WYH7Q65XHDOPLOEAQRZRXH",
 }
 
 # XLM token contract on testnet (native asset wrapper)
