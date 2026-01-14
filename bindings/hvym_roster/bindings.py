@@ -470,6 +470,42 @@ class Client(ContractClient):
             restore=restore,
         )
 
+    def get_canon(
+        self,
+        member_address: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[Optional[bytes]]:
+        """Get the canon for a member
+
+        # Arguments
+        * `e` - The environment
+        * `member_address` - The address of the member to query
+
+        # Returns
+        * `Option<String>` - The member's canon if they exist, None otherwise"""
+        return self.invoke(
+            "get_canon",
+            [scval.to_address(member_address)],
+            parse_result_xdr_fn=lambda v: (
+                scval.from_string(v)
+                if v.type != xdr.SCValType.SCV_VOID
+                else scval.from_void(v)
+            ),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
     def is_member(
         self,
         caller: Union[Address, str],
@@ -822,6 +858,42 @@ class ClientAsync(ContractClientAsync):
             "add_admin",
             [scval.to_address(caller), scval.to_address(new_admin)],
             parse_result_xdr_fn=lambda v: scval.from_bool(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def get_canon(
+        self,
+        member_address: Union[Address, str],
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[Optional[bytes]]:
+        """Get the canon for a member
+
+        # Arguments
+        * `e` - The environment
+        * `member_address` - The address of the member to query
+
+        # Returns
+        * `Option<String>` - The member's canon if they exist, None otherwise"""
+        return await self.invoke(
+            "get_canon",
+            [scval.to_address(member_address)],
+            parse_result_xdr_fn=lambda v: (
+                scval.from_string(v)
+                if v.type != xdr.SCValType.SCV_VOID
+                else scval.from_void(v)
+            ),
             source=source,
             signer=signer,
             base_fee=base_fee,

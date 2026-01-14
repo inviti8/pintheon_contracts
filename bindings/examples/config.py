@@ -10,11 +10,11 @@ RPC_URL = "https://soroban-testnet.stellar.org"
 NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
 
 # Deployed contract addresses (update these with your actual contract IDs as needed)
-# These are deployed contracts from the deployments.json file, as of 1/13/26
+# These are deployed contracts from the deployments.json file, as of
 CONTRACTS = {
-    "hvym_collective": "CDIBEBWJZ3WSMDOPCVMWEKLUJRVBVU2GJSWGYWU6IKJLFKZPP37YSGFG",
-    "hvym_roster": "CDKCP2OMO3NJM2JS33EXPJVQS4YT2TAIA5WC4JTO4P6KHNXN6AYKPWKH",
-    "opus_token": "CB2TEJFS5FQK66VZEAQXJQPEAOXZNBSYJ5WYH7Q65XHDOPLOEAQRZRXH",
+    "hvym_collective": "CAKLTGOWQAXCZ3ASA3XWA5ECQDO6CKENEZVCUXZ66LETR7EIDWJUWKCX",
+    "hvym_roster": "CDY6NVMRND4QOFYQ7DWPZN4PRUESSHYWO7HL572I3JWS7J5WGQNR6JDX",
+    "opus_token": "CAKWTI6AY6LPSSBZOOSHMA2DHP7SUHE7N2M7PAUGOFIN5HRHW5CGRIMW",
 }
 
 # XLM token contract on testnet (native asset wrapper)
