@@ -2,10 +2,17 @@
 """
 Script to generate Python bindings for Soroban contracts.
 
-This script will:
-1. Upload all optimized WASM files from the wasm/ directory
-2. Deploy instances of each contract with their respective arguments
-3. Generate Python bindings for each deployed contract
+This script supports two modes:
+
+1. Deploy mode (default):
+   - Upload all optimized WASM files from the wasm/ directory
+   - Deploy instances of each contract with their respective arguments
+   - Generate Python bindings for each deployed contract
+
+2. GitHub Release mode (--github-release):
+   - Download WASM files from a GitHub release URL
+   - Generate Python bindings directly from WASM files (no deployment needed)
+   - Example: python generate_bindings.py --github-release https://github.com/owner/repo/releases/tag/v1.0.0
 """
 
 import os
@@ -14,8 +21,17 @@ import json
 import time
 import subprocess
 import argparse
+import tempfile
+import re
 from pathlib import Path
 from typing import Dict, Optional, List
+from urllib.parse import urlparse
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 # Configuration
 DEPLOYMENTS_FILE = "bindings_deployments.json"
@@ -46,6 +62,21 @@ NETWORK_CONFIGS = {
 NETWORK = "testnet"
 NETWORK_PASSPHRASE = NETWORK_CONFIGS[NETWORK]["passphrase"]
 RPC_URL = NETWORK_CONFIGS[NETWORK]["rpc_url"]
+
+# Contract categories (aligned with deploy_contracts.py)
+# These contracts are only uploaded (wasm hash), not deployed as standalone contracts
+# They are deployed dynamically by hvym_collective when members join
+UPLOAD_ONLY_CONTRACTS = [
+    "pintheon_ipfs_token",
+    "pintheon_node_token"
+]
+
+# These contracts are deployed as standalone and will have contract IDs
+DEPLOYABLE_CONTRACTS = [
+    "opus_token",
+    "hvym_collective",
+    "hvym_roster"
+]
 
 def load_account() -> Optional[str]:
     """Load deployment account from account.json."""
@@ -238,15 +269,533 @@ def save_deployments(deployments: dict) -> None:
         json.dump(deployments, f, indent=2)
     print(f"💾 Saved deployments to {DEPLOYMENTS_FILE}")
 
+
+def parse_github_release_url(url: str) -> Optional[Dict[str, str]]:
+    """
+    Parse a GitHub release URL and extract owner, repo, and tag.
+
+    Supports formats:
+    - https://github.com/owner/repo/releases/tag/tag-name
+    - https://github.com/owner/repo/releases/download/tag-name/asset.wasm
+
+    Returns dict with 'owner', 'repo', 'tag' or None if invalid.
+    """
+    parsed = urlparse(url)
+
+    if parsed.netloc != 'github.com':
+        print(f"❌ Error: URL must be a github.com URL")
+        return None
+
+    # Match release tag URL: /owner/repo/releases/tag/tag-name
+    tag_match = re.match(r'^/([^/]+)/([^/]+)/releases/tag/(.+)$', parsed.path)
+    if tag_match:
+        return {
+            'owner': tag_match.group(1),
+            'repo': tag_match.group(2),
+            'tag': tag_match.group(3)
+        }
+
+    # Match release download URL: /owner/repo/releases/download/tag-name/asset
+    download_match = re.match(r'^/([^/]+)/([^/]+)/releases/download/([^/]+)/', parsed.path)
+    if download_match:
+        return {
+            'owner': download_match.group(1),
+            'repo': download_match.group(2),
+            'tag': download_match.group(3)
+        }
+
+    print(f"❌ Error: Could not parse GitHub release URL: {url}")
+    print("   Expected format: https://github.com/owner/repo/releases/tag/tag-name")
+    return None
+
+
+def fetch_release_assets(owner: str, repo: str, tag: str, github_token: Optional[str] = None) -> Optional[List[Dict]]:
+    """
+    Fetch release assets from GitHub API.
+
+    Returns list of asset dicts with 'name', 'url', 'browser_download_url'.
+    """
+    if not HAS_REQUESTS:
+        print("❌ Error: 'requests' library is required for github-release mode")
+        print("   Install with: pip install requests")
+        return None
+
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
+
+    headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'generate-bindings-script'
+    }
+
+    if github_token:
+        headers['Authorization'] = f'token {github_token}'
+
+    print(f"📡 Fetching release info from: {api_url}")
+
+    try:
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        release_data = response.json()
+
+        assets = release_data.get('assets', [])
+        print(f"✅ Found {len(assets)} assets in release '{tag}'")
+
+        return assets
+
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            print(f"❌ Error: Release '{tag}' not found in {owner}/{repo}")
+        elif e.response.status_code == 403:
+            print(f"❌ Error: Rate limited or authentication required")
+            print("   Try setting GITHUB_TOKEN environment variable")
+        else:
+            print(f"❌ Error fetching release: {e}")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Network error: {e}")
+        return None
+
+
+def download_wasm_assets(assets: List[Dict], output_dir: Path, github_token: Optional[str] = None) -> List[Path]:
+    """
+    Download WASM assets from a GitHub release.
+
+    Returns list of paths to downloaded WASM files.
+    """
+    downloaded = []
+
+    # Filter for WASM files
+    wasm_assets = [a for a in assets if a['name'].endswith('.wasm')]
+
+    if not wasm_assets:
+        print("❌ No WASM files found in release assets")
+        return []
+
+    print(f"\n📥 Downloading {len(wasm_assets)} WASM files...")
+
+    headers = {
+        'Accept': 'application/octet-stream',
+        'User-Agent': 'generate-bindings-script'
+    }
+
+    if github_token:
+        headers['Authorization'] = f'token {github_token}'
+
+    for asset in wasm_assets:
+        name = asset['name']
+        download_url = asset.get('url')  # API URL for authenticated download
+        browser_url = asset.get('browser_download_url')  # Direct download URL
+
+        output_path = output_dir / name
+
+        print(f"   Downloading {name}...", end=" ")
+
+        try:
+            # Try API URL first (works with private repos when authenticated)
+            if download_url and github_token:
+                response = requests.get(download_url, headers=headers, stream=True)
+            else:
+                # Fall back to browser download URL
+                response = requests.get(browser_url, stream=True)
+
+            response.raise_for_status()
+
+            with open(output_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            size_kb = output_path.stat().st_size / 1024
+            print(f"✅ ({size_kb:.1f} KB)")
+            downloaded.append(output_path)
+
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Failed: {e}")
+            continue
+
+    return downloaded
+
+
+def generate_json_spec_from_wasm(wasm_path: Path, output_dir: Path) -> Optional[Path]:
+    """
+    Generate JSON spec from a WASM file using stellar contract bindings json.
+
+    Returns path to the generated JSON file, or None on failure.
+    """
+    contract_name = wasm_path.stem.replace('.optimized', '')
+    json_output = output_dir / f"{contract_name}.json"
+
+    print(f"\n📄 Generating JSON spec for {contract_name}...")
+    print(f"   WASM: {wasm_path}")
+
+    try:
+        result = subprocess.run(
+            ["stellar", "contract", "bindings", "json", f"--wasm={wasm_path}"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        # Write the JSON output to file
+        with open(json_output, 'w') as f:
+            f.write(result.stdout)
+
+        print(f"✅ Generated JSON spec: {json_output}")
+        return json_output
+
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to generate JSON spec for {contract_name}")
+        if e.stderr:
+            print(f"   Error: {e.stderr.strip()}")
+        return None
+
+
+def generate_bindings_from_contract_id(contract_name: str, contract_id: str,
+                                        output_dir: Path, rpc_url: str) -> bool:
+    """
+    Generate Python bindings from a deployed contract ID.
+
+    Uses stellar-contract-bindings with --contract-id flag.
+    """
+    bindings_output = output_dir / contract_name
+    os.makedirs(bindings_output, exist_ok=True)
+
+    print(f"\n🔧 Generating bindings for {contract_name}...")
+    print(f"   Contract ID: {contract_id}")
+    print(f"   Output: {bindings_output}")
+
+    try:
+        bindings_cmd = [
+            "stellar-contract-bindings", "python",
+            f"--contract-id={contract_id}",
+            f"--output={bindings_output}",
+            f"--rpc-url={rpc_url}",
+            "--client-type=both"
+        ]
+
+        print(f"   Command: {' '.join(bindings_cmd)}")
+
+        result = subprocess.run(
+            bindings_cmd,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        if result.stderr:
+            print(f"   Info: {result.stderr.strip()}")
+
+        print(f"✅ Successfully generated bindings for {contract_name}")
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to generate bindings for {contract_name}")
+        if e.stderr:
+            print(f"   Error: {e.stderr.strip()}")
+        if e.stdout:
+            print(f"   Output: {e.stdout.strip()}")
+        return False
+    except FileNotFoundError:
+        print("❌ stellar-contract-bindings not found. Install with:")
+        print("   uv add stellar-contract-bindings")
+        return False
+
+
+def fetch_deployments_from_release(owner: str, repo: str, tag: str,
+                                    github_token: Optional[str] = None) -> Optional[Dict]:
+    """
+    Fetch deployments.json from a GitHub release.
+
+    Looks for deployments.json in release assets or parses release body.
+    Returns dict of contract deployments or None on failure.
+    """
+    if not HAS_REQUESTS:
+        return None
+
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
+
+    headers = {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'generate-bindings-script'
+    }
+
+    if github_token:
+        headers['Authorization'] = f'token {github_token}'
+
+    try:
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        release_data = response.json()
+
+        # Try to find deployments.json in assets
+        assets = release_data.get('assets', [])
+        for asset in assets:
+            if asset['name'] == 'deployments.json':
+                print(f"📥 Downloading deployments.json from release...")
+                download_headers = {
+                    'Accept': 'application/octet-stream',
+                    'User-Agent': 'generate-bindings-script'
+                }
+                if github_token:
+                    download_headers['Authorization'] = f'token {github_token}'
+
+                asset_response = requests.get(asset['url'], headers=download_headers)
+                asset_response.raise_for_status()
+                return asset_response.json()
+
+        # If no deployments.json asset, try to parse from release body
+        body = release_data.get('body', '')
+        if body:
+            # Look for contract IDs in the release body (markdown table format)
+            # Pattern: | contract_name | network | `CONTRACT_ID` | `WASM_HASH` |
+            import re
+            deployments = {}
+            # Match contract IDs (C followed by 55 alphanumeric chars)
+            contract_pattern = r'\|\s*(\w+)\s*\|[^|]*\|\s*`?(C[A-Z0-9]{55})`?\s*\|'
+            matches = re.findall(contract_pattern, body)
+            for name, contract_id in matches:
+                deployments[name] = {'contract_id': contract_id}
+
+            if deployments:
+                print(f"📋 Parsed {len(deployments)} contract IDs from release notes")
+                return deployments
+
+        return None
+
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️  Could not fetch deployments: {e}")
+        return None
+
+
+def run_github_release_mode(release_url: str, output_dir: Optional[str] = None,
+                            keep_wasm: bool = False, contracts: Optional[List[str]] = None,
+                            deploy_release_url: Optional[str] = None,
+                            network: str = "testnet", json_only: bool = False) -> int:
+    """
+    Run in GitHub release mode: fetch contract IDs from deploy release and generate bindings.
+
+    Python bindings require deployed contract IDs (not just WASM files).
+
+    Args:
+        release_url: GitHub release URL (for WASM files, used for JSON spec generation)
+        output_dir: Output directory for bindings (default: ./bindings)
+        keep_wasm: If True, keep downloaded WASM files in ./wasm directory
+        contracts: Optional list of contract names to process (default: all)
+        deploy_release_url: GitHub release URL with deployment info (contract IDs)
+        network: Network name for RPC URL (default: testnet)
+        json_only: If True, only generate JSON specs from WASM (no Python bindings)
+
+    Returns:
+        0 on success, 1 on failure
+    """
+    if not HAS_REQUESTS:
+        print("❌ Error: 'requests' library is required for github-release mode")
+        print("   Install with: uv add requests")
+        return 1
+
+    # Parse URL
+    url_info = parse_github_release_url(release_url)
+    if not url_info:
+        return 1
+
+    owner, repo, tag = url_info['owner'], url_info['repo'], url_info['tag']
+    print(f"\n📦 GitHub Release Mode")
+    print(f"   Repository: {owner}/{repo}")
+    print(f"   Tag: {tag}")
+
+    # Get GitHub token from environment
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if github_token:
+        print("   Using GITHUB_TOKEN for authentication")
+
+    # Get RPC URL for the network
+    rpc_url = NETWORK_CONFIGS.get(network, NETWORK_CONFIGS["testnet"])["rpc_url"]
+    print(f"   Network: {network}")
+    print(f"   RPC URL: {rpc_url}")
+
+    # Fetch deployment info (contract IDs)
+    deployments = {}
+    if deploy_release_url:
+        deploy_info = parse_github_release_url(deploy_release_url)
+        if deploy_info:
+            print(f"\n📋 Fetching deployment info from: {deploy_info['tag']}")
+            deployments = fetch_deployments_from_release(
+                deploy_info['owner'], deploy_info['repo'], deploy_info['tag'], github_token
+            ) or {}
+    else:
+        # Try to fetch from the same release
+        print(f"\n📋 Looking for deployment info in release...")
+        deployments = fetch_deployments_from_release(owner, repo, tag, github_token) or {}
+
+    # Also check for local deployments.json
+    if not deployments and os.path.exists(DEPLOYMENTS_FILE):
+        print(f"📋 Loading local {DEPLOYMENTS_FILE}...")
+        try:
+            with open(DEPLOYMENTS_FILE) as f:
+                deployments = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    if not deployments and not json_only:
+        print("\n⚠️  No deployment info found!")
+        print("   Python bindings require deployed contract IDs.")
+        print("\n   Options:")
+        print("   1. Use --deploy-release to specify a release with deployment info")
+        print("   2. Use --json-only to generate JSON specs from WASM (no Python bindings)")
+        print("   3. Ensure deployments.json exists locally")
+        print(f"\n   Example:")
+        print(f"   python generate_bindings.py -g {release_url} \\")
+        print(f"       --deploy-release https://github.com/{owner}/{repo}/releases/tag/deploy-xxx")
+        return 1
+
+    # Set up directories
+    bindings_dir = Path(output_dir) if output_dir else Path(BINDINGS_DIR)
+    os.makedirs(bindings_dir, exist_ok=True)
+
+    # For JSON spec generation, we need WASM files
+    if json_only or keep_wasm:
+        # Fetch release assets for WASM files
+        assets = fetch_release_assets(owner, repo, tag, github_token)
+
+        if assets:
+            wasm_dir = Path(WASM_DIR) if keep_wasm else Path(tempfile.mkdtemp(prefix="soroban_wasm_"))
+            os.makedirs(wasm_dir, exist_ok=True)
+            wasm_files = download_wasm_assets(assets, wasm_dir, github_token)
+
+            if json_only and wasm_files:
+                print("\n📄 Generating JSON specs from WASM files...")
+                success_count = 0
+                for wasm_file in wasm_files:
+                    contract_name = wasm_file.stem.replace('.optimized', '')
+                    if contracts and contract_name not in contracts:
+                        continue
+                    if generate_json_spec_from_wasm(wasm_file, bindings_dir):
+                        success_count += 1
+
+                print(f"\n{'='*50}")
+                print(f"📊 Generated {success_count} JSON spec files")
+                print(f"📁 Output: {bindings_dir.absolute()}")
+                return 0
+
+    # Generate Python bindings using contract IDs
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
+
+    # Filter deployments to only process contracts with contract_id
+    for contract_name, info in deployments.items():
+        # Skip metadata keys
+        if contract_name in ('network', 'timestamp', 'cli_version', 'note', 'release', 'version'):
+            continue
+
+        if not isinstance(info, dict):
+            continue
+
+        # Apply contract filter
+        if contracts and contract_name not in contracts:
+            continue
+
+        contract_id = info.get('contract_id')
+        if not contract_id:
+            print(f"\n⏭️  Skipping {contract_name} (no contract ID)")
+            skip_count += 1
+            continue
+
+        if generate_bindings_from_contract_id(contract_name, contract_id, bindings_dir, rpc_url):
+            success_count += 1
+        else:
+            fail_count += 1
+
+    # Summary
+    print(f"\n{'='*50}")
+    print(f"📊 Summary: {success_count} succeeded, {skip_count} skipped, {fail_count} failed")
+    print(f"📁 Bindings generated in: {bindings_dir.absolute()}")
+
+    # List generated bindings
+    if bindings_dir.exists():
+        print(f"\n📦 Generated bindings:")
+        for binding_dir in sorted(bindings_dir.iterdir()):
+            if binding_dir.is_dir():
+                files = list(binding_dir.glob("*.py"))
+                if files:
+                    print(f"   {binding_dir.name}/ ({len(files)} files)")
+
+    return 0 if fail_count == 0 else 1
+
+
 def main():
     global NETWORK, NETWORK_PASSPHRASE, RPC_URL
-    
-    parser = argparse.ArgumentParser(description="Generate Python bindings for Soroban contracts")
-    parser.add_argument("--network", default=NETWORK, help="Network to use")
-    parser.add_argument("--skip-existing", action="store_true", 
-                       help="Skip contracts that already have bindings")
+
+    parser = argparse.ArgumentParser(
+        description="Generate Python bindings for Soroban contracts",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Deploy mode (default) - deploys contracts and generates bindings
+  python generate_bindings.py --network testnet
+
+  # GitHub release mode - uses contract IDs from deploy release
+  python generate_bindings.py --github-release https://github.com/owner/repo/releases/tag/deploy-v1.0.0
+
+  # GitHub release mode with separate WASM and deploy releases
+  python generate_bindings.py -g https://github.com/owner/repo/releases/tag/0.04 \\
+      --deploy-release https://github.com/owner/repo/releases/tag/deploy-alpha-v0.04-testnet
+
+  # Generate JSON specs only (from WASM, no contract ID needed)
+  python generate_bindings.py -g https://github.com/owner/repo/releases/tag/0.04 --json-only
+
+  # Filter specific contracts
+  python generate_bindings.py -g https://github.com/owner/repo/releases/tag/deploy-v1.0.0 \\
+      --contracts hvym_collective hvym_roster
+        """
+    )
+
+    # Mode selection
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--github-release", "-g",
+        metavar="URL",
+        help="GitHub release URL with deployment info (contract IDs)"
+    )
+
+    # Deploy mode options
+    parser.add_argument("--network", default=NETWORK,
+                        help="Network to use for RPC calls (default: testnet)")
+    parser.add_argument("--skip-existing", action="store_true",
+                        help="Skip contracts that already have bindings (deploy mode only)")
+
+    # GitHub release mode options
+    parser.add_argument("--deploy-release",
+                        metavar="URL",
+                        help="GitHub release URL with deployment info (if different from --github-release)")
+    parser.add_argument("--json-only", action="store_true",
+                        help="Only generate JSON specs from WASM (no Python bindings, no contract ID needed)")
+    parser.add_argument("--keep-wasm", action="store_true",
+                        help="Keep downloaded WASM files in ./wasm directory")
+    parser.add_argument("--contracts", nargs="+",
+                        help="Only process specific contracts (e.g., --contracts hvym_collective opus_token)")
+    parser.add_argument("--output", "-o",
+                        help="Output directory for bindings (default: ./bindings)")
+
     args = parser.parse_args()
-    
+
+    # GitHub Release Mode
+    if args.github_release:
+        return run_github_release_mode(
+            release_url=args.github_release,
+            output_dir=args.output,
+            keep_wasm=args.keep_wasm,
+            contracts=args.contracts,
+            deploy_release_url=args.deploy_release,
+            network=args.network,
+            json_only=args.json_only
+        )
+
+    # ========================================
+    # Deploy Mode (default)
+    # ========================================
+    print("\n🚀 Deploy Mode")
+    print("   Uploading WASM, deploying contracts, and generating bindings\n")
+
     # Load deployment account
     source_key = load_account()
     if not source_key:
@@ -276,28 +825,43 @@ def main():
     # Load existing deployments
     deployments = load_deployments()
     
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
+
     for wasm_file in wasm_files:
         contract_name = wasm_file.stem.replace('.optimized', '')
         print(f"\n=== Processing {contract_name} ===")
-        
+
+        # Skip upload-only contracts in deploy mode (they don't have contract IDs)
+        if contract_name in UPLOAD_ONLY_CONTRACTS:
+            print(f"⏭️  Skipping {contract_name} (upload-only contract, no contract ID)")
+            print(f"   Use --github-release mode to generate bindings from WASM directly")
+            skip_count += 1
+            continue
+
         # Check if we should skip existing
         if args.skip_existing and contract_name in deployments:
             print(f"✓ Using existing deployment for {contract_name}")
             contract_id = deployments[contract_name].get('contract_id')
             if not contract_id:
-                print(f"⚠️  No contract ID found for {contract_name} in deployments")
+                print(f"⚠️  No contract ID found for {contract_name} in deployments, skipping")
+                skip_count += 1
                 continue
         else:
             # 1. Upload WASM
             wasm_hash = upload_wasm(wasm_file, source_key)
             if not wasm_hash:
+                fail_count += 1
                 continue
-            
+
             # 2. Deploy contract instance
             contract_id = deploy_contract_instance(contract_name, wasm_hash, source_key)
             if not contract_id:
+                print(f"⚠️  Failed to deploy {contract_name}, skipping bindings generation")
+                fail_count += 1
                 continue
-            
+
             # Update deployments
             deployments[contract_name] = {
                 'contract_id': contract_id,
@@ -306,14 +870,30 @@ def main():
                 'timestamp': int(time.time())
             }
             save_deployments(deployments)
-        
-        # 3. Generate bindings
+
+        # 3. Generate bindings (only if we have a valid contract_id)
+        if not contract_id:
+            print(f"⚠️  No contract ID available for {contract_name}, skipping bindings")
+            skip_count += 1
+            continue
+
         if not generate_bindings(contract_name, contract_id):
             print(f"⚠️  Failed to generate bindings for {contract_name}")
+            fail_count += 1
             continue
-    
+
+        success_count += 1
+
+    # Summary
+    print(f"\n{'='*50}")
+    print(f"📊 Summary: {success_count} succeeded, {skip_count} skipped, {fail_count} failed")
+
+    if skip_count > 0:
+        print(f"\n💡 Tip: Use --github-release mode to generate bindings for upload-only contracts")
+        print(f"   python generate_bindings.py --github-release <release-url> --keep-wasm")
+
     print("\n✅ Bindings generation complete!")
-    return 0
+    return 0 if fail_count == 0 else 1
 
 if __name__ == "__main__":
     sys.exit(main())
