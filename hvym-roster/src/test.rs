@@ -613,3 +613,150 @@ fn test_admin_events() {
     assert!(!admin_list.contains(&admin2));
     assert!(admin_list.contains(&admin3));
 }
+
+#[test]
+fn test_member_paid() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_addr) = create_token_contract(&env, &admin);
+    mint_tokens(&pay_token_client, &admin, &user, &1000);
+
+    let join_fee = 100_u32;
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, join_fee, &pay_token_addr))
+    );
+
+    let name = String::from_val(&env, &"Alice");
+    let canon = String::from_val(&env, &"alice_canon");
+
+    // User joins the roster
+    roster.join(&user, &name, &canon);
+
+    // Check member_paid returns the join fee
+    let paid = roster.member_paid(&user);
+    assert_eq!(paid, join_fee);
+}
+
+#[test]
+fn test_member_paid_returns_zero_for_non_member() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let non_member = Address::generate(&env);
+    let (_, pay_token_addr) = create_token_contract(&env, &admin);
+
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, 100_u32, &pay_token_addr))
+    );
+
+    // Non-member should return 0
+    let paid = roster.member_paid(&non_member);
+    assert_eq!(paid, 0);
+}
+
+#[test]
+fn test_member_paid_after_multiple_members() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    let (pay_token_client, pay_token_addr) = create_token_contract(&env, &admin);
+    mint_tokens(&pay_token_client, &admin, &user1, &1000);
+    mint_tokens(&pay_token_client, &admin, &user2, &1000);
+
+    let join_fee = 50_u32;
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, join_fee, &pay_token_addr))
+    );
+
+    let name1 = String::from_val(&env, &"Alice");
+    let canon1 = String::from_val(&env, &"alice_canon");
+    let name2 = String::from_val(&env, &"Bob");
+    let canon2 = String::from_val(&env, &"bob_canon");
+
+    // Both users join
+    roster.join(&user1, &name1, &canon1);
+    roster.join(&user2, &name2, &canon2);
+
+    // Check each member's paid amount
+    assert_eq!(roster.member_paid(&user1), join_fee);
+    assert_eq!(roster.member_paid(&user2), join_fee);
+}
+
+#[test]
+fn test_get_canon() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_addr) = create_token_contract(&env, &admin);
+    mint_tokens(&pay_token_client, &admin, &user, &1000);
+
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, 100_u32, &pay_token_addr))
+    );
+
+    let name = String::from_val(&env, &"Alice");
+    let canon = String::from_val(&env, &"alice_canon_data");
+
+    // User joins the roster
+    roster.join(&user, &name, &canon);
+
+    // Get canon should return the canon
+    let retrieved_canon = roster.get_canon(&user);
+    assert_eq!(retrieved_canon, Some(canon));
+}
+
+#[test]
+fn test_get_canon_returns_none_for_non_member() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let non_member = Address::generate(&env);
+    let (_, pay_token_addr) = create_token_contract(&env, &admin);
+
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, 100_u32, &pay_token_addr))
+    );
+
+    // Non-member should return None
+    let canon = roster.get_canon(&non_member);
+    assert_eq!(canon, None);
+}
+
+#[test]
+fn test_get_canon_after_update() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_addr) = create_token_contract(&env, &admin);
+    mint_tokens(&pay_token_client, &admin, &user, &1000);
+
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, 100_u32, &pay_token_addr))
+    );
+
+    let name = String::from_val(&env, &"Alice");
+    let original_canon = String::from_val(&env, &"original_canon");
+    let updated_canon = String::from_val(&env, &"updated_canon");
+
+    // User joins with original canon
+    roster.join(&user, &name, &original_canon);
+    assert_eq!(roster.get_canon(&user), Some(original_canon));
+
+    // Update canon
+    roster.update_canon(&user, &user, &updated_canon);
+
+    // Get canon should return the updated canon
+    assert_eq!(roster.get_canon(&user), Some(updated_canon));
+}

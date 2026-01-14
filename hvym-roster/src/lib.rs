@@ -188,7 +188,26 @@ impl RosterContract {
 
     pub fn member_paid(e: Env, caller: Address) -> u32 {
         caller.require_auth();
-        e.storage().persistent().get(&Datakey::Member(caller)).unwrap_or(0)
+        e.storage()
+            .persistent()
+            .get::<Datakey, Member>(&Datakey::Member(caller))
+            .map(|member| member.paid)
+            .unwrap_or(0)
+    }
+
+    /// Get the canon for a member
+    ///
+    /// # Arguments
+    /// * `e` - The environment
+    /// * `member_address` - The address of the member to query
+    ///
+    /// # Returns
+    /// * `Option<String>` - The member's canon if they exist, None otherwise
+    pub fn get_canon(e: Env, member_address: Address) -> Option<String> {
+        e.storage()
+            .persistent()
+            .get::<Datakey, Member>(&Datakey::Member(member_address))
+            .map(|member| member.canon)
     }
 
     pub fn is_member(e: Env, caller: Address) -> bool {
