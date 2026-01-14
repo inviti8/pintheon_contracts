@@ -1,6 +1,8 @@
 # WASM Release Files
 wasm_release/
 
+hvym-roster/test_snapshots/
+
 # Deployment Records (optional - uncomment if you don't want to track deployments)
 # deployments.json
 # deployments.md
@@ -67,3 +69,5 @@ wasm/pintheon_node_token.optimized.wasm
 wasm/hvym_roster.optimized.wasm
 
 .claude/
+
+tmpclaude*
