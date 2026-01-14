@@ -436,3 +436,4 @@ fn storage_p<T: IntoVal<Env, Val>>(env: Env, value: T, kind: Kind, key: Datakey)
 
 
 mod test;
+mod rent_tests;
