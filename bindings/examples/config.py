@@ -9,8 +9,8 @@ NETWORK = "testnet"
 RPC_URL = "https://soroban-testnet.stellar.org"
 NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
 
-# Deployed contract addresses (update these with your actual contract IDs)
-# These are example addresses - replace with your deployed contracts
+# Deployed contract addresses (update these with your actual contract IDs as needed)
+# These are deployed contracts from the deployments.json file, as of 1/13/26
 CONTRACTS = {
     "hvym_collective": "CDIBEBWJZ3WSMDOPCVMWEKLUJRVBVU2GJSWGYWU6IKJLFKZPP37YSGFG",
     "hvym_roster": "CDKCP2OMO3NJM2JS33EXPJVQS4YT2TAIA5WC4JTO4P6KHNXN6AYKPWKH",
