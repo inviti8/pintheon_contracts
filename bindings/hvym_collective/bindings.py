@@ -207,6 +207,7 @@ class Collective:
     join_fee: int
     mint_fee: int
     opus_reward: int
+    opus_split: int
     pay_token: Address
     symbol: str
 
@@ -215,12 +216,14 @@ class Collective:
         join_fee: int,
         mint_fee: int,
         opus_reward: int,
+        opus_split: int,
         pay_token: Union[Address, str],
         symbol: str,
     ):
         self.join_fee = join_fee
         self.mint_fee = mint_fee
         self.opus_reward = opus_reward
+        self.opus_split = opus_split
         self.pay_token = pay_token
         self.symbol = symbol
 
@@ -230,6 +233,7 @@ class Collective:
                 "join_fee": scval.to_uint32(self.join_fee),
                 "mint_fee": scval.to_uint32(self.mint_fee),
                 "opus_reward": scval.to_uint32(self.opus_reward),
+                "opus_split": scval.to_uint32(self.opus_split),
                 "pay_token": scval.to_address(self.pay_token),
                 "symbol": scval.to_symbol(self.symbol),
             }
@@ -242,6 +246,7 @@ class Collective:
             scval.from_uint32(elements["join_fee"]),
             scval.from_uint32(elements["mint_fee"]),
             scval.from_uint32(elements["opus_reward"]),
+            scval.from_uint32(elements["opus_split"]),
             scval.from_address(elements["pay_token"]),
             scval.from_symbol(elements["symbol"]),
         )
@@ -253,6 +258,7 @@ class Collective:
             self.join_fee == other.join_fee
             and self.mint_fee == other.mint_fee
             and self.opus_reward == other.opus_reward
+            and self.opus_split == other.opus_split
             and self.pay_token == other.pay_token
             and self.symbol == other.symbol
         )
@@ -263,6 +269,7 @@ class Collective:
                 self.join_fee,
                 self.mint_fee,
                 self.opus_reward,
+                self.opus_split,
                 self.pay_token,
                 self.symbol,
             )
@@ -574,6 +581,31 @@ class Client(ContractClient):
             "is_member",
             [scval.to_address(caller)],
             parse_result_xdr_fn=lambda v: scval.from_bool(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    def opus_split(
+        self,
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[int]:
+        """Returns the current Opus split percentage (0-30)
+        This is the percentage of Opus rewards that go to the collective treasury"""
+        return self.invoke(
+            "opus_split",
+            [],
+            parse_result_xdr_fn=lambda v: scval.from_uint32(v),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -937,6 +969,38 @@ class Client(ContractClient):
             restore=restore,
         )
 
+    def update_opus_split(
+        self,
+        caller: Union[Address, str],
+        new_split: int,
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransaction[int]:
+        """Updates the Opus split percentage (admin only)
+
+        # Arguments
+        * `new_split` - New split percentage (0-30)
+        - 0 = 100% to publisher, 0% to collective
+        - 10 = 90% to publisher, 10% to collective (default)
+        - 30 = 70% to publisher, 30% to collective (max)"""
+        return self.invoke(
+            "update_opus_split",
+            [scval.to_address(caller), scval.to_uint32(new_split)],
+            parse_result_xdr_fn=lambda v: scval.from_uint32(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
     def update_opus_reward(
         self,
         caller: Union[Address, str],
@@ -1203,6 +1267,31 @@ class ClientAsync(ContractClientAsync):
             "is_member",
             [scval.to_address(caller)],
             parse_result_xdr_fn=lambda v: scval.from_bool(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def opus_split(
+        self,
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[int]:
+        """Returns the current Opus split percentage (0-30)
+        This is the percentage of Opus rewards that go to the collective treasury"""
+        return await self.invoke(
+            "opus_split",
+            [],
+            parse_result_xdr_fn=lambda v: scval.from_uint32(v),
             source=source,
             signer=signer,
             base_fee=base_fee,
@@ -1557,6 +1646,38 @@ class ClientAsync(ContractClientAsync):
                 scval.to_string(descriptor),
             ],
             parse_result_xdr_fn=lambda v: scval.from_address(v),
+            source=source,
+            signer=signer,
+            base_fee=base_fee,
+            transaction_timeout=transaction_timeout,
+            submit_timeout=submit_timeout,
+            simulate=simulate,
+            restore=restore,
+        )
+
+    async def update_opus_split(
+        self,
+        caller: Union[Address, str],
+        new_split: int,
+        source: Union[str, MuxedAccount] = NULL_ACCOUNT,
+        signer: Optional[Keypair] = None,
+        base_fee: int = 100,
+        transaction_timeout: int = 300,
+        submit_timeout: int = 30,
+        simulate: bool = True,
+        restore: bool = True,
+    ) -> AssembledTransactionAsync[int]:
+        """Updates the Opus split percentage (admin only)
+
+        # Arguments
+        * `new_split` - New split percentage (0-30)
+        - 0 = 100% to publisher, 0% to collective
+        - 10 = 90% to publisher, 10% to collective (default)
+        - 30 = 70% to publisher, 30% to collective (max)"""
+        return await self.invoke(
+            "update_opus_split",
+            [scval.to_address(caller), scval.to_uint32(new_split)],
+            parse_result_xdr_fn=lambda v: scval.from_uint32(v),
             source=source,
             signer=signer,
             base_fee=base_fee,

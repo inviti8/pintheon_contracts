@@ -22,15 +22,15 @@
   "opus_token": {
     "contract_dir": "opus_token",
     "wasm_hash": "f3850a9b9b47b2f84c899452f8f8ebc919bf9302a1e8f806b76c149ea9bb9b63",
-    "contract_id": "CAKWTI6AY6LPSSBZOOSHMA2DHP7SUHE7N2M7PAUGOFIN5HRHW5CGRIMW",
+    "contract_id": "CA3SLEQ65R3DAYT5GPFB6SXAHTR5NS5VAEZSEMMIYNXWMTLBT7NX2RHX",
     "network": "testnet",
     "deployer": "",
     "timestamp": 0
   },
   "hvym_collective": {
     "contract_dir": "hvym-collective",
-    "wasm_hash": "d961c2172143ce8f92b462639304be318293b8482b1d4c81c97802258ae93aaa",
-    "contract_id": "CAKLTGOWQAXCZ3ASA3XWA5ECQDO6CKENEZVCUXZ66LETR7EIDWJUWKCX",
+    "wasm_hash": "8aeaca9fcb544f4a6fc882eb9e4eae7e95c29ee014310afa49ebb9eba2556993",
+    "contract_id": "CDHSOV4IKQB3YZTA6HW26RN7VS6UVZRZZCNWDQVCSQPKYKBMATRJSQ5R",
     "network": "testnet",
     "deployer": "",
     "timestamp": 0
@@ -38,7 +38,7 @@
   "hvym_roster": {
     "contract_dir": "hvym-roster",
     "wasm_hash": "c05c88e952d5e8b022ffe305e0c2454cf66327afc7ca343c12799128bfbc1307",
-    "contract_id": "CDY6NVMRND4QOFYQ7DWPZN4PRUESSHYWO7HL572I3JWS7J5WGQNR6JDX",
+    "contract_id": "CDWX72R3Z7CAKWWBNKVNDLSUH5WZOC4CR7OOFJQANO2IX37S3IE4JRRO",
     "network": "testnet",
     "deployer": "",
     "timestamp": 0
