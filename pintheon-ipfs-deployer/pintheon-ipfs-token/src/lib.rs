@@ -7,5 +7,6 @@ mod contract;
 mod metadata;
 mod storage_types;
 mod test;
+mod rent_tests;
 
 pub use crate::contract::TokenClient;

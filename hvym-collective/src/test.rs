@@ -101,6 +101,7 @@ fn setup_test_env_with_opus(e: &Env) -> (Address, Address, Address, token::Clien
                 10u32,          // mint_fee
                 pay_token_addr, // payment token address
                 100u32,         // opus_reward
+                10u32,          // opus_split (10% to collective)
             ),
         );
     
@@ -143,7 +144,7 @@ fn test_join_and_remove() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     assert_eq!(collective.is_member(&user), false);
@@ -166,7 +167,7 @@ fn test_double_join_should_fail() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     collective.join(&user);
@@ -185,7 +186,7 @@ fn test_join_with_insufficient_balance() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     collective.join(&user); // should panic
@@ -200,7 +201,7 @@ fn test_update_fees_and_reward() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     assert_eq!(collective.update_join_fee(&admin, &20_u32), 20);
@@ -286,6 +287,7 @@ fn test_set_opus_token_without_admin_should_fail() {
                 10u32,          // mint_fee
                 pay_token_addr, // payment token address
                 100u32,         // opus_reward
+                10u32,          // opus_split (10% to collective)
             ),
         );
     
@@ -324,7 +326,7 @@ fn test_deploy_node_token() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 5_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 5_u32, 10_u32))
     );
 
     collective.join(&user);
@@ -350,7 +352,7 @@ fn test_deploy_ipfs_token() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 5_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 5_u32, 10_u32))
     );
 
     collective.join(&user);
@@ -393,7 +395,7 @@ fn test_emits_join_and_remove_events() {
 
     let contract_id = env.register(
         CollectiveContract,
-        (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32),
+        (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32),
     );
     let collective = CollectiveContractClient::new(&env, &contract_id);
 
@@ -432,7 +434,7 @@ fn test_emits_publish_events() {
 
     let contract_id = env.register(
         CollectiveContract,
-        (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32),
+        (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32),
     );
     let collective = CollectiveContractClient::new(&env, &contract_id);
 
@@ -475,7 +477,7 @@ fn test_zero_value_funding() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     let result = collective.fund_contract(&user, &0);
@@ -493,7 +495,7 @@ fn test_deploy_contract_as_non_member() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     let name = String::from_val(&env, &"ForbiddenNode");
@@ -513,7 +515,7 @@ fn test_deploy_ipfs_before_opus() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     collective.join(&user);
@@ -537,7 +539,7 @@ fn test_add_admin() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Initial admin should be in the list
@@ -566,7 +568,7 @@ fn test_add_admin_duplicate() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Try to add admin twice
@@ -585,7 +587,7 @@ fn test_add_admin_unauthorized() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Non-admin tries to add admin
@@ -602,7 +604,7 @@ fn test_remove() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Add new admin first
@@ -631,7 +633,7 @@ fn test_remove_initial_admin() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Try to remove initial admin
@@ -649,7 +651,7 @@ fn test_remove_nonexistent_admin() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Try to remove non-existent admin
@@ -668,7 +670,7 @@ fn test_remove_unauthorized() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Add new admin
@@ -691,7 +693,7 @@ fn test_multi_admin_functionality() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Add multiple admins
@@ -728,7 +730,7 @@ fn test_admin_events() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Generate test admins
@@ -770,7 +772,7 @@ fn test_admin_authorization_in_existing_functions() {
 
     let collective = CollectiveContractClient::new(
         &env,
-        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32))
+        &env.register(CollectiveContract, (&admin, 10_u32, 5_u32, &pay_token_addr, 3_u32, 10_u32))
     );
 
     // Add admin2

@@ -84,6 +84,9 @@ pub struct Collective {
    pub mint_fee: u32,
    pub pay_token: Address,
    pub opus_reward: u32,
+   /// Percentage of Opus reward that goes to collective treasury (0-30)
+   /// Default: 10 (meaning 10% to collective, 90% to publisher)
+   pub opus_split: u32,
 }
 
 #[contracttype]
@@ -100,7 +103,21 @@ pub struct CollectiveContract;
 #[contractimpl]
 impl CollectiveContract {
     
-    pub fn __constructor(e: Env, admin: Address, join_fee: u32, mint_fee: u32, token: Address, reward: u32) {
+    /// Constructor for the Collective contract
+    ///
+    /// # Arguments
+    /// * `admin` - The admin address
+    /// * `join_fee` - Fee to join the collective (in stroops)
+    /// * `mint_fee` - Fee to publish a file (in stroops)
+    /// * `token` - The payment token address (e.g., XLM)
+    /// * `reward` - Opus reward per file (in Opus tokens)
+    /// * `split` - Percentage of Opus reward to collective treasury (0-30, default 10)
+    pub fn __constructor(e: Env, admin: Address, join_fee: u32, mint_fee: u32, token: Address, reward: u32, split: u32) {
+        // Validate split is within allowed range (0-30%)
+        if split > 30 {
+            panic!("opus_split must be between 0 and 30");
+        }
+
         e.storage().instance().set(&ADMIN, &admin);
 
         let collective = Collective {
@@ -109,6 +126,7 @@ impl CollectiveContract {
             mint_fee,
             pay_token: token,
             opus_reward: reward,
+            opus_split: split,
         };
 
         // Initialize admin list with the initial admin
@@ -207,6 +225,13 @@ impl CollectiveContract {
     pub fn opus_reward(e: Env) -> i128 {
         let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
         collective.opus_reward as i128
+    }
+
+    /// Returns the current Opus split percentage (0-30)
+    /// This is the percentage of Opus rewards that go to the collective treasury
+    pub fn opus_split(e: Env) -> u32 {
+        let collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("cound not find collective");
+        collective.opus_split
     }
 
     pub fn member_paid(e: Env, caller: Address) -> u32 {
@@ -311,13 +336,25 @@ impl CollectiveContract {
 
         let contract_id = Self::deploy_contract(e.clone(), caller.clone(), wasm_hash.clone(), salt.clone(), constructor_args.clone());
 
-        // Mint opus reward to caller using StellarAssetClient
+        // Mint opus reward with split between publisher and collective treasury
         let opus_address: Address = e.storage().instance().get(&OPUS).unwrap();
         let opus_client = StellarAssetClient::new(&e, &opus_address);
-        let reward = collective.opus_reward as i128;
-        
-        // Mint tokens to the caller
-        opus_client.mint(&caller, &reward);
+        let total_reward = collective.opus_reward as i128;
+        let split_percent = collective.opus_split as i128;
+
+        // Calculate split: collective gets split_percent%, publisher gets the rest
+        let collective_reward = (total_reward * split_percent) / 100;
+        let publisher_reward = total_reward - collective_reward;
+
+        // Mint publisher's share
+        if publisher_reward > 0 {
+            opus_client.mint(&caller, &publisher_reward);
+        }
+
+        // Mint collective's share to the contract treasury
+        if collective_reward > 0 {
+            opus_client.mint(&e.current_contract_address(), &collective_reward);
+        }
 
         contract_id
     }
@@ -444,6 +481,28 @@ impl CollectiveContract {
 
         storage_p(e, collective, Kind::Permanent, Datakey::Collective);
         new_reward as i128
+    }
+
+    /// Updates the Opus split percentage (admin only)
+    ///
+    /// # Arguments
+    /// * `new_split` - New split percentage (0-30)
+    ///   - 0 = 100% to publisher, 0% to collective
+    ///   - 10 = 90% to publisher, 10% to collective (default)
+    ///   - 30 = 70% to publisher, 30% to collective (max)
+    pub fn update_opus_split(e: Env, caller: Address, new_split: u32) -> u32 {
+        CollectiveContract::require_admin_auth(e.clone(), caller.clone());
+
+        // Validate split is within allowed range (0-30%)
+        if new_split > 30 {
+            panic!("opus_split must be between 0 and 30");
+        }
+
+        let mut collective: Collective = storage_g(e.clone(), Kind::Permanent, Datakey::Collective).expect("could not find collective");
+        collective.opus_split = new_split;
+
+        storage_p(e, collective, Kind::Permanent, Datakey::Collective);
+        new_split
     }
 
     pub fn add_admin(e: Env, caller: Address, new_admin: Address) -> bool {
@@ -606,3 +665,4 @@ fn storage_p<T: IntoVal<Env, Val>>(env: Env, value: T, kind: Kind, key: Datakey)
 
 
 mod test;
+mod rent_tests;
