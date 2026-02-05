@@ -1,0 +1,11 @@
+{
+  "admin_addr": "TESTNET_DEPLOYER",
+  "pin_fee": 1.0,
+  "join_fee": 5.0,
+  "min_pin_qty": 3,
+  "min_offer_price": 1.0,
+  "pinner_stake": 100.0,
+  "pay_token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "max_cycles": 60,
+  "flag_threshold": 3
+}

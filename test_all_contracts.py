@@ -9,7 +9,8 @@ TEST_ORDER = [
     "pintheon-ipfs-deployer/pintheon-ipfs-token",
     "opus_token",
     "hvym-collective",
-    "hvym-roster"
+    "hvym-roster",
+    "hvym-pin-service"
 ]
 
 def run_tests(contract_dir):

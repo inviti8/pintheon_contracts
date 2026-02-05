@@ -49,7 +49,8 @@ CONTRACTS = [
     "pintheon_node_token",
     "opus_token",
     "hvym_collective",
-    "hvym_roster"
+    "hvym_roster",
+    "hvym_pin_service"
 ]
 
 print(f"ℹ️  Using network: {NETWORK}")
@@ -92,6 +93,10 @@ def load_contract_args(contract_name: str) -> dict:
                     args[key] = int(float(args[key]) * 10_000_000)
         elif contract_name == "hvym_roster":
             for key in ['join_fee']:
+                if key in args:
+                    args[key] = int(float(args[key]) * 10_000_000)
+        elif contract_name == "hvym_pin_service":
+            for key in ['pin_fee', 'join_fee', 'min_offer_price', 'pinner_stake']:
                 if key in args:
                     args[key] = int(float(args[key]) * 10_000_000)
         
@@ -237,7 +242,8 @@ UPLOAD_ONLY_CONTRACTS = [
 DEPLOY_ONLY_CONTRACTS = [
     "opus_token",
     "hvym_collective",
-    "hvym_roster"
+    "hvym_roster",
+    "hvym_pin_service"
 ]
 
 def generate_deployments_md(deployments: dict) -> None:

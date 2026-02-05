@@ -177,7 +177,8 @@ jobs:
                      pintheon-ipfs-deployer/pintheon-ipfs-token \
                      opus_token \
                      hvym-collective \
-                     hvym-roster; do
+                     hvym-roster \
+                     hvym-pin-service; do
             mkdir -p "$dir/wasm"
             chmod -R 777 "$dir/wasm"
             
@@ -389,9 +390,66 @@ jobs:
 
           echo "\n✅ Successfully processed $contract_name"
 
+          # Now build hvym-pin-service with the same attestation process
+          contract_path="hvym-pin-service"
+          contract_name="hvym_pin_service"
+          wasm_file="wasm/${contract_name}.optimized.wasm"
+
+          echo "\n🚀 Building $contract_path..."
+
+          # Set contract-specific environment variables
+          echo "PACKAGE_NAME=${contract_name}" >> $GITHUB_ENV
+          echo "RELATIVE_PATH=${contract_path}" >> $GITHUB_ENV
+          echo "WASM_PATH=${wasm_file}" >> $GITHUB_ENV
+
+          # Build the contract with source repo info
+          if ! python cloud_build.py --contract "$contract_path" --source-repo "github:${{ github.repository }}"; then
+            echo "::error::Failed to build $contract_path"
+            exit 1
+          fi
+
+          # Verify the optimized WASM file was created
+          if [ ! -f "$wasm_file" ]; then
+            echo "::error::Optimized WASM not found after building $contract_path"
+            echo "Expected: $(pwd)/$wasm_file"
+            exit 1
+          fi
+
+          echo "✅ Successfully built and verified: $wasm_file"
+          echo "File size: $(du -h "$wasm_file" | cut -f1)"
+
+          # Generate contract hash using the metadata approach for hvym-pin-service
+          echo "\n🔑 Generating contract hash for hvym-pin-service..."
+
+          # First try with the with_meta version if it exists
+          wasm_with_meta="${wasm_file%.optimized.wasm}.with_meta.wasm"
+          if [ -f "$wasm_with_meta" ]; then
+              echo "Using WASM with metadata: $(basename "$wasm_with_meta")"
+              wasm_file="$wasm_with_meta"
+          fi
+
+          # Get the hash using the build info command
+          WASM_HASH=$(stellar contract info build --wasm "$wasm_file" 2>&1 | grep -o 'Wasm Hash: .*' | cut -d' ' -f3)
+
+          if [ -z "$WASM_HASH" ]; then
+              echo "::error::Failed to generate contract hash for hvym-pin-service"
+              echo "Tried to get hash from: $wasm_file"
+              echo "Command output was:"
+              stellar contract info build --wasm "$wasm_file" || true
+              exit 1
+          fi
+
+          echo "WASM_HASH=$WASM_HASH" >> $GITHUB_ENV
+          echo "Hash: $WASM_HASH"
+
+          # Attest build
+          echo "\n📝 Attesting build..."
+
+          echo "\n✅ Successfully processed $contract_name"
+
           # Final verification of all WASM files
           echo "\n🔍 Verifying all WASM files..."
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ ! -f "$wasm_file" ]; then
               echo "::error::Missing final WASM file: $wasm_file"
@@ -412,7 +470,7 @@ jobs:
           echo "Built WASM files in wasm/ directory:"
           ls -la wasm/
           # Verify each contract was built
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ ! -f "$wasm_file" ]; then
               echo "::error::Failed to find built WASM for ${contract}"
@@ -428,7 +486,7 @@ jobs:
           mkdir -p release-wasm
           
           # Copy all optimized WASM and metadata files from wasm/ to release directory
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service; do
             wasm_file="wasm/${contract}.optimized.wasm"
             meta_file="${wasm_file}.meta.json"
             
@@ -460,7 +518,7 @@ jobs:
       - name: Generate contract metadata
         run: |
           # Generate metadata for each contract
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ -f "$wasm_file" ]; then
               echo "Generating metadata for $wasm_file"

@@ -163,6 +163,7 @@ jobs:
             "opus_token"
             "hvym_collective"
             "hvym_roster"
+            "hvym_pin_service"
           )
           
           # Fetch all releases and find the latest one matching the version

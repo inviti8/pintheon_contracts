@@ -75,7 +75,8 @@ UPLOAD_ONLY_CONTRACTS = [
 DEPLOYABLE_CONTRACTS = [
     "opus_token",
     "hvym_collective",
-    "hvym_roster"
+    "hvym_roster",
+    "hvym_pin_service"
 ]
 
 def load_account() -> Optional[str]:

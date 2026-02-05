@@ -237,7 +237,8 @@ def main():
         "pintheon-ipfs-deployer/pintheon-ipfs-token",
         "opus_token",
         "hvym-collective",
-        "hvym-roster"
+        "hvym-roster",
+        "hvym-pin-service"
     ]
     
     # Build specified contract or all contracts in order
