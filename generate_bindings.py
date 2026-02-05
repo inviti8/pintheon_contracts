@@ -460,7 +460,7 @@ def generate_bindings_from_contract_id(contract_name: str, contract_id: str,
     bindings_output = output_dir / contract_name
     os.makedirs(bindings_output, exist_ok=True)
 
-    print(f"\n🔧 Generating bindings for {contract_name}...")
+    print(f"\nGenerating bindings for {contract_name}...")
     print(f"   Contract ID: {contract_id}")
     print(f"   Output: {bindings_output}")
 
@@ -485,18 +485,18 @@ def generate_bindings_from_contract_id(contract_name: str, contract_id: str,
         if result.stderr:
             print(f"   Info: {result.stderr.strip()}")
 
-        print(f"✅ Successfully generated bindings for {contract_name}")
+        print(f"Successfully generated bindings for {contract_name}")
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to generate bindings for {contract_name}")
+        print(f"Failed to generate bindings for {contract_name}")
         if e.stderr:
             print(f"   Error: {e.stderr.strip()}")
         if e.stdout:
             print(f"   Output: {e.stdout.strip()}")
         return False
     except FileNotFoundError:
-        print("❌ stellar-contract-bindings not found. Install with:")
+        print("stellar-contract-bindings not found. Install with:")
         print("   uv add stellar-contract-bindings")
         return False
 
@@ -731,6 +731,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # From file mode - generate bindings from existing deployments.json
+  python generate_bindings.py --from-file deployments.json
+
+  # From file mode - specific contracts only
+  python generate_bindings.py --from-file deployments.json --contracts hvym_collective hvym_pin_service
+
   # Deploy mode (default) - deploys contracts and generates bindings
   python generate_bindings.py --network testnet
 
@@ -752,6 +758,11 @@ Examples:
 
     # Mode selection
     mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--from-file", "-f",
+        metavar="FILE",
+        help="Generate bindings from an existing deployments JSON file (e.g., deployments.json)"
+    )
     mode_group.add_argument(
         "--github-release", "-g",
         metavar="URL",
@@ -778,6 +789,79 @@ Examples:
                         help="Output directory for bindings (default: ./bindings)")
 
     args = parser.parse_args()
+
+    # From File Mode
+    if args.from_file:
+        print(f"\nFrom File Mode")
+        print(f"   Reading contract IDs from: {args.from_file}\n")
+
+        # Update network settings if specified
+        if args.network != NETWORK and args.network in NETWORK_CONFIGS:
+            NETWORK = args.network
+            NETWORK_PASSPHRASE = NETWORK_CONFIGS[NETWORK]["passphrase"]
+            RPC_URL = NETWORK_CONFIGS[NETWORK]["rpc_url"]
+
+        rpc_url = NETWORK_CONFIGS.get(NETWORK, NETWORK_CONFIGS["testnet"])["rpc_url"]
+        print(f"   Network: {NETWORK}")
+        print(f"   RPC URL: {rpc_url}")
+
+        # Load the deployments file
+        deployments_path = Path(args.from_file)
+        if not deployments_path.exists():
+            print(f"Error: File not found: {args.from_file}")
+            return 1
+
+        try:
+            with open(deployments_path) as f:
+                deployments = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing {args.from_file}: {e}")
+            return 1
+
+        # Set up output directory
+        bindings_dir = Path(args.output) if args.output else Path(BINDINGS_DIR)
+        os.makedirs(bindings_dir, exist_ok=True)
+
+        # Skip metadata keys
+        skip_keys = {'network', 'timestamp', 'cli_version', 'note', 'release', 'version'}
+
+        success_count = 0
+        skip_count = 0
+        fail_count = 0
+
+        for contract_name, info in deployments.items():
+            if contract_name in skip_keys or not isinstance(info, dict):
+                continue
+
+            # Apply contract filter
+            if args.contracts and contract_name not in args.contracts:
+                continue
+
+            contract_id = info.get('contract_id')
+            if not contract_id:
+                print(f"\nSkipping {contract_name} (no contract ID)")
+                skip_count += 1
+                continue
+
+            if generate_bindings_from_contract_id(contract_name, contract_id, bindings_dir, rpc_url):
+                success_count += 1
+            else:
+                fail_count += 1
+
+        # Summary
+        print(f"\n{'='*50}")
+        print(f"Summary: {success_count} succeeded, {skip_count} skipped, {fail_count} failed")
+        print(f"Bindings generated in: {bindings_dir.absolute()}")
+
+        if bindings_dir.exists():
+            print(f"\nGenerated bindings:")
+            for binding_dir in sorted(bindings_dir.iterdir()):
+                if binding_dir.is_dir():
+                    files = list(binding_dir.glob("*.py"))
+                    if files:
+                        print(f"   {binding_dir.name}/ ({len(files)} files)")
+
+        return 0 if fail_count == 0 else 1
 
     # GitHub Release Mode
     if args.github_release:

@@ -19,9 +19,10 @@ Before running the examples, update `config.py` with your deployed contract addr
 
 ```python
 CONTRACTS = {
-    "hvym_collective": "CXXXXXXX...",  # Your collective contract ID
-    "hvym_roster": "CXXXXXXX...",      # Your roster contract ID
-    "opus_token": "CXXXXXXX...",       # Your opus token contract ID
+    "hvym_collective": "CXXXXXXX...",   # Your collective contract ID
+    "hvym_roster": "CXXXXXXX...",       # Your roster contract ID
+    "opus_token": "CXXXXXXX...",        # Your opus token contract ID
+    "hvym_pin_service": "CXXXXXXX...",  # Your pin service contract ID
 }
 ```
 
@@ -79,6 +80,66 @@ Shows how to publish files and deploy tokens:
 export STELLAR_SECRET_KEY=SXXXXX...
 
 python 04_publish_file.py
+```
+
+### 6. Pin Service Queries (`06_pin_service_queries.py`)
+
+Read-only queries for the hvym_pin_service contract:
+
+- Service configuration (fees, limits, thresholds, balances)
+- Slot pool status (active slots, availability, expiration)
+- Pinner lookups and counts
+- Epoch and timing information
+
+```bash
+python 06_pin_service_queries.py
+```
+
+### 7. Pin Service Pinner (`07_pin_service_pinner.py`)
+
+Full pinner lifecycle - register, earn, and manage your IPFS node:
+
+- Join as pinner (pays join_fee + pinner_stake)
+- Update pinner profile (node_id, multiaddr, min_price, active)
+- Collect pins from active slots (earn offer_price per pin)
+- Flag misbehaving pinners (CID Hunter system)
+- Leave and reclaim stake
+
+```bash
+export STELLAR_SECRET_KEY=SXXXXX...
+
+python 07_pin_service_pinner.py
+```
+
+### 8. Pin Service Publisher (`08_pin_service_publisher.py`)
+
+Publisher workflow - request IPFS pinning with escrowed payments:
+
+- Create pin requests (escrow funds, pick slot)
+- Monitor slot progress (claims, remaining pins)
+- Cancel pin requests (reclaim escrow)
+- Clear expired slots (refund publisher)
+
+```bash
+export STELLAR_SECRET_KEY=SXXXXX...
+
+python 08_pin_service_publisher.py
+```
+
+### 9. Pin Service Admin (`09_pin_service_admin.py`)
+
+Admin operations for managing the pin service:
+
+- View admin list and financial summary
+- Add/remove admins
+- Update fees, limits, and thresholds
+- Withdraw collected fees
+- Force-clear slots and remove pinners
+
+```bash
+export STELLAR_SECRET_KEY=SXXXXX...
+
+python 09_pin_service_admin.py
 ```
 
 ## Client Types
@@ -193,6 +254,14 @@ stellar keys fund mykey --network testnet
 ### "Not a member"
 
 Join the collective first using example 2.
+
+### "not pinner"
+
+Register as a pinner first using example 7 (`join_as_pinner`).
+
+### "No slots available"
+
+All 10 pin service slots are occupied. Wait for slots to expire or be cleared.
 
 ### "Transaction failed"
 
