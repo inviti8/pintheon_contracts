@@ -561,3 +561,39 @@ jobs:
             echo "Error: deployments.md not found"
             exit 1
           fi
+
+      - name: Commit deployments.json to repo
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Save updated files before switching branches
+          cp deployments.json /tmp/deployments.json
+          if [ -f deployments.md ]; then
+            cp deployments.md /tmp/deployments.md
+          fi
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch and checkout main (workflow runs on tag, so HEAD is detached)
+          git fetch origin main
+          git checkout main
+
+          # Copy updated files back
+          cp /tmp/deployments.json deployments.json
+          if [ -f /tmp/deployments.md ]; then
+            cp /tmp/deployments.md deployments.md
+          fi
+
+          # Commit and push if there are changes
+          git add deployments.json deployments.md
+          if git diff --cached --quiet; then
+            echo "No changes to deployments.json, nothing to commit"
+          else
+            DEPLOY_TAG="${{ env.RELEASE_NAME }}-v${{ env.VERSION }}-${{ env.NETWORK }}"
+            git commit -m "Update deployments.json from deploy ${DEPLOY_TAG}"
+            git push origin main
+            echo "✅ Committed and pushed deployments.json to main"
+          fi
