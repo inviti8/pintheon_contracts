@@ -10,7 +10,8 @@ TEST_ORDER = [
     "opus_token",
     "hvym-collective",
     "hvym-roster",
-    "hvym-pin-service"
+    "hvym-pin-service",
+    "hvym-pin-service-factory"
 ]
 
 def run_tests(contract_dir):

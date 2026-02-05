@@ -50,7 +50,8 @@ CONTRACTS = [
     "opus_token",
     "hvym_collective",
     "hvym_roster",
-    "hvym_pin_service"
+    "hvym_pin_service",
+    "hvym_pin_service_factory"
 ]
 
 print(f"ℹ️  Using network: {NETWORK}")
@@ -243,7 +244,8 @@ DEPLOY_ONLY_CONTRACTS = [
     "opus_token",
     "hvym_collective",
     "hvym_roster",
-    "hvym_pin_service"
+    "hvym_pin_service",
+    "hvym_pin_service_factory"
 ]
 
 def generate_deployments_md(deployments: dict) -> None:

@@ -238,7 +238,8 @@ def main():
         "opus_token",
         "hvym-collective",
         "hvym-roster",
-        "hvym-pin-service"
+        "hvym-pin-service",
+        "hvym-pin-service-factory"
     ]
     
     # Build specified contract or all contracts in order
