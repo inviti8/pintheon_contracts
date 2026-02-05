@@ -1,8 +1,10 @@
-# Soroban Contract Deployments
+# Contract Deployments
 
-| Contract Name | Contract Directory | Wasm Hash | Contract ID |
-|--------------|-------------------|--------------------------------------------------------------|----------------------------------------------------------|
-| `pintheon-node-token` | `` | `fc396c505d6f7ce2f34a47f5c269c7671b3f0c016ea93f9c471b4f36d9170b63` | `` |
-| `pintheon-ipfs-token` | `` | `bb36fdc57aae8fc99a5065efdd63c5c4a11496d86b40041feee06c8825f1f253` | `` |
-| `opus_token` | `` | `69cabf3ccf95a5ccaa484c4a591c55594b5739e8aa723a1f16b4ba944c14c79c` | `CBKEMSGFR2RAHJXFBDWEAJ2CJG3TEDYCJSL7TIQCWTLWGOUXRLHJ4GEM` |
-| `hvym-collective` | `hvym-collective` | `887116e31772493cd6abe69784a886137034cd3457d04b21396e218f392c074f` | `CAP2N7MB5LY5UPHW3TGLURTKIXUMJYLFGAR65VEC3IZBSA6JN7KRCIKQ` |
+| Contract | Network | Contract ID | Wasm Hash |
+|----------|---------|-------------|-----------|
+| pintheon_ipfs_token | testnet | `` | `087d870441ec0d56e37107811480b30854a5154de341c8073815a0e5b375127b` |
+| pintheon_node_token | testnet | `` | `494a226584f787bc220d07e42ff4cdccacc12120ca6660aa55dbce5e2533f9e0` |
+| opus_token | testnet | `CA3WCMMNEZALGNPSYDIO4OR4BBBMHKI3732BDLLADNG5FZAV57ZBR64F` | `d1cd45b062906f5a9b5d09c2af02c231ff157c0def04d77fd22a9678fb7b1b44` |
+| hvym_collective | testnet | `CAGZJMYO6GAEOYOX7QZQPINTLEDLS3OEDMVA4OCMCLFIUVGEBHUTLZTE` | `709b7192dcfd36d58ba3c9c25138565725c9e516972932504c5c85467d928921` |
+| hvym_roster | testnet | `CANS7U5DNOWFUYMULMN3ZPNRIRKSQENKZLGMWOZJMCJATD3EFVW6PUXP` | `9bb2d4cdda67495340c24bc0f39999dd2578e8cb3797f41460f5b89470bf2c07` |
+| hvym_pin_service | testnet | `CCNOEJLBMXBNCYRV3JJ3OP54MPE7Z65YIKBQMIXVY3TH7O65RW6UBTDY` | `19335c44516a8082d46038d6428193635b653d19d629295ff0beac1b0f394dab` |
