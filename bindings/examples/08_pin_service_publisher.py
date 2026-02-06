@@ -3,13 +3,16 @@
 Example 8: Pin Service - Publisher Workflow
 
 Demonstrates the publisher side of the pin service:
-    1. Create a pin request (escrow funds into a slot)
+    1. Create a pin request with filename (escrow funds into a slot)
     2. Monitor slot status (check claims and remaining pins)
     3. Cancel a pin request (reclaim escrow)
     4. Clear an expired slot (anyone can trigger, refunds publisher)
 
 The pin service has 10 reusable slots. Each slot holds one pin
 request at a time. Slots expire after max_cycles epochs.
+
+Note: IPFS CIDs don't preserve original filenames. The filename
+field ensures pinners know what to name the file when they pin it.
 
 Prerequisites:
     pip install stellar-sdk
@@ -56,7 +59,7 @@ def show_costs(offer_price: int, pin_qty: int):
         return None
 
 
-def create_pin(secret_key: str, cid: str, gateway: str, offer_price: int, pin_qty: int):
+def create_pin(secret_key: str, cid: str, filename: str, gateway: str, offer_price: int, pin_qty: int):
     """
     Create a pin request by escrowing funds into a slot.
 
@@ -72,6 +75,7 @@ def create_pin(secret_key: str, cid: str, gateway: str, offer_price: int, pin_qt
     Args:
         secret_key: Stellar secret key
         cid: The IPFS CID to pin (e.g., "QmYourContentHash...")
+        filename: Original filename (IPFS CIDs lose the filename, so this preserves it)
         gateway: Preferred IPFS gateway URL (e.g., "https://ipfs.io")
         offer_price: Price per pin in stroops (must be >= min_offer_price)
         pin_qty: Number of pinners requested (must be >= min_pin_qty)
@@ -85,6 +89,7 @@ def create_pin(secret_key: str, cid: str, gateway: str, offer_price: int, pin_qt
     print("=" * 60)
     print(f"  Account:     {public_key[:8]}...{public_key[-8:]}")
     print(f"  CID:         {cid}")
+    print(f"  Filename:    {filename}")
     print(f"  Gateway:     {gateway}")
     print(f"  Offer Price: {offer_price} stroops per pinner")
     print(f"  Pin Qty:     {pin_qty} pinners")
@@ -128,6 +133,7 @@ def create_pin(secret_key: str, cid: str, gateway: str, offer_price: int, pin_qt
         tx = client.create_pin(
             caller=public_key,
             cid=cid.encode('utf-8'),
+            filename=filename.encode('utf-8'),
             gateway=gateway.encode('utf-8'),
             offer_price=offer_price,
             pin_qty=pin_qty,
@@ -328,6 +334,7 @@ if __name__ == "__main__":
     slot_id = create_pin(
         secret_key=secret_key,
         cid="QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+        filename="my_document.pdf",
         gateway="https://ipfs.io",
         offer_price=100,   # 100 stroops per pinner
         pin_qty=3,         # request 3 pinners

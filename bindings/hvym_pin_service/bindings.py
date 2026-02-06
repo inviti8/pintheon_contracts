@@ -386,6 +386,7 @@ class PinSlot:
 
 class PinEvent:
     cid: bytes
+    filename: bytes
     gateway: bytes
     offer_price: int
     pin_qty: int
@@ -395,6 +396,7 @@ class PinEvent:
     def __init__(
         self,
         cid: bytes,
+        filename: bytes,
         gateway: bytes,
         offer_price: int,
         pin_qty: int,
@@ -402,6 +404,7 @@ class PinEvent:
         slot_id: int,
     ):
         self.cid = cid
+        self.filename = filename
         self.gateway = gateway
         self.offer_price = offer_price
         self.pin_qty = pin_qty
@@ -412,6 +415,7 @@ class PinEvent:
         return scval.to_struct(
             {
                 "cid": scval.to_string(self.cid),
+                "filename": scval.to_string(self.filename),
                 "gateway": scval.to_string(self.gateway),
                 "offer_price": scval.to_uint32(self.offer_price),
                 "pin_qty": scval.to_uint32(self.pin_qty),
@@ -425,6 +429,7 @@ class PinEvent:
         elements = scval.from_struct(val)
         return cls(
             scval.from_string(elements["cid"]),
+            scval.from_string(elements["filename"]),
             scval.from_string(elements["gateway"]),
             scval.from_uint32(elements["offer_price"]),
             scval.from_uint32(elements["pin_qty"]),
@@ -437,6 +442,7 @@ class PinEvent:
             return NotImplemented
         return (
             self.cid == other.cid
+            and self.filename == other.filename
             and self.gateway == other.gateway
             and self.offer_price == other.offer_price
             and self.pin_qty == other.pin_qty
@@ -448,6 +454,7 @@ class PinEvent:
         return hash(
             (
                 self.cid,
+                self.filename,
                 self.gateway,
                 self.offer_price,
                 self.pin_qty,
@@ -979,6 +986,7 @@ class Client(ContractClient):
         self,
         caller: Union[Address, str],
         cid: bytes,
+        filename: bytes,
         gateway: bytes,
         offer_price: int,
         pin_qty: int,
@@ -995,6 +1003,7 @@ class Client(ContractClient):
             [
                 scval.to_address(caller),
                 scval.to_string(cid),
+                scval.to_string(filename),
                 scval.to_string(gateway),
                 scval.to_uint32(offer_price),
                 scval.to_uint32(pin_qty),
@@ -2033,6 +2042,7 @@ class ClientAsync(ContractClientAsync):
         self,
         caller: Union[Address, str],
         cid: bytes,
+        filename: bytes,
         gateway: bytes,
         offer_price: int,
         pin_qty: int,
@@ -2049,6 +2059,7 @@ class ClientAsync(ContractClientAsync):
             [
                 scval.to_address(caller),
                 scval.to_string(cid),
+                scval.to_string(filename),
                 scval.to_string(gateway),
                 scval.to_uint32(offer_price),
                 scval.to_uint32(pin_qty),
