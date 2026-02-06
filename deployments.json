@@ -1,6 +1,6 @@
 {
   "network": "testnet",
-  "timestamp": 1770346089,
+  "timestamp": 1770416675,
   "cli_version": "23.0.1",
   "note": "Deployed with standardized underscore format",
   "pintheon_ipfs_token": {
@@ -9,7 +9,7 @@
     "contract_id": "",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346064
+    "timestamp": 1770416637
   },
   "pintheon_node_token": {
     "contract_dir": "pintheon-node-deployer/pintheon-node-token",
@@ -17,46 +17,46 @@
     "contract_id": "",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346064
+    "timestamp": 1770416638
   },
   "opus_token": {
     "contract_dir": "opus_token",
     "wasm_hash": "d1cd45b062906f5a9b5d09c2af02c231ff157c0def04d77fd22a9678fb7b1b44",
-    "contract_id": "CCZ4GP3CAFGF4DSBKI3YQCGMEHPPYL4OALXW4MHQXYQY47O22SWHI4NN",
+    "contract_id": "CB3MM62JMDTNVJVOXORUOOPBFAWVTREJLA5VN4YME4MBNCHGBHQPQH7G",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346065
+    "timestamp": 1770416638
   },
   "hvym_collective": {
     "contract_dir": "hvym-collective",
     "wasm_hash": "709b7192dcfd36d58ba3c9c25138565725c9e516972932504c5c85467d928921",
-    "contract_id": "CADANB5AR5GDFF4YWWETWA4KSRM3Y2ZLJPQJFNSBORSTZRVOZXMHJWBT",
+    "contract_id": "CAYD2PS5KR4VSEQPQZEUDF3KHT2NDWTGVXAHPPMLLS4HHM5ARUNALFUU",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346071
+    "timestamp": 1770416645
   },
   "hvym_roster": {
     "contract_dir": "hvym-roster",
     "wasm_hash": "9bb2d4cdda67495340c24bc0f39999dd2578e8cb3797f41460f5b89470bf2c07",
-    "contract_id": "CANK5NWUYO3PXWLTNYHE4F775CZXTJXCGPMV2STEZYDTSDBNPJH4NO33",
+    "contract_id": "CC4AWAEY5UMWYGI5WZIFG4EQZVVQMPZFFBVX4JOLISLDWZ5G4H4EDTAJ",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346077
+    "timestamp": 1770416649
   },
   "hvym_pin_service": {
-    "wasm_hash": "19335c44516a8082d46038d6428193635b653d19d629295ff0beac1b0f394dab",
+    "wasm_hash": "6d5104196782a2b1c0105e02349b46347614011b7693be7635409f57f99d17dd",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346080,
-    "contract_id": "CDRBV6AEZ6UBMHHHVHRLAZW4IKFRGU7RWZ5DVFLWJAPHAQJZCXILEVKS"
+    "timestamp": 1770416659,
+    "contract_id": "CCEDYFIHUCJFITWEOT7BWUO2HBQQ72L244ZXQ4YNOC6FYRDN3MKDQFK7"
   },
   "release": "alpha",
-  "version": "0.08",
+  "version": "0.09",
   "hvym_pin_service_factory": {
-    "wasm_hash": "542cd23708f0a558456d2a892b8dba595f6ed07eb113e82a812ce6a9b30ed361",
+    "wasm_hash": "bf4e0c91c0ab76ee3fa5cf7d0a1d38e0c6ea084470b56409ba91d8cba03e11cb",
     "network": "testnet",
     "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1770346086,
-    "contract_id": "CB4QL4BBC7IRGWYK7V6SMW6DPYW2DTTLB6BC2YC5L4Z2CKLEREDTUR4Q"
+    "timestamp": 1770416669,
+    "contract_id": "CACBN6G2EPPLAQORDB3LXN3SULGVYBAETFZTNYTNDQ77B7JFRIBT66V2"
   }
 }
