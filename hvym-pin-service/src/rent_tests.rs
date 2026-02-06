@@ -188,9 +188,10 @@ fn test_rent_estimation_slot_operations() {
     let mut usages: Vec<ResourceUsage> = Vec::new();
 
     let cid = String::from_val(&env, &"QmRentTest");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
     let (slot_id, usage) = measure_operation(&env, "create_pin", || {
-        client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY)
+        client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY)
     });
     usages.push(usage);
 
@@ -216,7 +217,8 @@ fn test_rent_estimation_slot_operations() {
 
     // Create another pin for cancel test
     let cid2 = String::from_val(&env, &"QmRentTest2");
-    let slot2 = client.create_pin(&publisher, &cid2, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let filename2 = String::from_val(&env, &"testfile2.bin");
+    let slot2 = client.create_pin(&publisher, &cid2, &filename2, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     let (_, usage) = measure_operation(&env, "cancel_pin", || {
         client.cancel_pin(&publisher, &slot2);
@@ -225,7 +227,8 @@ fn test_rent_estimation_slot_operations() {
 
     // Create pin for expiration test
     let cid3 = String::from_val(&env, &"QmRentTest3");
-    let slot3 = client.create_pin(&publisher, &cid3, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let filename3 = String::from_val(&env, &"testfile3.bin");
+    let slot3 = client.create_pin(&publisher, &cid3, &filename3, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     env.ledger().with_mut(|li| {
         li.sequence_number += EPOCH_LENGTH * MAX_CYCLES + 1;

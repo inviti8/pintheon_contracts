@@ -139,6 +139,7 @@ pub enum Error {
 pub struct PinEvent {
     pub slot_id: u32,
     pub cid: String,
+    pub filename: String,
     pub gateway: String,
     pub offer_price: u32,
     pub pin_qty: u32,

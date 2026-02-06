@@ -95,8 +95,9 @@ fn create_test_pin<'a>(
     let publisher = Address::generate(env);
     mint_tokens(pay_token_client, admin, &publisher, &100_000);
     let cid = String::from_val(env, &cid_str);
+    let filename = String::from_val(env, &"testfile.bin");
     let gateway = String::from_val(env, &"https://gateway.test");
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
     (publisher, slot_id)
 }
 
@@ -519,8 +520,9 @@ fn test_create_pin_transfers_correct_amount() {
     mint_tokens(&pay_token_client, &admin, &publisher, &initial);
 
     let cid = String::from_val(&env, &"QmTestCID");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
-    client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     let expected_deducted = (MIN_OFFER_PRICE * MIN_PIN_QTY + PIN_FEE) as i128;
     assert_eq!(pay_token_client.balance(&publisher), initial - expected_deducted);
@@ -589,8 +591,9 @@ fn test_create_pin_rejects_low_qty() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &100_000);
     let cid = String::from_val(&env, &"QmTest");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
-    client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &1);
+    client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &1);
 }
 
 #[test]
@@ -600,8 +603,9 @@ fn test_create_pin_rejects_qty_over_10() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &1_000_000);
     let cid = String::from_val(&env, &"QmTest");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
-    client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &11);
+    client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &11);
 }
 
 #[test]
@@ -611,8 +615,9 @@ fn test_create_pin_rejects_low_offer_price() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &100_000);
     let cid = String::from_val(&env, &"QmTest");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
-    client.create_pin(&publisher, &cid, &gateway, &1, &MIN_PIN_QTY);
+    client.create_pin(&publisher, &cid, &filename, &gateway, &1, &MIN_PIN_QTY);
 }
 
 #[test]
@@ -626,9 +631,10 @@ fn test_create_pin_rejects_overflow() {
     client.update_min_offer_price(&admin, &1);
 
     let cid = String::from_val(&env, &"QmTest");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
     // u32::MAX * 10 will overflow
-    client.create_pin(&publisher, &cid, &gateway, &u32::MAX, &10);
+    client.create_pin(&publisher, &cid, &filename, &gateway, &u32::MAX, &10);
 }
 
 #[test]
@@ -647,10 +653,11 @@ fn test_same_publisher_multiple_slots_different_cids() {
 
     let cid1 = String::from_val(&env, &"QmCID1");
     let cid2 = String::from_val(&env, &"QmCID2");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
 
-    let s1 = client.create_pin(&publisher, &cid1, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
-    let s2 = client.create_pin(&publisher, &cid2, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let s1 = client.create_pin(&publisher, &cid1, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let s2 = client.create_pin(&publisher, &cid2, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     assert_ne!(s1, s2);
     assert_eq!(client.get_all_slots().len(), 2);
@@ -805,9 +812,10 @@ fn test_cancel_pin_refunds_remaining_escrow() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &100_000);
     let cid = String::from_val(&env, &"QmCancel");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
 
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
     let balance_after_create = pay_token_client.balance(&publisher);
 
     let refund = client.cancel_pin(&publisher, &slot_id);
@@ -826,9 +834,10 @@ fn test_cancel_pin_does_not_refund_pin_fee() {
     let initial = 100_000_i128;
     mint_tokens(&pay_token_client, &admin, &publisher, &initial);
     let cid = String::from_val(&env, &"QmCancel");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
 
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
     client.cancel_pin(&publisher, &slot_id);
 
     // Should have lost pin_fee
@@ -844,9 +853,10 @@ fn test_cancel_pin_after_partial_fill() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &100_000);
     let cid = String::from_val(&env, &"QmPartial");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
 
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     // 1 pinner collects
     let pinner = register_pinner(&env, &client, &pay_token_client, &admin);
@@ -870,9 +880,10 @@ fn test_cancel_pin_emits_unpin() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &100_000);
     let cid = String::from_val(&env, &"QmCancel");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
 
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
     client.cancel_pin(&publisher, &slot_id);
 
     let events = env.events().all();
@@ -888,9 +899,10 @@ fn test_cancel_pin_frees_slot() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &100_000);
     let cid = String::from_val(&env, &"QmCancel");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
 
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
     assert_eq!(client.get_all_slots().len(), 1);
 
     client.cancel_pin(&publisher, &slot_id);
@@ -1251,8 +1263,9 @@ fn test_full_pin_lifecycle() {
     let publisher = Address::generate(&env);
     mint_tokens(&pay_token_client, &admin, &publisher, &1_000_000);
     let cid = String::from_val(&env, &"QmLifecycle");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     // All pinners collect
     for i in 0..MIN_PIN_QTY {
@@ -1331,8 +1344,9 @@ fn test_slot_attack_scenario() {
 
     for i in 0..NUM_SLOTS {
         let cid = String::from_val(&env, &alloc::format!("QmAttack{}", i).as_str());
+        let filename = String::from_val(&env, &alloc::format!("attack{}.bin", i).as_str());
         let gateway = String::from_val(&env, &"https://evil.test");
-        client.create_pin(&attacker, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+        client.create_pin(&attacker, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
     }
 
     assert_eq!(client.has_available_slots(), false);
@@ -1414,8 +1428,9 @@ fn test_no_fund_leakage() {
     mint_tokens(&pay_token_client, &admin, &publisher, &initial_pub);
 
     let cid = String::from_val(&env, &"QmNoLeak");
+    let filename = String::from_val(&env, &"testfile.bin");
     let gateway = String::from_val(&env, &"https://gateway.test");
-    let slot_id = client.create_pin(&publisher, &cid, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
+    let slot_id = client.create_pin(&publisher, &cid, &filename, &gateway, &MIN_OFFER_PRICE, &MIN_PIN_QTY);
 
     let mut pinner_initial_sum = 0_i128;
     let mut pinners = soroban_sdk::Vec::new(&env);

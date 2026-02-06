@@ -88,6 +88,7 @@ impl PinServiceContract {
         e: Env,
         caller: Address,
         cid: String,
+        filename: String,
         gateway: String,
         offer_price: u32,
         pin_qty: u32,
@@ -171,6 +172,7 @@ impl PinServiceContract {
         let event = PinEvent {
             slot_id,
             cid,
+            filename,
             gateway,
             offer_price,
             pin_qty,
