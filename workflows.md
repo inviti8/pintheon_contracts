@@ -1,17 +1,17 @@
 # Soroban Contract Workflows
 
-This document describes the step-by-step workflows for building, testing, deploying, and post-deployment actions for the contracts in this repository. Each script is designed to automate a part of the process and should be run from the project root.
+This document describes the step-by-step workflows for building, testing, deploying, and generating bindings for the contracts in this repository. All scripts are run from the project root.
 
 ## Table of Contents
 
 1. [Build Contracts](#1-build-contracts)
 2. [Test Contracts](#2-test-contracts)
 3. [Deploy Contracts](#3-deploy-contracts)
-4. [Deploy with XDR Workaround](#4-deploy-with-xdr-workaround)
-5. [Deploy Released Contracts](#5-deploy-released-contracts)
-6. [Deploy Collective Dependency Contracts](#6-deploy-collective-dependency-contracts)
-7. [Post-Deployment Actions](#7-post-deployment-actions)
-8. [Constructor Arguments](#8-constructor-arguments)
+4. [Post-Deployment Actions](#4-post-deployment-actions)
+5. [Generate Bindings](#5-generate-bindings)
+6. [Constructor Arguments](#6-constructor-arguments)
+7. [Deployment Records](#7-deployment-records)
+8. [Workflow Order](#8-workflow-order)
 
 ---
 
@@ -19,359 +19,357 @@ This document describes the step-by-step workflows for building, testing, deploy
 
 **Script:** `build_contracts.py`
 
-Builds all Soroban contracts in the correct order, or a specific contract if requested. Cleans build artifacts, builds, and optimizes the contract WASM.
+Builds all Soroban contracts in dependency order, or a single contract if specified. Each contract is compiled and optimized to a `.wasm` file in the `wasm/` directory.
+
+### Build Order
+
+```
+pintheon-node-deployer/pintheon-node-token
+pintheon-ipfs-deployer/pintheon-ipfs-token
+opus_token
+hvym-collective
+hvym-roster
+hvym-pin-service
+hvym-pin-service-factory   ← depends on hvym-pin-service (embeds its WASM)
+```
 
 ### Usage
 
-- Build all contracts in order:
-  ```bash
-  python3 build_contracts.py
-  ```
-- Build a specific contract (by directory):
-  ```bash
-  python3 build_contracts.py --contract opus_token
-  ```
+```bash
+# Build all contracts in dependency order
+python build_contracts.py
+
+# Build a specific contract only
+python build_contracts.py --contract hvym-pin-service
+```
 
 ### Arguments
-- `--contract <dir>`: (Optional) Build only the specified contract directory. If omitted, builds all contracts in dependency order.
+
+| Argument | Description |
+|---|---|
+| `--contract <dir>` | (Optional) Build only the specified contract directory. Omit to build all. |
+
+### Notes
+- `hvym-pin-service-factory` must be built **after** `hvym-pin-service` because it embeds the pin service WASM via `contractimport!`. If the pin service ABI changes, rebuild both.
+- Optimized WASM files are copied to the `wasm/` directory for deployment.
 
 ---
 
 ## 2. Test Contracts
 
+### Test All Contracts
+
+**Script:** `test_all_contracts.py`
+
+Runs `cargo test` for all contracts in the same order as the build.
+
+```bash
+python test_all_contracts.py
+```
+
+### Test a Single Contract
+
 **Script:** `test_contract.py`
 
-Runs `cargo test` in a specified contract or crate directory.
+Runs `cargo test` in a single contract directory.
 
-### Usage
+```bash
+python test_contract.py hvym-pin-service
+python test_contract.py hvym-pin-service-factory
+python test_contract.py hvym-collective
+```
 
-- Test a specific contract/crate:
-  ```bash
-  python3 test_contract.py opus_token
-  ```
+### Arguments (`test_contract.py`)
 
-### Arguments
-- `<target_dir>`: (Required) The directory containing a `Cargo.toml` to test. Must be a valid contract directory.
+| Argument | Description |
+|---|---|
+| `<target_dir>` | (Required) The contract directory containing a `Cargo.toml`. |
 
 ---
 
-## 4. Deploy Contracts
+## 3. Deploy Contracts
 
 **Script:** `deploy_contracts.py`
 
-Uploads and/or deploys contracts in the correct order. Only `hvym-collective` is deployed; the other contracts are uploaded and their WASM hashes are stored. Constructor arguments are loaded from JSON files if not provided on the command line.
+Uploads and/or deploys all contracts from the `wasm/` directory in the correct order. Reads constructor arguments from `<contract>_args.json` files in the project root. Updates `deployments.json` and `deployments.md` after each contract.
 
-### Development Mode (Default)
+### Contract Categories
 
-Use locally built WASM files from the contract directories:
+**Upload-only** (WASM hash stored, no contract ID — deployed dynamically by `hvym-collective`):
+- `pintheon_ipfs_token`
+- `pintheon_node_token`
+
+**Deployed** (full deployment, contract ID stored):
+- `opus_token`
+- `hvym_collective`
+- `hvym_roster`
+- `hvym_pin_service`
+- `hvym_pin_service_factory`
+
+### Usage
 
 ```bash
-# Deploy all contracts using locally built WASM files
-python3 deploy_contracts.py --deployer-acct <ACCOUNT_NAME>
+# Deploy all contracts
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME>
 
-# Deploy a specific contract
-python3 deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --contract hvym-collective
+# Deploy to a specific network
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --network testnet
 
-# Deploy with custom constructor arguments
-python3 deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --contract hvym-collective --constructor-args --admin G... --join-fee 100 --mint-fee 10 --token G... --reward 5
+# Deploy using WASM files from a custom directory
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --wasm-dir ./wasm
 ```
 
-### Cloud Deployment
-
-For production deployments, the CI/CD pipeline will automatically build and deploy the contracts. The pipeline will:
-
-1. Build all contracts in the correct order
-2. Run all tests to ensure code quality
-3. Deploy the contracts to the specified network
-4. Update the deployment records
-
-To trigger a deployment, push your changes to the main branch or create a release tag.
-
 ### Arguments
-- `--deployer-acct <name>`: (Required) Stellar CLI account name or secret to use as deployer.
-- `--network <name>`: (Optional) Network name. Default: `testnet`.
-- `--contract <short_name>`: (Optional) Deploy only the specified contract.
-- `--constructor-args ...`: (Optional) Arguments for the contract constructor.
-- `--official-release`: (Optional) Use WASM files from `wasm_release`.
+
+| Argument | Default | Description |
+|---|---|---|
+| `--deployer-acct` | (required) | Stellar CLI account name or secret key to use as deployer. |
+| `--network` | `testnet` | Network to deploy to (`testnet`, `futurenet`, `public`, `standalone`). Can also be set via `STELLAR_NETWORK` env var. |
+| `--wasm-dir` | `./wasm` | Directory containing optimized `.wasm` files. |
 
 ### Notes
-- Updates `deployments.json` and `deployments.md`.
-- For `hvym_collective`, you need a `hvym_collective_args.json` file.
-- The pipeline will handle building and deploying the contracts automatically.
-- Upload-only contracts: `pintheon-ipfs-token`, `pintheon-node-token`, `opus_token`.
-- Deploy-only contract: `hvym_collective`.
+- Constructor arguments are loaded from `<contract_name>_args.json` files automatically.
+- Monetary values in args files (fees, prices) are specified in XLM and automatically converted to stroops (×10,000,000).
+- `STELLAR_NETWORK` environment variable can set the network before running the script.
 
 ---
 
-## 4. Deploy with XDR Workaround
-
-**Script:** `deploy_with_xdr_workaround.py`
-
-This script provides a workaround for XDR processing errors in the Stellar CLI by verifying transaction success via Stellar's API. It's the recommended way to deploy contracts as it handles network issues more gracefully.
-
-### Features
-- Works around XDR processing errors in the Stellar CLI
-- Supports both local development and cloud deployment modes
-- Uploads contract WASM files with automatic retries
-- Deploys contracts with proper initialization
-- Maintains a record of deployments in `deployments.json`
-- Generates a markdown summary in `deployments.md`
-- Supports testnet, futurenet, and mainnet deployments
-
-### Usage
-
-#### Local Development Mode
-Builds and deploys contracts from source:
-```bash
-python3 deploy_with_xdr_workaround.py \
-  --mode local \
-  --network testnet
-```
-
-#### Cloud Deployment Mode
-Uses pre-built WASM files (for CI/CD):
-```bash
-python3 deploy_with_xdr_workaround.py \
-  --mode cloud \
-  --wasm-dir ./release-wasm \
-  --deployer-account YOUR_ACCOUNT \
-  --network testnet \
-  --rpc-url https://soroban-testnet.stellar.org
-```
-
-### Arguments
-- `--mode`: Deployment mode - `local` (build and deploy) or `cloud` (use pre-built WASM)
-- `--wasm-dir`: Directory containing pre-built WASM files (required for cloud mode)
-- `--deployer-account`: Account to use for deployment (required for cloud mode)
-- `--network`: Stellar network (`testnet`, `futurenet`, or `mainnet`)
-- `--rpc-url`: Custom RPC URL (default: based on network)
-- `--post-deploy-config`: Path to post-deployment JSON config (default: `hvym_collective_post_deploy_args.json`)
-- `--skip-post-deploy`: Skip post-deployment steps
-- `--strict`: Fail on any error during deployment or post-deployment
-
-### Deployment Configuration
-
-#### Constructor Arguments (`hvym_collective_args.json`)
-
-The `hvym_collective` contract requires constructor arguments that can be provided in a JSON file. This file is automatically handled during deployment:
-
-1. **Cloud Deployments**:
-   - Looks for `hvym_collective_args.json` in the release artifacts
-   - Falls back to default values if not found
-   - Always uses the latest OPUS token address from the current deployment
-
-2. **Local Development**:
-   - Looks for `hvym_collective_args.json` in the project root
-   - Falls back to default values if not found
-
-Example `hvym_collective_args.json`:
-```json
-{
-  "admin": "GABCD...",         // Admin account address
-  "token": "CDLZFC3SYJYDZT...", // Payment token address (e.g., XLM or other asset)
-  "join_fee": 1.0,             // In XLM (will be converted to stroops)
-  "mint_fee": 0.5,             // In XLM (will be converted to stroops)
-  "reward": 0.1                // In XLM (will be converted to stroops)
-  // Note: opus_token is automatically added during deployment
-}
-```
-
-#### Post-Deployment Configuration (`hvym-collective_post_deploy_args.json`)
-
-Post-deployment steps for the `hvym-collective` contract are configured in a separate JSON file:
-
-```json
-{
-  "fund_amount": 30.0,         // XLM to fund the contract with
-  "initial_opus_alloc": 1000.0, // Initial OPUS token allocation
-  "enabled": true             // Set to false to disable post-deployment
-}
-```
-
-### GitHub Actions Integration
-
-This script is used in the `custom-deploy.yml` workflow for cloud deployments. It automatically:
-- Verifies WASM files
-- Deploys contracts in the correct order
-- Runs post-deployment steps if configured
-- Saves deployment details as artifacts
-- Generates a deployment summary
-
-#### Post-Deployment Steps in CI/CD
-
-1. The workflow creates a configuration file with default values
-2. The deployment script runs with the `--post-deploy-config` parameter
-3. After successful deployment, post-deployment steps are executed
-4. Results are included in the deployment summary
-
-### Arguments
-- `--contract`: Name of the contract to deploy
-- `--wasm`: Path to the WASM file
-- `--network`: Network to deploy to (default: testnet)
-- `--deployer-account`: Stellar account to use for deployment
-- `--constructor-args`: JSON string of constructor arguments (optional)
-- `--force`: Force deployment even if contract already exists
-- `--debug`: Enable debug output
-
-### Features
-- Works around XDR processing errors
-- Verifies transactions using Stellar Expert API
-- Extracts contract addresses from successful deployments
-- Handles both upload and deployment steps
-
----
-
-## 7. Deploy Released Contracts
-
-**Script:** `deploy_released_contracts.py`
-
-Deploys pre-released contract versions from the `wasm_release` directory.
-
-### Usage
-
-```bash
-# Deploy all released contracts
-python3 deploy_released_contracts.py --deployer-account DEPLOYER_ACCOUNT --network testnet
-
-# Deploy a specific contract
-python3 deploy_released_contracts.py --contract opus-token --deployer-account test-deployer --network testnet
-
-# Deploy with debug output
-python3 deploy_released_contracts.py --contract pintheon-node-token --deployer-account test-deployer --debug
-```
-
-### Arguments
-- `--contract`: Specific contract to deploy (default: all)
-- `--deployer-account`: Stellar account to use for deployment
-- `--network`: Network to deploy to (default: testnet)
-- `--rpc-url`: Custom RPC URL (optional)
-- `--debug`: Enable debug output
-
-### Features
-- Deploys from pre-built WASM files
-- Handles XDR workarounds
-- Verifies deployments
-- Supports custom RPC endpoints
-
----
-
-## 8. Deploy Collective Dependency Contracts
-
-**Script:** `deploy_collective_dependency_contracts.py`
-
-Deploys contracts that have dependencies on each other, specifically designed for the Pintheon IPFS and Node tokens.
-
-### Usage
-
-```bash
-# Deploy all dependency contracts
-python3 deploy_collective_dependency_contracts.py --deployer-account DEPLOYER_ACCOUNT --network testnet
-
-# Deploy a specific contract
-python3 deploy_collective_dependency_contracts.py --contract pintheon-ipfs-token --deployer-account test-deployer
-
-# Use official release WASM files
-python3 deploy_collective_dependency_contracts.py --official-release --deployer-account test-deployer
-```
-
-### Arguments
-- `--contract`: Specific contract to deploy (pintheon-ipfs-token or pintheon-node-token)
-- `--deployer-account`: Stellar account to use for deployment
-- `--network`: Network to deploy to (default: testnet)
-- `--official-release`: Use WASM files from wasm_release directory
-- `--force`: Force deployment even if contract exists
-
-### Features
-- Handles contract dependencies
-- Supports both local and official release WASM files
+## 4. Post-Deployment Actions
 
 **Script:** `hvym_post_deploy.py`
 
-Funds the `hvym-collective` contract and launches the opus token via contract invocation. Updates `deployments.json` with the opus token contract ID.
+Funds the `hvym-collective` contract with XLM and mints the initial OPUS token allocation to the admin. Run this after deploying `hvym-collective`.
 
 ### Usage
 
 ```bash
-python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount 30 --initial-opus-alloc 10
+python hvym_post_deploy.py \
+  --deployer-acct <ACCOUNT_NAME> \
+  --fund-amount 30 \
+  --initial-opus-alloc 40
 ```
 
 ### Arguments
-- `--deployer-acct <name>`: (Required) Stellar CLI account name or secret to use as source. This account will be used as the source account for fund and mint operations.
-- `--network <name>`: (Optional) Network name for operations. Default: `testnet`. Options: `testnet`, `mainnet`, or custom network name.
-- `--fund-amount <XLM>`: (Required) Amount to fund the contract in XLM (whole number). The script automatically converts to stroops (1 XLM = 10^7 stroops). Example: `30` for 30 XLM.
-- `--initial-opus-alloc <XLM>`: (Required) Initial opus token allocation to mint to admin in XLM (whole number). The script automatically converts to stroops. Example: `10` for 10 XLM.
+
+| Argument | Description |
+|---|---|
+| `--deployer-acct` | (Required) Stellar CLI account name or secret key. |
+| `--network` | (Optional) Network name. Default: `testnet`. |
+| `--fund-amount` | (Required) XLM to fund the contract with (whole number, e.g. `30`). |
+| `--initial-opus-alloc` | (Required) Initial OPUS token allocation to mint to admin in XLM (e.g. `40`). |
 
 ### Notes
-- `--fund-amount` and `--initial-opus-alloc` are specified as whole numbers in XLM (e.g., `30` for 30 XLM). The script automatically converts these to stroops (1 XLM = 10^7 stroops).
-- Requires the `hvym-collective` contract to be deployed first.
+- Values are specified in XLM — the script converts to stroops internally.
+- Requires `hvym-collective` to be deployed and its contract ID to be in `deployments.json`.
 - Updates `deployments.json` with the opus token contract ID.
-- Performs contract invocations to fund the contract and launch the opus token.
 
 ---
 
-## 6. Constructor Arguments JSON Files
+## 5. Generate Bindings
 
-For contracts that require constructor arguments, create a JSON file named `<contract>_args.json` (e.g., `hvym_collective_args.json`) with all required fields. Example:
+**Script:** `generate_bindings.py`
 
+Generates Python client bindings for deployed contracts using `stellar-contract-bindings`. Requires the venv to be activated.
+
+### Activate the Virtual Environment
+
+```bash
+source pintheon-contracts/Scripts/activate
+```
+
+### From Deployments File (recommended)
+
+Reads contract IDs from `deployments.json` and generates bindings for all contracts that have a `contract_id`:
+
+```bash
+python generate_bindings.py --from-file deployments.json
+```
+
+### Filter Specific Contracts
+
+```bash
+python generate_bindings.py --from-file deployments.json \
+  --contracts hvym_pin_service hvym_pin_service_factory
+```
+
+### From GitHub Release
+
+```bash
+python generate_bindings.py \
+  --github-release https://github.com/owner/repo/releases/tag/deploy-v1.0.0
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `--from-file <FILE>` | Generate bindings from a local deployments JSON file. |
+| `--github-release <URL>` | Generate bindings using contract IDs from a GitHub release. |
+| `--contracts <names...>` | (Optional) Only process the listed contract names. |
+| `--network <name>` | (Optional) Network for RPC calls. Default: `testnet`. |
+| `--output <dir>` | (Optional) Output directory. Default: `./bindings`. |
+| `--json-only` | Generate JSON specs from WASM only (no Python bindings). |
+| `--keep-wasm` | Keep downloaded WASM files in `./wasm`. |
+
+### Output
+
+Bindings are written to `bindings/<contract_name>/`. Contracts without a `contract_id` (upload-only) are skipped automatically.
+
+### Contracts that generate bindings
+
+- `opus_token`
+- `hvym_collective`
+- `hvym_roster`
+- `hvym_pin_service`
+- `hvym_pin_service_factory`
+
+---
+
+## 6. Constructor Arguments
+
+Each deployable contract reads its constructor arguments from a JSON file at the project root: `<contract_name>_args.json`.
+
+### `hvym_collective_args.json`
 ```json
 {
-  "admin": "G...",
-  "join_fee": 100,
-  "mint_fee": 10,
-  "token": "G...",
-  "reward": 5
+  "admin": "TESTNET_DEPLOYER",
+  "token": "<XLM_CONTRACT_ID>",
+  "join_fee": 210.0,
+  "mint_fee": 0.5,
+  "reward": 0.2,
+  "split": 10
+}
+```
+*`join_fee`, `mint_fee`, `reward` are in XLM and converted to stroops.*
+
+### `hvym_roster_args.json`
+```json
+{
+  "admin": "TESTNET_DEPLOYER",
+  "token": "<XLM_CONTRACT_ID>",
+  "join_fee": 16.0
+}
+```
+*`join_fee` is in XLM and converted to stroops.*
+
+### `hvym_pin_service_args.json`
+```json
+{
+  "admin_addr": "TESTNET_DEPLOYER",
+  "pin_fee": 1.0,
+  "join_fee": 5.0,
+  "min_pin_qty": 3,
+  "min_offer_price": 1.0,
+  "pinner_stake": 100.0,
+  "pay_token": "<XLM_CONTRACT_ID>",
+  "max_cycles": 60,
+  "flag_threshold": 3
+}
+```
+*`pin_fee`, `join_fee`, `min_offer_price`, `pinner_stake` are in XLM and converted to stroops.*
+
+### `hvym_pin_service_factory_args.json`
+```json
+{
+  "admin": "TESTNET_DEPLOYER"
 }
 ```
 
-### File Naming Convention
-- `hvym_collective_args.json` - Arguments for hvym_collective contract
-- `pintheon-ipfs-token_args.json` - Arguments for pintheon-ipfs-token contract
-- `pintheon-node-token_args.json` - Arguments for pintheon-node-token contract
+### `opus_token_args.json`
+```json
+{
+  "admin": "TESTNET_DEPLOYER"
+}
+```
 
-### Notes
-- All monetary values (fees, rewards) are automatically converted to stroops by the deployment scripts.
-- Address values should be valid Stellar addresses (G... format).
-- If constructor arguments are provided via command line, the JSON file is ignored.
+### `pintheon_ipfs_token_args.json` / `pintheon_node_token_args.json`
+
+These are upload-only contracts. Their args files are used if deploying directly, but in the standard pipeline they are only uploaded (no `contract_id`).
+
+### Post-Deploy Config: `hvym_collective_post_deploy_args.json`
+```json
+{
+  "fund_amount": 30.0,
+  "initial_opus_alloc": 40.0,
+  "enabled": true
+}
+```
 
 ---
 
-## 8. Deployment Records
+## 7. Deployment Records
 
-- `deployments.json`: Machine-readable record of all contract uploads and deployments (hashes and IDs). Used by scripts to track deployment state.
-- `deployments.md`: Human-readable markdown table of all contract uploads and deployments. Provides a quick overview of deployment status.
+- **`deployments.json`** — Machine-readable record of all contract WASM hashes and contract IDs. Updated automatically by `deploy_contracts.py` after each contract.
+- **`deployments.md`** — Human-readable markdown table of all deployments.
 
-### File Format
-The `deployments.json` file contains:
+### `deployments.json` Format
+
 ```json
 {
-  "contract_name": {
-    "contract_dir": "path/to/contract",
-    "wasm_hash": "64-character-hex-hash",
-    "contract_id": "56-character-contract-id"
+  "network": "testnet",
+  "timestamp": 1234567890,
+  "cli_version": "23.0.1",
+  "pintheon_ipfs_token": {
+    "wasm_hash": "<64-char hex>",
+    "contract_id": "",
+    "network": "testnet"
+  },
+  "hvym_pin_service": {
+    "wasm_hash": "<64-char hex>",
+    "contract_id": "<56-char contract ID>",
+    "network": "testnet"
+  },
+  "hvym_pin_service_factory": {
+    "wasm_hash": "<64-char hex>",
+    "contract_id": "<56-char contract ID>",
+    "network": "testnet"
   }
 }
 ```
 
 ---
 
-## Workflow Order
+## 8. Workflow Order
 
-### For Development:
-1. **Build** all contracts: `python3 build_contracts.py`
-2. **Test** contracts as needed: `python3 test_contract.py <dir>`
-3. **Deploy** contracts: `python3 deploy_contracts.py --deployer-acct <ACCOUNT_NAME>`
-4. **Post-deploy** actions: `python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount ... --initial-opus-alloc ...`
+### Full Development Cycle
 
-### For Production:
-1. **Push** changes to the main branch or create a release tag
-2. The CI/CD pipeline will automatically build, test, and deploy the contracts
-3. **Post-deploy** actions will be handled by the pipeline
+```bash
+# 1. Build all contracts (factory must come after pin-service)
+python build_contracts.py
 
-### Manual Deployment (if needed):
-1. **Build** contracts: `python3 build_contracts.py`
-2. **Deploy** contracts: `python3 deploy_contracts.py --deployer-acct <ACCOUNT_NAME>`
-3. **Post-deploy** actions: `python3 hvym_post_deploy.py --deployer-acct <ACCOUNT_NAME> --fund-amount ... --initial-opus-alloc ...`
+# 2. Test all contracts
+python test_all_contracts.py
 
----
+# 3. Deploy all contracts
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME>
 
-For any questions or to add new contracts, update the relevant scripts and JSON files accordingly. 
+# 4. Post-deployment: fund collective and mint OPUS
+python hvym_post_deploy.py \
+  --deployer-acct <ACCOUNT_NAME> \
+  --fund-amount 30 \
+  --initial-opus-alloc 40
+
+# 5. Generate Python bindings
+source pintheon-contracts/Scripts/activate
+python generate_bindings.py --from-file deployments.json
+```
+
+### Rebuild After Pin Service ABI Change
+
+If `hvym-pin-service` contract interface changes (e.g. adding a parameter like `filename`), rebuild and re-test both contracts before deploying:
+
+```bash
+python build_contracts.py --contract hvym-pin-service
+python build_contracts.py --contract hvym-pin-service-factory
+python test_contract.py hvym-pin-service
+python test_contract.py hvym-pin-service-factory
+```
+
+### CI/CD (GitHub Actions)
+
+Pushing to `main` or creating a release tag triggers the automated pipeline which:
+1. Builds all contracts in dependency order
+2. Runs all tests
+3. Deploys to testnet
+4. Updates `deployments.json` as a release artifact
+5. Attestations are generated for each WASM hash
