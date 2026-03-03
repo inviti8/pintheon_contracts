@@ -27,22 +27,6 @@ NETWORK_CONFIGS = {
     }
 }
 
-# Default to testnet
-NETWORK = "testnet"
-
-# Get network from environment variable if set
-if os.environ.get("STELLAR_NETWORK"):
-    NETWORK = os.environ["STELLAR_NETWORK"]
-
-# Validate network
-if NETWORK not in NETWORK_CONFIGS:
-    print(f"❌ Error: Unsupported network '{NETWORK}'. Supported networks: {', '.join(NETWORK_CONFIGS.keys())}")
-    sys.exit(1)
-
-# Set network-specific constants
-NETWORK_PASSPHRASE = NETWORK_CONFIGS[NETWORK]["passphrase"]
-RPC_URL = NETWORK_CONFIGS[NETWORK]["rpc_url"]
-
 # Contract list
 CONTRACTS = [
     "pintheon_ipfs_token",
@@ -54,8 +38,34 @@ CONTRACTS = [
     "hvym_pin_service_factory"
 ]
 
-print(f"ℹ️  Using network: {NETWORK}")
-print(f"   RPC URL: {RPC_URL}")
+# These get set in resolve_network() after argparse runs
+NETWORK = None
+NETWORK_PASSPHRASE = None
+RPC_URL = None
+
+def resolve_network(cli_network: Optional[str] = None) -> str:
+    """Resolve which network to use: CLI flag > env var > default (testnet)."""
+    global NETWORK, NETWORK_PASSPHRASE, RPC_URL
+
+    if cli_network:
+        network = cli_network
+    elif os.environ.get("STELLAR_NETWORK"):
+        network = os.environ["STELLAR_NETWORK"]
+    else:
+        network = "testnet"
+
+    if network not in NETWORK_CONFIGS:
+        print(f"Error: Unsupported network '{network}'. Supported: {', '.join(NETWORK_CONFIGS.keys())}")
+        sys.exit(1)
+
+    NETWORK = network
+    NETWORK_PASSPHRASE = NETWORK_CONFIGS[network]["passphrase"]
+    RPC_URL = NETWORK_CONFIGS[network]["rpc_url"]
+
+    print(f"Using network: {NETWORK}")
+    print(f"  RPC URL:    {RPC_URL}")
+    print(f"  Passphrase: {NETWORK_PASSPHRASE}")
+    return network
 
 # Global variable to store the project root directory
 PROJECT_ROOT = Path(__file__).parent.resolve()
@@ -109,22 +119,17 @@ def load_contract_args(contract_name: str) -> dict:
 def run_command(cmd: List[str]) -> str:
     """Run a shell command and return its output."""
     try:
-        # Prepare environment with network passphrase
-        env = os.environ.copy()
-        env['STELLAR_NETWORK_PASSPHRASE'] = NETWORK_PASSPHRASE
-        
         result = subprocess.run(
             cmd,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=env
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"❌ Command failed: {e.stderr.strip()}")
-        print(f"   Command: {' '.join(cmd)}")
+        print(f"Command failed: {e.stderr.strip()}")
+        print(f"  Command: {' '.join(cmd)}")
         raise
 
 # These are now defined at the top of the file using pathlib
@@ -133,39 +138,40 @@ def upload_contract(contract_name: str, deployer_acct: str):
     """Upload a contract and return the wasm hash."""
     wasm_file = WASM_DIR / f"{contract_name}.optimized.wasm"
     if not wasm_file.exists():
-        print(f"❌ Error: {wasm_file} not found. Build the contract first.")
+        print(f"Error: {wasm_file} not found. Build the contract first.")
         sys.exit(1)
 
-    print(f"\n📤 Uploading {contract_name}...")
+    print(f"\nUploading {contract_name}...")
     cmd = [
         "stellar", "contract", "upload",
         "--wasm", str(wasm_file),
         "--source", deployer_acct,
-        f"--network={NETWORK}"  # Uses built-in network config with passphrase from env
+        "--rpc-url", RPC_URL,
+        "--network-passphrase", NETWORK_PASSPHRASE,
     ]
     result = run_command(cmd)
     wasm_hash = result.strip()
-    print(f"✅ Uploaded {contract_name} with hash: {wasm_hash}")
+    print(f"Uploaded {contract_name} with hash: {wasm_hash}")
     return wasm_hash
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
     """Deploy a contract with the given wasm hash and arguments."""
-    # Build command with network configuration
     cmd = [
         "stellar", "contract", "deploy",
         f"--wasm-hash={wasm_hash}",
         f"--source-account={deployer_acct}",
-        f"--network={NETWORK}",  # Uses built-in network config with passphrase from env
+        "--rpc-url", RPC_URL,
+        "--network-passphrase", NETWORK_PASSPHRASE,
         "--fee=1000000",
         "--"
     ]
-    
+
     # Add constructor arguments
     if args:
         for key, value in args.items():
             cmd.append(f"--{key.replace('_', '-')}")
             cmd.append(str(value))
-    
+
     return run_command(cmd)
 
 def migrate_deployments(deployments: dict) -> dict:
@@ -320,13 +326,16 @@ def generate_deployments_md(deployments: dict) -> None:
 def main():
     """Main deployment function."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Deploy Soroban contracts')
     parser.add_argument('--deployer-acct', required=True, help='Deployer account')
-    parser.add_argument('--network', default=NETWORK, help='Network to deploy to')
+    parser.add_argument('--network', default=None, help='Network to deploy to (testnet, futurenet, public, standalone)')
     parser.add_argument('--wasm-dir', default=WASM_DIR, help='Directory containing WASM files')
     args = parser.parse_args()
-    
+
+    # Resolve network from: CLI flag > STELLAR_NETWORK env var > testnet
+    resolve_network(args.network)
+
     print(f"Starting deployment with deployer: {args.deployer_acct}")
     
     # Load existing deployments and clean up old format
@@ -361,7 +370,7 @@ def main():
             # Update contract info
             contract_info = {
                 'wasm_hash': wasm_hash,
-                'network': args.network,
+                'network': NETWORK,
                 'deployer': args.deployer_acct,
                 'timestamp': int(time.time())
             }
@@ -382,7 +391,7 @@ def main():
         
         # Add metadata
         deployments.update({
-            'network': args.network,
+            'network': NETWORK,
             'timestamp': int(time.time()),
             'cli_version': '23.0.1',
             'note': 'Deployed with standardized underscore format'
