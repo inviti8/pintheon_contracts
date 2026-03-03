@@ -16,6 +16,7 @@ pub use metadata::NodeTokenInterface;
 // The main token contract
 mod contract;
 pub use contract::Token;
+pub use contract::TokenClient;
 
 mod test;
 mod rent_tests;

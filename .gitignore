@@ -73,3 +73,5 @@ wasm/hvym_roster.optimized.wasm
 .claude/
 
 tmpclaude*
+
+hvym-pin-service-factory/test_snapshots/test/

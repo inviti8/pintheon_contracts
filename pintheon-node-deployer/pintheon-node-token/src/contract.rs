@@ -8,7 +8,7 @@ use crate::metadata::{
     read_descriptor, read_established, read_node_id, NodeTokenInterface, write_metadata, NodeTokenMetadata
 };
 use soroban_token_sdk::metadata::TokenMetadata as StandardTokenMetadata;
-use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD};
+use crate::storage_types::{INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, AllowanceDataKey, AllowanceValue, DataKey};
 use soroban_sdk::token::{self, Interface as _};
 use soroban_sdk::{contract, contractimpl, Address, Env, String, MuxedAddress};
 use hvym_node_token::TokenUtils;
@@ -60,6 +60,12 @@ impl Token {
 
         receive_balance(&e, to.clone(), amount);
         TokenUtils::new(&e).events().mint(admin, to, amount);
+    }
+
+    #[cfg(test)]
+    pub fn get_allowance(e: Env, from: Address, spender: Address) -> Option<AllowanceValue> {
+        let key = DataKey::Allowance(AllowanceDataKey { from, spender });
+        e.storage().temporary().get::<_, AllowanceValue>(&key)
     }
 
     pub fn set_admin(e: Env, new_admin: Address) {
