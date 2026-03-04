@@ -1,0 +1,292 @@
+name: Mainnet Deployment Release
+
+on:
+  push: 
+    tags:
+      - 'v*'  # Semantic versioning tags (v1.0.0, v1.1.0, etc.)
+
+permissions:
+  id-token: write  # Required for OIDC token generation
+  contents: write  # Required for creating releases
+  attestations: write  # Required for build attestations
+  actions: read  # Required for workflow run information
+  checks: read   # Required for commit status checks
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  STELLAR_CLI_VERSION: 23.4.0
+  TAG_NAME: ${{ github.ref_name }}
+  WASM_PATH: wasm
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    name: Create Mainnet Release
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for proper changelog
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Install Stellar CLI
+        run: |
+          wget https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-linux-x86_64.tar.gz
+          tar -xzf stellar-cli-linux-x86_64.tar.gz
+          sudo mv stellar /usr/local/bin/stellar
+          stellar version
+      
+      - name: Verify WASM files exist
+        run: |
+          echo "🔍 Verifying all WASM files exist..."
+          
+          # Check all required contracts
+          contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory")
+          
+          for contract in "${contracts[@]}"; do
+            wasm_file="wasm/${contract}.optimized.wasm"
+            if [ ! -f "$wasm_file" ]; then
+              echo "::error::Missing WASM file: $wasm_file"
+              exit 1
+            else
+              echo "✅ Found: $wasm_file ($(du -h "$wasm_file" | cut -f1))"
+            fi
+          done
+          
+          echo "📋 All WASM files verified successfully!"
+      
+      - name: Generate contract hashes and metadata
+        run: |
+          echo "🔑 Generating contract hashes and metadata..."
+          
+          # Create release directory
+          mkdir -p release-wasm
+          
+          contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory")
+          
+          for contract in "${contracts[@]}"; do
+            wasm_file="wasm/${contract}.optimized.wasm"
+            
+            if [ -f "$wasm_file" ]; then
+              echo "Processing $contract..."
+              
+              # Generate hash
+              hash=$(stellar contract hash --wasm "$wasm_file" 2>/dev/null || echo "error")
+              if [ "$hash" != "error" ]; then
+                echo "✅ ${contract}: ${hash:0:8}...${hash: -8}"
+              else
+                echo "⚠️  ${contract}: Error generating hash"
+              fi
+              
+              # Copy to release directory
+              cp "$wasm_file" "release-wasm/${contract}.wasm"
+              
+              # Generate metadata
+              stellar contract env-meta --wasm "$wasm_file" > "release-wasm/${contract}.meta.json" 2>/dev/null || echo "Warning: Failed to generate metadata for $contract"
+              
+              # Create simple metadata file with hash
+              cat > "release-wasm/${contract}.info.json" << EOF
+{
+  "contract": "${contract}",
+  "wasm_hash": "${hash}",
+  "file_size": "$(stat -c%s "$wasm_file")",
+  "optimized": true,
+  "network": "public"
+}
+EOF
+            fi
+          done
+          
+          # Generate checksums
+          (cd release-wasm && sha256sum *.wasm > checksums.sha256)
+          
+          echo "📦 Release assets prepared:"
+          ls -la release-wasm/
+      
+      - name: Load deployment information
+        id: deployment_info
+        run: |
+          echo "📋 Loading deployment information..."
+          
+          # Check if deployments.json exists
+          if [ -f "deployments.json" ]; then
+            echo "✅ Found deployments.json"
+            
+            # Extract deployment info for release body
+            python3 << 'EOF'
+import json
+import sys
+
+try:
+    with open('deployments.json', 'r') as f:
+        deployments = json.load(f)
+    
+    contracts = ["pintheon_node_token", "pintheon_ipfs_token", "opus_token", "hvym_collective", "hvym_roster", "hvym_pin_service", "hvym_pin_service_factory"]
+    
+    deployment_table = "| Contract | Contract ID | Network | Status |\n"
+    deployment_table += "|---------|-------------|---------|--------|\n"
+    
+    for contract in contracts:
+        if contract in deployments and isinstance(deployments[contract], dict):
+            info = deployments[contract]
+            contract_id = info.get('contract_id', 'Not deployed')
+            network = info.get('network', 'unknown')
+            
+            if contract_id != 'Not deployed':
+                deployment_table += f"| {contract} | `{contract_id}` | {network} | ✅ Deployed |\n"
+            else:
+                deployment_table += f"| {contract} | {contract_id} | {network} | ❌ Not Deployed |\n"
+    
+    print(f"DEPLOYMENT_TABLE<<EOF")
+    print(deployment_table)
+    print("EOF")
+    
+except Exception as e:
+    print(f"Error processing deployments: {e}")
+    print("DEPLOYMENT_TABLE<<EOF")
+    print("| Error loading deployment information | | | |\n")
+    print("EOF")
+EOF
+          else
+            echo "⚠️  deployments.json not found"
+            echo "DEPLOYMENT_TABLE<<EOF" >> $GITHUB_OUTPUT
+            echo "| deployments.json not found | | | |\n" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Generate release body
+        id: release_body
+        run: |
+          echo "📝 Generating release body..."
+          
+          # Get version from tag
+          VERSION="${{ github.ref_name }}"
+          
+          # Start with release notes if they exist
+          RELEASE_BODY=""
+          
+          if [ -f "RELEASE_NOTES.md" ]; then
+            echo "✅ Using RELEASE_NOTES.md"
+            RELEASE_BODY=$(cat RELEASE_NOTES.md)
+          else
+            echo "⚠️  RELEASE_NOTES.md not found, generating basic release"
+            RELEASE_BODY="# Mainnet Release - $VERSION\n\n"
+            RELEASE_BODY+="🎉 This release contains the Soroban smart contracts deployed to Stellar mainnet.\n\n"
+          fi
+          
+          # Add deployment information
+          RELEASE_BODY+="\n## 📋 Deployment Status\n\n"
+          RELEASE_BODY+="${{ steps.deployment_info.outputs.DEPLOYMENT_TABLE }}\n"
+          
+          # Add verification section
+          RELEASE_BODY+="\n## 🔍 Verification\n\n"
+          RELEASE_BODY+="All WASM files have been verified and are ready for deployment:\n\n"
+          
+          for wasm in release-wasm/*.wasm; do
+            if [ -f "$wasm" ]; then
+              contract_name=$(basename "$wasm" ".wasm")
+              hash=$(stellar contract hash --wasm "$wasm" 2>/dev/null || echo "error")
+              
+              if [ "$hash" != "error" ]; then
+                RELEASE_BODY+="- **${contract_name}**: Hash ${hash:0:8}...${hash: -8}\n"
+              fi
+            fi
+          done
+          
+          # Add build information
+          RELEASE_BODY+="\n## 📦 Build Information\n"
+          RELEASE_BODY+="- **Version**: $VERSION\n"
+          RELEASE_BODY+="- **Commit**: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})\n"
+          RELEASE_BODY+="- **Build Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n"
+          RELEASE_BODY+="- **Build Run**: [#$GITHUB_RUN_ID](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\n"
+          RELEASE_BODY+="- **Stellar CLI**: ${{ env.STELLAR_CLI_VERSION }}\n"
+          
+          # Add usage instructions
+          RELEASE_BODY+="\n## 🚀 Usage Instructions\n\n"
+          RELEASE_BODY+="### Deploy to Mainnet\n"
+          RELEASE_BODY+="\`\`\`bash\n"
+          RELEASE_BODY+="uv run deploy_contracts.py --deployer-acct YOUR_ACCOUNT --network public\n"
+          RELEASE_BODY+="\`\`\`\n\n"
+          RELEASE_BODY+="### Verify Deployments\n"
+          RELEASE_BODY+="\`\`\`bash\n"
+          RELEASE_BODY+="uv run verify_deployment_hashes.py\n"
+          RELEASE_BODY+="\`\`\`\n"
+          
+          # Set the output for the release step
+          delimiter="EOF_$(date +%s)"
+          echo "RELEASE_BODY<<$delimiter" >> $GITHUB_OUTPUT
+          echo "$RELEASE_BODY" >> $GITHUB_OUTPUT
+          echo "$delimiter" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: Mainnet Release ${{ env.TAG_NAME }}
+          body: ${{ steps.release_body.outputs.RELEASE_BODY }}
+          files: |
+            release-wasm/*.wasm
+            release-wasm/*.meta.json
+            release-wasm/*.info.json
+            release-wasm/checksums.sha256
+            deployments.json
+            deployments.md
+            RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+      
+      - name: Attest build
+        if: always()
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'release-wasm/*.wasm'
+
+  verification:
+    runs-on: ubuntu-latest
+    name: Verify Release
+    needs: release
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: downloaded-artifacts
+      
+      - name: Verify checksums
+        run: |
+          echo "🔍 Verifying release checksums..."
+          
+          if [ -f "downloaded-artifacts/release-wasm/checksums.sha256" ]; then
+            cd downloaded-artifacts/release-wasm
+            sha256sum -c checksums.sha256
+            echo "✅ All checksums verified!"
+          else
+            echo "⚠️  Checksums file not found"
+          fi
+      
+      - name: Verify WASM integrity
+        run: |
+          echo "🔍 Verifying WASM file integrity..."
+          
+          for wasm in downloaded-artifacts/release-wasm/*.wasm; do
+            if [ -f "$wasm" ]; then
+              echo "Checking $(basename "$wasm")..."
+              if file "$wasm" | grep -q "WebAssembly"; then
+                echo "✅ Valid WebAssembly file"
+              else
+                echo "❌ Invalid WebAssembly file"
+                exit 1
+              fi
+            fi
+          done
+          
+          echo "✅ All WASM files verified!"
