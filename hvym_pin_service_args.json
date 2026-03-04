@@ -1,5 +1,5 @@
 {
-  "admin_addr": "TESTNET_DEPLOYER",
+  "admin_addr": "lepus-luminary-1",
   "pin_fee": 1.0,
   "join_fee": 5.0,
   "min_pin_qty": 3,

@@ -134,10 +134,29 @@ def build_contract(contract_dir, optimize=True):
             # Copy the optimized WASM to the standard location
             optimized_wasm = wasm_file.replace(".wasm", ".optimized.wasm")
             if os.path.exists(optimized_wasm):
-                contract_name = os.path.basename(contract_dir)
+                # Handle both simple and nested contract names
+                if "/" in contract_dir:
+                    # For nested contracts like "pintheon-node-deployer/pintheon-node-token"
+                    contract_name = contract_dir.split("/")[-1]  # Get the last part
+                else:
+                    # For simple contracts like "opus_token"
+                    contract_name = os.path.basename(contract_dir)
+                
                 copy_to_wasm_dir(optimized_wasm, contract_name)
         else:
-            print(f"Skipping optimization for {contract_dir} (--no-optimize)")
+            print(f"Skipping optimization for {contract_dir}")
+            # Still copy the unoptimized WASM for dependencies
+            if "/" in contract_dir:
+                # For nested contracts like "pintheon-node-deployer/pintheon-node-token"
+                contract_name = contract_dir.split("/")[-1]  # Get the last part
+            else:
+                # For simple contracts like "opus_token"
+                contract_name = os.path.basename(contract_dir)
+            
+            # Copy as .optimized.wasm even if not optimized (for dependencies)
+            dest_wasm = os.path.join("wasm", f"{contract_name.replace('-', '_')}.optimized.wasm")
+            shutil.copy2(wasm_file, dest_wasm)
+            print(f"Copied unoptimized WASM to {dest_wasm}")
             
         print(f"Build complete for {contract_dir}")
         return True
@@ -156,12 +175,18 @@ def main():
     parser.add_argument(
         "--optimize",
         action="store_true",
+        default=True,
         help="Optimize the built WASM files (default: True)",
+    )
+    parser.add_argument(
+        "--no-optimize",
+        action="store_true",
+        help="Skip optimization of WASM files",
     )
     args = parser.parse_args()
 
-    # Default to optimizing if --optimize is not specified
-    optimize = args.optimize if hasattr(args, 'optimize') else True
+    # Determine if we should optimize
+    optimize = args.optimize and not args.no_optimize
 
     # Create wasm directory if it doesn't exist
     os.makedirs("wasm", exist_ok=True)

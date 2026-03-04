@@ -1,5 +1,5 @@
 {
-  "admin": "TESTNET_DEPLOYER",
+  "admin": "lepus-luminary-1",
   "name": "Sample IPFS Token",
   "symbol": "SAMPLE",
   "ipfs_hash": "QmSampleHash123456789",

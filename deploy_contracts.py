@@ -1,9 +1,39 @@
 #!/usr/bin/env python3
-import os
+"""
+Deploy Stellar Soroban contracts to mainnet/testnet.
+
+This script handles network congestion gracefully with exponential backoff retries.
+If you experience persistent timeouts, try these solutions:
+
+1. Set environment variables:
+   export STELLAR_RPC_URL="https://mainnet.stellar.rpc.nodes.quicknode.com"
+   export STELLAR_RPC_TIMEOUT=300
+   export STELLAR_BASE_FEE=10000
+
+2. Deploy during off-peak hours:
+   - Best: 2-6 AM UTC (weekends) or 11 PM - 2 AM UTC (weekdays)
+   - Avoid: 9 AM - 5 PM UTC (high congestion)
+   - Monitor: https://status.stellar.org/
+
+3. Use alternative endpoints:
+   - QuickNode: https://mainnet.stellar.rpc.nodes.quicknode.com (recommended)
+   - Alchemy: https://stellar-mainnet.g.alchemy.com/v2 (enterprise)
+   - Gateway: https://mainnet.stellar.gateway.fm (free, SDF official)
+   - Blocto: https://stellar-mainnet.blocto.app (free)
+
+4. Check Stellar Status: https://status.stellar.org/ for network issues
+
+For persistent issues, consider running your own RPC node locally.
+"""
+
+import argparse
 import json
+import os
+import shutil
 import subprocess
 import sys
 import time
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -19,7 +49,7 @@ NETWORK_CONFIGS = {
     },
     "public": {
         "passphrase": "Public Global Stellar Network ; September 2015",
-        "rpc_url": "https://mainnet.sorobanrpc.com"
+        "rpc_url": "https://stellar-soroban-public.nodies.app"
     },
     "standalone": {
         "passphrase": "Standalone Network ; February 2017",
@@ -38,7 +68,10 @@ CONTRACTS = [
     "hvym_pin_service_factory"
 ]
 
-# These get set in resolve_network() after argparse runs
+# Get timeout from environment or use default
+TIMEOUT = int(os.environ.get('STELLAR_RPC_TIMEOUT', '120'))
+MAX_RETRIES = int(os.environ.get('STELLAR_RPC_RETRIES', '5'))
+BASE_FEE = int(os.environ.get('STELLAR_BASE_FEE', '1000000'))
 NETWORK = None
 NETWORK_PASSPHRASE = None
 RPC_URL = None
@@ -46,25 +79,33 @@ RPC_URL = None
 def resolve_network(cli_network: Optional[str] = None) -> str:
     """Resolve which network to use: CLI flag > env var > default (testnet)."""
     global NETWORK, NETWORK_PASSPHRASE, RPC_URL
-
+    
     if cli_network:
         network = cli_network
     elif os.environ.get("STELLAR_NETWORK"):
         network = os.environ["STELLAR_NETWORK"]
     else:
-        network = "testnet"
-
+        network = "public"  # Default to mainnet instead of testnet
+    
     if network not in NETWORK_CONFIGS:
         print(f"Error: Unsupported network '{network}'. Supported: {', '.join(NETWORK_CONFIGS.keys())}")
         sys.exit(1)
-
+    
     NETWORK = network
     NETWORK_PASSPHRASE = NETWORK_CONFIGS[network]["passphrase"]
-    RPC_URL = NETWORK_CONFIGS[network]["rpc_url"]
+    
+    # Use environment variable if set, otherwise use config
+    RPC_URL = os.environ.get("STELLAR_RPC_URL", NETWORK_CONFIGS[network]["rpc_url"])
 
     print(f"Using network: {NETWORK}")
     print(f"  RPC URL:    {RPC_URL}")
     print(f"  Passphrase: {NETWORK_PASSPHRASE}")
+    print(f"  Timeout: {TIMEOUT}s, Retries: {MAX_RETRIES}")
+    if RPC_URL.startswith("https://mainnet.stellar.rpc.nodes.quicknode.com"):
+        print("✅ Using recommended QuickNode endpoint for mainnet deployment")
+    elif RPC_URL.startswith("https://mainnet.sorobanrpc.com"):
+        print("⚠️  Using default Soroban RPC endpoint (may be slow)")
+        print("  Consider setting STELLAR_RPC_URL for better performance")
     return network
 
 # Global variable to store the project root directory
@@ -90,7 +131,15 @@ def ensure_project_root():
             print("Please run this script from the project root directory.")
             sys.exit(1)
 
-def load_contract_args(contract_name: str) -> dict:
+def get_file_hash(filepath):
+    """Calculate SHA256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(filepath, 'rb') as f:
+        while chunk := f.read(8192):
+            sha256_hash.update(chunk)
+    return sha256_hash.hexdigest()
+
+def load_contract_args(contract_name: str) -> Optional[dict]:
     """Load constructor arguments from JSON file."""
     args_file = f"{contract_name}_args.json"
     try:
@@ -116,7 +165,7 @@ def load_contract_args(contract_name: str) -> dict:
         print(f"No argument file found for {contract_name}")
         return {}
 
-def run_command(cmd: List[str]) -> str:
+def run_command(cmd: List[str], timeout: int = 60) -> str:
     """Run a shell command and return its output."""
     try:
         result = subprocess.run(
@@ -125,16 +174,21 @@ def run_command(cmd: List[str]) -> str:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            timeout=timeout,
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
         print(f"Command failed: {e.stderr.strip()}")
         print(f"  Command: {' '.join(cmd)}")
         raise
+    except subprocess.TimeoutExpired:
+        print(f"Command timed out after {timeout} seconds: {' '.join(cmd)}")
+        print("  This is likely due to network congestion. Retrying...")
+        raise
 
 # These are now defined at the top of the file using pathlib
 
-def upload_contract(contract_name: str, deployer_acct: str):
+def upload_contract(contract_name: str, deployer_acct: str) -> str:
     """Upload a contract and return the wasm hash."""
     wasm_file = WASM_DIR / f"{contract_name}.optimized.wasm"
     if not wasm_file.exists():
@@ -149,30 +203,167 @@ def upload_contract(contract_name: str, deployer_acct: str):
         "--rpc-url", RPC_URL,
         "--network-passphrase", NETWORK_PASSPHRASE,
     ]
-    result = run_command(cmd)
-    wasm_hash = result.strip()
-    print(f"Uploaded {contract_name} with hash: {wasm_hash}")
-    return wasm_hash
+    
+    # Set environment variables for this command (don't override globals)
+    env = os.environ.copy()
+    # Only set these if they're not already set
+    if 'STELLAR_RPC_URL' not in env:
+        env['STELLAR_RPC_URL'] = RPC_URL
+    if 'STELLAR_NETWORK_PASSPHRASE' not in env:
+        env['STELLAR_NETWORK_PASSPHRASE'] = NETWORK_PASSPHRASE
+    
+    # Retry upload with exponential backoff
+    for attempt in range(MAX_RETRIES):
+        try:
+            timeout = TIMEOUT * (2 ** attempt)  # Use env timeout
+            result = subprocess.run(
+                cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+            wasm_hash = result.stdout.strip()
+            print(f"Uploaded {contract_name} with hash: {wasm_hash}")
+            return wasm_hash
+        except subprocess.TimeoutExpired:
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2 ** attempt * 5  # 5, 10, 20 seconds
+                print(f"Upload attempt {attempt + 1} timed out. Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"Upload failed after {MAX_RETRIES} attempts due to timeouts.")
+                print("  This may indicate network congestion. Please try again later.")
+                sys.exit(1)
+        except subprocess.CalledProcessError as e:
+            print(f"Command failed: {e.stderr.strip()}")
+            print(f"  Command: {' '.join(cmd)}")
+            if "timeout" in str(e.stderr).lower() or "timed out" in str(e.stderr).lower():
+                if attempt < MAX_RETRIES - 1:
+                    # Increase fee by 10% on retry for timeout errors
+                    increased_fee = int(BASE_FEE * (1.1 ** (attempt + 1)))
+                    cmd_with_increased_fee = cmd.copy()
+                    # Find and replace the fee argument
+                    for i, arg in enumerate(cmd_with_increased_fee):
+                        if arg.startswith("--fee="):
+                            cmd_with_increased_fee[i] = f"--fee={increased_fee}"
+                            break
+                    
+                    wait_time = 2 ** attempt * 5
+                    print(f"Upload attempt {attempt + 1} timed out. Increasing fee by {((increased_fee / BASE_FEE) - 1) * 100:.0f}% to {increased_fee} stroops. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                    
+                    # Use the command with increased fee
+                    result = subprocess.run(
+                        cmd_with_increased_fee,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=timeout,
+                        env=env,
+                    )
+                    wasm_hash = result.stdout.strip()
+                    print(f"Uploaded {contract_name} with hash: {wasm_hash}")
+                    return wasm_hash
+                else:
+                    print(f"Upload failed after {MAX_RETRIES} attempts due to timeouts.")
+                    sys.exit(1)
+            else:
+                sys.exit(1)
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
-    """Deploy a contract with the given wasm hash and arguments."""
+    """Deploy a contract with given wasm hash and arguments."""
     cmd = [
         "stellar", "contract", "deploy",
         f"--wasm-hash={wasm_hash}",
-        f"--source-account={deployer_acct}",
+        "--source-account", deployer_acct,
         "--rpc-url", RPC_URL,
         "--network-passphrase", NETWORK_PASSPHRASE,
-        "--fee=1000000",
-        "--"
+        f"--fee={BASE_FEE}"
     ]
 
-    # Add constructor arguments
+    # Add constructor arguments with -- separator
     if args:
+        cmd.append("--")
         for key, value in args.items():
             cmd.append(f"--{key.replace('_', '-')}")
             cmd.append(str(value))
 
-    return run_command(cmd)
+    # Set environment variables for this command (don't override globals)
+    env = os.environ.copy()
+    # Only set these if they're not already set
+    if 'STELLAR_RPC_URL' not in env:
+        env['STELLAR_RPC_URL'] = RPC_URL
+    if 'STELLAR_NETWORK_PASSPHRASE' not in env:
+        env['STELLAR_NETWORK_PASSPHRASE'] = NETWORK_PASSPHRASE
+
+    # Retry deployment with exponential backoff
+    max_retries = MAX_RETRIES
+    base_timeout = TIMEOUT
+    
+    for attempt in range(max_retries):
+        try:
+            timeout = base_timeout * (2 ** attempt)  # Use env timeout
+            result = subprocess.run(
+                cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+            contract_id = result.stdout.strip()
+            print(f"Deployed {contract_name} with ID: {contract_id}")
+            return contract_id
+        except subprocess.TimeoutExpired:
+            if attempt < MAX_RETRIES - 1:
+                wait_time = 2 ** attempt * 5  # 5, 10, 20 seconds
+                print(f"Deploy attempt {attempt + 1} timed out. Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                print(f"Deploy failed after {MAX_RETRIES} attempts due to timeouts.")
+                print("  This may indicate network congestion. Please try again later.")
+                sys.exit(1)
+        except subprocess.CalledProcessError as e:
+            print(f"Command failed: {e.stderr.strip()}")
+            print(f"  Command: {' '.join(cmd)}")
+            if "timeout" in str(e.stderr).lower() or "timed out" in str(e.stderr).lower():
+                if attempt < MAX_RETRIES - 1:
+                    # Increase fee by 10% on retry for timeout errors
+                    increased_fee = int(BASE_FEE * (1.1 ** (attempt + 1)))
+                    cmd_with_increased_fee = cmd.copy()
+                    # Find and replace the fee argument
+                    for i, arg in enumerate(cmd_with_increased_fee):
+                        if arg.startswith("--fee="):
+                            cmd_with_increased_fee[i] = f"--fee={increased_fee}"
+                            break
+                    
+                    wait_time = 2 ** attempt * 5
+                    print(f"Deploy attempt {attempt + 1} timed out. Increasing fee by {((increased_fee / BASE_FEE) - 1) * 100:.0f}% to {increased_fee} stroops. Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                    
+                    # Use the command with increased fee
+                    result = subprocess.run(
+                        cmd_with_increased_fee,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=timeout,
+                        env=env,
+                    )
+                    contract_id = result.stdout.strip()
+                    print(f"Deployed {contract_name} with ID: {contract_id}")
+                    return contract_id
+                else:
+                    print(f"Deploy failed after {MAX_RETRIES} attempts due to timeouts.")
+                    sys.exit(1)
+            else:
+                sys.exit(1)
 
 def migrate_deployments(deployments: dict) -> dict:
     """Migrate old deployment format to new format with only underscores."""
@@ -251,13 +442,12 @@ DEPLOY_ONLY_CONTRACTS = [
     "hvym_collective",
     "hvym_roster",
     "hvym_pin_service",
-    "hvym_pin_service_factory"
+    "hvym_pin_service_factory",
 ]
 
 def generate_deployments_md(deployments: dict) -> None:
     """Generate a markdown file with deployment details."""
-    md = "# Contract Deployments\n\n"
-    md += "| Contract | Network | Contract ID | Wasm Hash |\n"
+    md = "| Contract | Network | Contract ID | Wasm Hash |\n"
     md += "|----------|---------|-------------|-----------|\n"
     
     # Skip these top-level keys that aren't contract deployments
@@ -358,14 +548,33 @@ def main():
         for contract in CONTRACTS:
             print(f"\n=== Processing {contract} ===")
             
-            # Upload the contract
-            print(f"Uploading {contract}...")
-            wasm_hash = upload_contract(contract, args.deployer_acct)
-            print(f"Uploaded with hash: {wasm_hash}")
+            wasm_path = Path(args.wasm_dir) / f"{contract}.optimized.wasm"
+            if wasm_path.exists():
+                actual_hash = get_file_hash(wasm_path)
+                
+                if contract in deployments and 'wasm_hash' in deployments[contract]:
+                    deployed_entry = deployments[contract]
+                    if deployed_entry.get('wasm_hash') == actual_hash:
+                        print(f"✅ {contract} already deployed to {NETWORK} with matching hash")
+                        print(f"   Contract ID: {deployed_entry.get('contract_id')}")
+                        print(f"   Skipping deployment - no changes needed")
+                        continue
+                    else:
+                        print(f"⚠️  {contract} has different WASM hash than deployed")
+                        print(f"   Deployed: {deployed_entry.get('wasm_hash')}")
+                        print(f"   Current:  {actual_hash}")
+                        print(f"   Will redeploy to update...")
+                else:
+                    print(f"🆕 {contract} not yet deployed to {NETWORK}")
             
             # Initialize contract entry if it doesn't exist
             if contract not in deployments:
                 deployments[contract] = {}
+            
+            # Upload the contract
+            print(f"Uploading {contract}...")
+            wasm_hash = upload_contract(contract, args.deployer_acct)
+            print(f"Uploaded with hash: {wasm_hash}")
             
             # Update contract info
             contract_info = {
@@ -378,10 +587,15 @@ def main():
             # Deploy if needed
             if contract in DEPLOY_ONLY_CONTRACTS:
                 print(f"Deploying {contract}...")
-                contract_args = load_contract_args(contract)
-                contract_id = deploy_contract(contract, wasm_hash, args.deployer_acct, contract_args)
-                print(f"Deployed with ID: {contract_id}")
-                contract_info['contract_id'] = contract_id
+                try:
+                    contract_args = load_contract_args(contract)
+                    contract_id = deploy_contract(contract, wasm_hash, args.deployer_acct, contract_args)
+                    contract_info['contract_id'] = contract_id
+                    print(f"Deployed {contract} with ID: {contract_id}")
+                except Exception as e:
+                    print(f"❌ Failed to deploy {contract}: {e}")
+                    print(f"   Will continue with next contract...")
+                    # Don't set contract_id on failure
             
             # Update deployments with the new info
             deployments[contract].update(contract_info)

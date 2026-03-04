@@ -1,5 +1,5 @@
 {
-  "admin": "TESTNET_DEPLOYER",
+  "admin": "lepus-luminary-1",
   "name": "Sample Node Token",
   "symbol": "NODE",
   "node_id": "node_123456789",
