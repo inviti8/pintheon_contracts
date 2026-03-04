@@ -62,8 +62,8 @@ VERSION = "2.0.0"
 
 [DOCUMENTATION]
 ORG_NAME = "Pintheon"
-ORG_URL = "https://pintheon.io"
-ORG_DESCRIPTION = "Decentralized IPFS pinning protocol on Stellar"
+ORG_URL = "https://heavymeta.art"
+ORG_DESCRIPTION = "Creator Collective on Stellar"
 
 # ---------------------------------------------------------------
 # TESTNET
