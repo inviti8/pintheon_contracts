@@ -3,7 +3,7 @@ name: Mainnet Deployment Release
 on:
   push: 
     tags:
-      - 'v*'  # Semantic versioning tags (v1.0.0, v1.1.0, etc.)
+      - 'mainnet-release-v*'  # Mainnet deployment releases (unique pattern)
 
 permissions:
   id-token: write  # Required for OIDC token generation
@@ -164,8 +164,9 @@ EOF
         run: |
           echo "📝 Generating release body..."
           
-          # Get version from tag
+          # Extract version from tag (remove mainnet-release- prefix)
           VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#mainnet-release-v}"
           
           # Start with release notes if they exist
           RELEASE_BODY=""
