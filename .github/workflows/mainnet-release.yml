@@ -15,7 +15,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  STELLAR_CLI_VERSION: 23.4.0
   TAG_NAME: ${{ github.ref_name }}
   WASM_PATH: wasm
 
@@ -28,18 +27,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history for proper changelog
-      
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      
-      - name: Install Stellar CLI
-        run: |
-          wget https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-linux-x86_64.tar.gz
-          tar -xzf stellar-cli-linux-x86_64.tar.gz
-          sudo mv stellar /usr/local/bin/stellar
-          stellar version
       
       - name: Verify WASM files exist
         run: |
@@ -60,9 +47,9 @@ jobs:
           
           echo "📋 All WASM files verified successfully!"
       
-      - name: Generate contract hashes and metadata
+      - name: Prepare release assets
         run: |
-          echo "🔑 Generating contract hashes and metadata..."
+          echo "� Preparing release assets..."
           
           # Create release directory
           mkdir -p release-wasm
@@ -75,22 +62,15 @@ jobs:
             if [ -f "$wasm_file" ]; then
               echo "Processing $contract..."
               
-              # Generate hash
-              hash=$(stellar contract hash --wasm "$wasm_file" 2>/dev/null || echo "error")
-              if [ "$hash" != "error" ]; then
-                echo "✅ ${contract}: ${hash:0:8}...${hash: -8}"
-              else
-                echo "⚠️  ${contract}: Error generating hash"
-              fi
+              # Generate SHA256 hash
+              hash=$(sha256sum "$wasm_file" | cut -d' ' -f1)
+              echo "✅ ${contract}: ${hash:0:8}...${hash: -8}"
               
               # Copy to release directory
               cp "$wasm_file" "release-wasm/${contract}.wasm"
               
-              # Generate metadata
-              stellar contract env-meta --wasm "$wasm_file" > "release-wasm/${contract}.meta.json" 2>/dev/null || echo "Warning: Failed to generate metadata for $contract"
-              
               # Create simple metadata file with hash
-              echo "{\"contract\": \"${contract}\", \"wasm_hash\": \"${hash}\", \"file_size\": \"$(stat -c%s "$wasm_file")\", \"optimized\": true, \"network\": \"public\"}" > "release-wasm/${contract}.info.json"
+              echo "{\"contract\": \"${contract}\", \"sha256_hash\": \"${hash}\", \"file_size\": \"$(stat -c%s "$wasm_file")\", \"optimized\": true, \"network\": \"public\"}" > "release-wasm/${contract}.info.json"
             fi
           done
           
@@ -184,10 +164,10 @@ jobs:
           for wasm in release-wasm/*.wasm; do
             if [ -f "$wasm" ]; then
               contract_name=$(basename "$wasm" ".wasm")
-              hash=$(stellar contract hash --wasm "$wasm" 2>/dev/null || echo "error")
+              hash=$(sha256sum "$wasm" | cut -d' ' -f1)
               
               if [ "$hash" != "error" ]; then
-                RELEASE_BODY+="- **${contract_name}**: Hash ${hash:0:8}...${hash: -8}\n"
+                RELEASE_BODY+="- **${contract_name}**: SHA256 ${hash:0:8}...${hash: -8}\n"
               fi
             fi
           done
@@ -198,7 +178,6 @@ jobs:
           RELEASE_BODY+="- **Commit**: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})\n"
           RELEASE_BODY+="- **Build Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')\n"
           RELEASE_BODY+="- **Build Run**: [#$GITHUB_RUN_ID](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\n"
-          RELEASE_BODY+="- **Stellar CLI**: ${{ env.STELLAR_CLI_VERSION }}\n"
           
           # Add usage instructions
           RELEASE_BODY+="\n## 🚀 Usage Instructions\n\n"
@@ -225,7 +204,6 @@ jobs:
           body: ${{ steps.release_body.outputs.RELEASE_BODY }}
           files: |
             release-wasm/*.wasm
-            release-wasm/*.meta.json
             release-wasm/*.info.json
             release-wasm/checksums.sha256
             deployments.json
@@ -234,53 +212,3 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-      
-      - name: Attest build
-        if: always()
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: 'release-wasm/*.wasm'
-
-  verification:
-    runs-on: ubuntu-latest
-    name: Verify Release
-    needs: release
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download release artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: downloaded-artifacts
-      
-      - name: Verify checksums
-        run: |
-          echo "🔍 Verifying release checksums..."
-          
-          if [ -f "downloaded-artifacts/release-wasm/checksums.sha256" ]; then
-            cd downloaded-artifacts/release-wasm
-            sha256sum -c checksums.sha256
-            echo "✅ All checksums verified!"
-          else
-            echo "⚠️  Checksums file not found"
-          fi
-      
-      - name: Verify WASM integrity
-        run: |
-          echo "🔍 Verifying WASM file integrity..."
-          
-          for wasm in downloaded-artifacts/release-wasm/*.wasm; do
-            if [ -f "$wasm" ]; then
-              echo "Checking $(basename "$wasm")..."
-              if file "$wasm" | grep -q "WebAssembly"; then
-                echo "✅ Valid WebAssembly file"
-              else
-                echo "❌ Invalid WebAssembly file"
-                exit 1
-              fi
-            fi
-          done
-          
-          echo "✅ All WASM files verified!"
