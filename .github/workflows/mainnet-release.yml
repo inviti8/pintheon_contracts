@@ -105,7 +105,7 @@ jobs:
                   network=$(jq -r ".${contract}.network // \"unknown\"" deployments.json)
                   
                   if [ "$contract_id" != "Not deployed" ] && [ "$contract_id" != "null" ]; then
-                    deployment_table+="| ${contract} | \`${contract_id}\` | ${network} | ✅ Deployed |\n"
+                    deployment_table+="| ${contract} | '${contract_id}' | ${network} | ✅ Deployed |\n"
                   else
                     deployment_table+="| ${contract} | ${contract_id} | ${network} | ❌ Not Deployed |\n"
                   fi
