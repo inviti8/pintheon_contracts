@@ -173,20 +173,13 @@ def main():
         help="Build only the specified contract directory (relative path)",
     )
     parser.add_argument(
-        "--optimize",
-        action="store_true",
-        default=True,
-        help="Optimize the built WASM files (default: True)",
-    )
-    parser.add_argument(
         "--no-optimize",
         action="store_true",
-        help="Skip optimization of WASM files",
+        help="Skip optimization of WASM files (default: optimize)",
     )
     args = parser.parse_args()
 
-    # Determine if we should optimize
-    optimize = args.optimize and not args.no_optimize
+    optimize = not args.no_optimize
 
     # Create wasm directory if it doesn't exist
     os.makedirs("wasm", exist_ok=True)
@@ -198,13 +191,18 @@ def main():
                 print(f"  {c}")
             sys.exit(1)
             
-        # If building hvym-collective, ensure its dependencies are built first
-        if args.contract == "hvym-collective":
-            for dep in BUILD_ORDER[:-1]:  # All except hvym-collective itself
-                if dep != args.contract:  # Skip if it's the same as the target
+        # Ensure dependencies are built first for contracts that need them
+        DEPENDENCIES = {
+            "hvym-collective": BUILD_ORDER[:5],  # needs all prior contracts
+            "hvym-pin-service-factory": ["hvym-pin-service"],  # needs pin-service WASM
+        }
+
+        if args.contract in DEPENDENCIES:
+            for dep in DEPENDENCIES[args.contract]:
+                if dep != args.contract:
                     print(f"Building dependency: {dep}")
                     build_contract(dep, optimize=optimize)
-        
+
         build_contract(args.contract, optimize=optimize)
     else:
         # Build all contracts in the specified order
