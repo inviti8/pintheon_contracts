@@ -26,10 +26,8 @@ If you experience persistent timeouts, try these solutions:
 For persistent issues, consider running your own RPC node locally.
 """
 
-import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -202,22 +200,32 @@ def upload_contract(contract_name: str, deployer_acct: str) -> str:
         "--source", deployer_acct,
         "--rpc-url", RPC_URL,
         "--network-passphrase", NETWORK_PASSPHRASE,
+        f"--fee={BASE_FEE}",
     ]
-    
+
     # Set environment variables for this command (don't override globals)
     env = os.environ.copy()
-    # Only set these if they're not already set
     if 'STELLAR_RPC_URL' not in env:
         env['STELLAR_RPC_URL'] = RPC_URL
     if 'STELLAR_NETWORK_PASSPHRASE' not in env:
         env['STELLAR_NETWORK_PASSPHRASE'] = NETWORK_PASSPHRASE
-    
+
     # Retry upload with exponential backoff
     for attempt in range(MAX_RETRIES):
         try:
-            timeout = TIMEOUT * (2 ** attempt)  # Use env timeout
+            timeout = TIMEOUT * (2 ** attempt)
+            # Increase fee on retries
+            run_cmd = cmd.copy()
+            if attempt > 0:
+                increased_fee = int(BASE_FEE * (1.1 ** attempt))
+                for i, arg in enumerate(run_cmd):
+                    if arg.startswith("--fee="):
+                        run_cmd[i] = f"--fee={increased_fee}"
+                        break
+                print(f"  Retry {attempt + 1}/{MAX_RETRIES} with fee={increased_fee}")
+
             result = subprocess.run(
-                cmd,
+                run_cmd,
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -228,50 +236,20 @@ def upload_contract(contract_name: str, deployer_acct: str) -> str:
             wasm_hash = result.stdout.strip()
             print(f"Uploaded {contract_name} with hash: {wasm_hash}")
             return wasm_hash
-        except subprocess.TimeoutExpired:
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+            is_timeout = isinstance(e, subprocess.TimeoutExpired)
+            if isinstance(e, subprocess.CalledProcessError):
+                is_timeout = "timeout" in str(e.stderr).lower() or "timed out" in str(e.stderr).lower()
+                print(f"Command failed: {e.stderr.strip()}")
+
             if attempt < MAX_RETRIES - 1:
-                wait_time = 2 ** attempt * 5  # 5, 10, 20 seconds
-                print(f"Upload attempt {attempt + 1} timed out. Retrying in {wait_time} seconds...")
+                wait_time = 2 ** attempt * 5
+                print(f"Upload attempt {attempt + 1} failed. Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
             else:
-                print(f"Upload failed after {MAX_RETRIES} attempts due to timeouts.")
-                print("  This may indicate network congestion. Please try again later.")
-                sys.exit(1)
-        except subprocess.CalledProcessError as e:
-            print(f"Command failed: {e.stderr.strip()}")
-            print(f"  Command: {' '.join(cmd)}")
-            if "timeout" in str(e.stderr).lower() or "timed out" in str(e.stderr).lower():
-                if attempt < MAX_RETRIES - 1:
-                    # Increase fee by 10% on retry for timeout errors
-                    increased_fee = int(BASE_FEE * (1.1 ** (attempt + 1)))
-                    cmd_with_increased_fee = cmd.copy()
-                    # Find and replace the fee argument
-                    for i, arg in enumerate(cmd_with_increased_fee):
-                        if arg.startswith("--fee="):
-                            cmd_with_increased_fee[i] = f"--fee={increased_fee}"
-                            break
-                    
-                    wait_time = 2 ** attempt * 5
-                    print(f"Upload attempt {attempt + 1} timed out. Increasing fee by {((increased_fee / BASE_FEE) - 1) * 100:.0f}% to {increased_fee} stroops. Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                    
-                    # Use the command with increased fee
-                    result = subprocess.run(
-                        cmd_with_increased_fee,
-                        check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        timeout=timeout,
-                        env=env,
-                    )
-                    wasm_hash = result.stdout.strip()
-                    print(f"Uploaded {contract_name} with hash: {wasm_hash}")
-                    return wasm_hash
-                else:
-                    print(f"Upload failed after {MAX_RETRIES} attempts due to timeouts.")
-                    sys.exit(1)
-            else:
+                print(f"Upload failed after {MAX_RETRIES} attempts.")
+                if is_timeout:
+                    print("  This may indicate network congestion. Please try again later.")
                 sys.exit(1)
 
 def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args: Optional[dict] = None) -> str:
@@ -294,21 +272,27 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
 
     # Set environment variables for this command (don't override globals)
     env = os.environ.copy()
-    # Only set these if they're not already set
     if 'STELLAR_RPC_URL' not in env:
         env['STELLAR_RPC_URL'] = RPC_URL
     if 'STELLAR_NETWORK_PASSPHRASE' not in env:
         env['STELLAR_NETWORK_PASSPHRASE'] = NETWORK_PASSPHRASE
 
     # Retry deployment with exponential backoff
-    max_retries = MAX_RETRIES
-    base_timeout = TIMEOUT
-    
-    for attempt in range(max_retries):
+    for attempt in range(MAX_RETRIES):
         try:
-            timeout = base_timeout * (2 ** attempt)  # Use env timeout
+            timeout = TIMEOUT * (2 ** attempt)
+            # Increase fee on retries (only modify args before the -- separator)
+            run_cmd = cmd.copy()
+            if attempt > 0:
+                increased_fee = int(BASE_FEE * (1.1 ** attempt))
+                for i, arg in enumerate(run_cmd):
+                    if arg.startswith("--fee="):
+                        run_cmd[i] = f"--fee={increased_fee}"
+                        break
+                print(f"  Retry {attempt + 1}/{MAX_RETRIES} with fee={increased_fee}")
+
             result = subprocess.run(
-                cmd,
+                run_cmd,
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -319,50 +303,20 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
             contract_id = result.stdout.strip()
             print(f"Deployed {contract_name} with ID: {contract_id}")
             return contract_id
-        except subprocess.TimeoutExpired:
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+            is_timeout = isinstance(e, subprocess.TimeoutExpired)
+            if isinstance(e, subprocess.CalledProcessError):
+                is_timeout = "timeout" in str(e.stderr).lower() or "timed out" in str(e.stderr).lower()
+                print(f"Command failed: {e.stderr.strip()}")
+
             if attempt < MAX_RETRIES - 1:
-                wait_time = 2 ** attempt * 5  # 5, 10, 20 seconds
-                print(f"Deploy attempt {attempt + 1} timed out. Retrying in {wait_time} seconds...")
+                wait_time = 2 ** attempt * 5
+                print(f"Deploy attempt {attempt + 1} failed. Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
             else:
-                print(f"Deploy failed after {MAX_RETRIES} attempts due to timeouts.")
-                print("  This may indicate network congestion. Please try again later.")
-                sys.exit(1)
-        except subprocess.CalledProcessError as e:
-            print(f"Command failed: {e.stderr.strip()}")
-            print(f"  Command: {' '.join(cmd)}")
-            if "timeout" in str(e.stderr).lower() or "timed out" in str(e.stderr).lower():
-                if attempt < MAX_RETRIES - 1:
-                    # Increase fee by 10% on retry for timeout errors
-                    increased_fee = int(BASE_FEE * (1.1 ** (attempt + 1)))
-                    cmd_with_increased_fee = cmd.copy()
-                    # Find and replace the fee argument
-                    for i, arg in enumerate(cmd_with_increased_fee):
-                        if arg.startswith("--fee="):
-                            cmd_with_increased_fee[i] = f"--fee={increased_fee}"
-                            break
-                    
-                    wait_time = 2 ** attempt * 5
-                    print(f"Deploy attempt {attempt + 1} timed out. Increasing fee by {((increased_fee / BASE_FEE) - 1) * 100:.0f}% to {increased_fee} stroops. Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                    
-                    # Use the command with increased fee
-                    result = subprocess.run(
-                        cmd_with_increased_fee,
-                        check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        timeout=timeout,
-                        env=env,
-                    )
-                    contract_id = result.stdout.strip()
-                    print(f"Deployed {contract_name} with ID: {contract_id}")
-                    return contract_id
-                else:
-                    print(f"Deploy failed after {MAX_RETRIES} attempts due to timeouts.")
-                    sys.exit(1)
-            else:
+                print(f"Deploy failed after {MAX_RETRIES} attempts.")
+                if is_timeout:
+                    print("  This may indicate network congestion. Please try again later.")
                 sys.exit(1)
 
 def migrate_deployments(deployments: dict) -> dict:
@@ -523,7 +477,7 @@ def main():
     parser.add_argument('--wasm-dir', default=WASM_DIR, help='Directory containing WASM files')
     args = parser.parse_args()
 
-    # Resolve network from: CLI flag > STELLAR_NETWORK env var > testnet
+    # Resolve network from: CLI flag > STELLAR_NETWORK env var > public (mainnet)
     resolve_network(args.network)
 
     print(f"Starting deployment with deployer: {args.deployer_acct}")
