@@ -6,10 +6,10 @@
     "timestamp": 1758335030
   },
   "opus_token": {
-    "contract_id": "CDAPBAGTVWJHFNVIFW5TMFGIAFGKZTPWSQGVNQ4LYSERLUCAWHXLN2UL",
-    "wasm_hash": "cd0f0a689d82c6ccd19c694ad17b0d793221a8596ebb2358ba1ca80fea0b075a",
+    "contract_id": "CCVQDXKX6ICK7W6JZEVNBGS37T6VCFQW7TTMFQRIP4JRK2NYLQFTWLBH",
+    "wasm_hash": "1e65df19aab602c415909ef6ab3043ffd349c21c35b97aafb3946c471d61cd39",
     "network": "testnet",
-    "timestamp": 1758335045
+    "timestamp": 1772935644
   },
   "pintheon_node_token": {
     "contract_id": "CDQAASB3K22OEKLTJPDJWTXUQSHZPE2KQPAIVHEZNY3REN63QSRQ4UTO",
@@ -18,9 +18,27 @@
     "timestamp": 1758335066
   },
   "hvym_collective": {
-    "contract_id": "CCEP2CIRLYWLD2FVVLSWR25XYPSEUUZTDLTSHNH3WYV2HNLNMPD7NLFW",
-    "wasm_hash": "b9fbfc1ba75b96927c69c2cd71a48b1e5dbdac4e2ed6b52440146932228b75c7",
+    "contract_id": "CDRWMVTI4GBURLK5OSUMDNAPHMIHIUTE5ROTLGR44ENBS6YYDRJT5D5T",
+    "wasm_hash": "42549904d3f537404746b43460a560820f80acfdabb433e33cc63bdf8238ed4b",
     "network": "testnet",
-    "timestamp": 1758335055
+    "timestamp": 1772935654
+  },
+  "hvym_pin_service": {
+    "contract_id": "CA24WU2M4RKPOQSELJSI6M75NMB6ZQKJ4YDESLV5CQD6JEV7BGMQO7HU",
+    "wasm_hash": "448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a",
+    "network": "testnet",
+    "timestamp": 1772935629
+  },
+  "hvym_roster": {
+    "contract_id": "CAQKPXRJI5NBKJU2MPPXWOVHCAANLZE3MLG4GEEPTENOKDRJFVD34FJQ",
+    "wasm_hash": "bd5266c2c0355598b3b038a544ac38f13d524930ab48c8767b09b941c7385353",
+    "network": "testnet",
+    "timestamp": 1772935673
+  },
+  "hvym_pin_service_factory": {
+    "contract_id": "CBZ7VXY3ZF2O3N5JQFHBFL2DJECLZYW7S2ZX3556ZXZLYIYKQ64WFJYE",
+    "wasm_hash": "d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d",
+    "network": "testnet",
+    "timestamp": 1772935685
   }
 }
