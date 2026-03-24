@@ -65,3 +65,5 @@ account.json
 tmpclaude*
 
 hvym-pin-service-factory/test_snapshots/test/
+
+hvym-registry/test_snapshots/test/
