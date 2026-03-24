@@ -77,7 +77,8 @@ DEPLOYABLE_CONTRACTS = [
     "hvym_collective",
     "hvym_roster",
     "hvym_pin_service",
-    "hvym_pin_service_factory"
+    "hvym_pin_service_factory",
+    "hvym_registry"
 ]
 
 def load_account() -> Optional[str]:

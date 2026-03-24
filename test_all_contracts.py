@@ -11,7 +11,8 @@ TEST_ORDER = [
     "hvym-collective",
     "hvym-roster",
     "hvym-pin-service",
-    "hvym-pin-service-factory"
+    "hvym-pin-service-factory",
+    "hvym-registry"
 ]
 
 def run_tests(contract_dir):
