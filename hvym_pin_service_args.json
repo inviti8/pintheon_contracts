@@ -1,9 +1,9 @@
 {
   "admin_addr": "lepus-luminary-1",
-  "pin_fee": 1.0,
-  "join_fee": 5.0,
+  "pin_fee": 0.1,
+  "join_fee": 0.5,
   "min_pin_qty": 3,
-  "min_offer_price": 1.0,
+  "min_offer_price": 0.1,
   "pinner_stake": 100.0,
   "pay_token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
   "max_cycles": 60,

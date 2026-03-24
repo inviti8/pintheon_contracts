@@ -1,8 +1,8 @@
 {
   "admin": "lepus-luminary-1",
   "token": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-  "join_fee": 210.0,
-  "mint_fee": 0.5,
-  "reward": 0.2,
+  "join_fee": 5.0,
+  "mint_fee": 0.05,
+  "reward": 0.02,
   "split": 10
 }
