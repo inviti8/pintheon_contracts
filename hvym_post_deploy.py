@@ -55,15 +55,20 @@ def resolve_network(cli_network: Optional[str] = None) -> str:
     print(f"  Passphrase: {NETWORK_PASSPHRASE}")
     return network
 
+def get_deployments_file():
+    return f"deployments.{NETWORK}.json"
+
 def load_deployments():
-    if not os.path.isfile("deployments.json"):
-        print("deployments.json not found. Run deployment first.")
+    dep_file = get_deployments_file()
+    if not os.path.isfile(dep_file):
+        print(f"{dep_file} not found. Run deployment first.")
         sys.exit(1)
-    with open("deployments.json", "r") as f:
+    with open(dep_file, "r") as f:
         return json.load(f)
 
 def save_deployments(data):
-    with open("deployments.json", "w") as f:
+    dep_file = get_deployments_file()
+    with open(dep_file, "w") as f:
         json.dump(data, f, indent=2)
 
 def run_cmd(cmd):

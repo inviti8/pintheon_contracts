@@ -4,11 +4,10 @@ Verify that deployed WASM hashes match the actual WASM files.
 This helps catch issues where:
 1. Deployed WASM hash doesn't match current WASM file
 2. WASM file is missing but deployment shows it exists
-3. Network mismatch (testnet vs mainnet deployments)
 """
 
+import argparse
 import json
-import os
 import hashlib
 from pathlib import Path
 
@@ -20,60 +19,57 @@ def get_file_hash(filepath):
             sha256_hash.update(chunk)
     return sha256_hash.hexdigest()
 
-def verify_deployments():
+def verify_deployments(dep_file: str):
     """Verify deployments against actual WASM files."""
-    print("🔍 Verifying deployment hashes...")
-    
-    # Load deployments
-    with open('deployments.json', 'r') as f:
+    print(f"Verifying deployment hashes from {dep_file}...")
+
+    with open(dep_file, 'r') as f:
         deployments = json.load(f)
-    
-    # Check each deployment
+
     issues_found = False
-    
+
     for contract_name, deployment in deployments.items():
-        print(f"\n📋 Checking {contract_name}...")
-        
-        # Skip non-contract entries
         if not isinstance(deployment, dict) or 'wasm_hash' not in deployment:
             continue
-            
+
         wasm_hash = deployment.get('wasm_hash', '')
-        network = deployment.get('network', '')
         contract_id = deployment.get('contract_id', '')
-        
-        print(f"  📄 Network: {network}")
-        print(f"  📝 WASM Hash: {wasm_hash}")
-        print(f"  🆔 Contract ID: {contract_id}")
-        
-        # Check if WASM file exists
-        wasm_filename = f"{contract_name}.optimized.wasm"
-        wasm_path = Path("wasm") / wasm_filename
-        
+
+        print(f"\n  {contract_name}:")
+        print(f"    WASM Hash:   {wasm_hash}")
+        print(f"    Contract ID: {contract_id or 'Upload only'}")
+
+        wasm_path = Path("wasm") / f"{contract_name}.optimized.wasm"
+
         if not wasm_path.exists():
-            print(f"  ❌ WASM file missing: {wasm_path}")
+            print(f"    WASM file missing: {wasm_path}")
             issues_found = True
             continue
-        
-        # Calculate actual WASM hash
+
         actual_hash = get_file_hash(wasm_path)
-        print(f"  🔢 Actual WASM Hash: {actual_hash}")
-        
-        # Compare hashes
-        if wasm_hash and actual_hash:
-            if wasm_hash == actual_hash:
-                print(f"  ✅ Hashes match - WASM file is current")
-            else:
-                print(f"  ⚠️  Hash mismatch - deployed hash differs from actual WASM file")
-                print(f"      Expected: {wasm_hash}")
-                print(f"      Actual:   {actual_hash}")
-                issues_found = True
+
+        if wasm_hash == actual_hash:
+            print(f"    Hashes match")
         else:
-            print(f"  ❌ Missing WASM hash in deployment")
+            print(f"    MISMATCH - local: {actual_hash}")
             issues_found = True
-    
-    print(f"\n{'🎉 VERIFICATION COMPLETE' if not issues_found else '⚠️  ISSUES FOUND'}")
+
+    print(f"\n{'VERIFICATION COMPLETE' if not issues_found else 'ISSUES FOUND'}")
     return not issues_found
 
 if __name__ == "__main__":
-    verify_deployments()
+    parser = argparse.ArgumentParser(description='Verify deployed WASM hashes')
+    parser.add_argument('file', nargs='?', default=None,
+                        help='Deployments JSON file (e.g. deployments.testnet.json)')
+    args = parser.parse_args()
+
+    if args.file:
+        verify_deployments(args.file)
+    else:
+        # Verify all network deployment files found
+        found = list(Path('.').glob('deployments.*.json'))
+        if not found:
+            print("No deployments.*.json files found.")
+        for f in sorted(found):
+            verify_deployments(str(f))
+            print()

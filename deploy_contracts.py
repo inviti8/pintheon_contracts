@@ -109,11 +109,15 @@ def resolve_network(cli_network: Optional[str] = None) -> str:
 
 # Global variable to store the project root directory
 PROJECT_ROOT = Path(__file__).parent.resolve()
-
-# Initialize paths
-DEPLOYMENTS_FILE = PROJECT_ROOT / "deployments.json"
-DEPLOYMENTS_MD = PROJECT_ROOT / "deployments.md"
 WASM_DIR = PROJECT_ROOT / "wasm"
+
+def get_deployments_file() -> Path:
+    """Return the network-specific deployments JSON path."""
+    return PROJECT_ROOT / f"deployments.{NETWORK}.json"
+
+def get_deployments_md() -> Path:
+    """Return the network-specific deployments markdown path."""
+    return PROJECT_ROOT / f"deployments.{NETWORK}.md"
 
 def ensure_project_root():
     """Ensure the script is being run from the project root directory."""
@@ -369,71 +373,25 @@ def deploy_contract(contract_name: str, wasm_hash: str, deployer_acct: str, args
                     print("  This may indicate network congestion. Please try again later.")
                 sys.exit(1)
 
-def migrate_deployments(deployments: dict) -> dict:
-    """Migrate old deployment format to new format with only underscores."""
-    # Create a copy to avoid modifying during iteration
-    old_deployments = deployments.copy()
-    
-    # Process contracts from the old 'contracts' array
-    if 'contracts' in old_deployments and isinstance(old_deployments['contracts'], list):
-        for contract_info in old_deployments['contracts']:
-            if not isinstance(contract_info, dict):
-                continue
-                
-            # Convert contract name to underscore format
-            contract_name = contract_info.get('name', '').replace('-', '_')
-            if not contract_name:
-                continue
-                
-            # Initialize contract entry if it doesn't exist
-            if contract_name not in deployments:
-                deployments[contract_name] = {}
-                
-            # Update with contract info, preserving existing values
-            for key, value in contract_info.items():
-                if key != 'name':  # Skip the name field
-                    deployments[contract_name][key] = value
-    
-    # Remove old hyphenated entries
-    for key in list(deployments.keys()):
-        if '-' in key and key.replace('-', '_') in deployments:
-            print(f"Removing duplicate hyphenated entry: {key}")
-            del deployments[key]
-    
-    # Remove the old contracts array
-    if 'contracts' in deployments:
-        del deployments['contracts']
-    
-    return deployments
-
 def load_deployments() -> dict:
-    """Load existing deployments from deployments.json and migrate if needed."""
-    if DEPLOYMENTS_FILE.exists():
-        with open(DEPLOYMENTS_FILE, 'r') as f:
+    """Load existing deployments for the target network."""
+    dep_file = get_deployments_file()
+    if dep_file.exists():
+        with open(dep_file, 'r') as f:
             try:
-                deployments = json.load(f)
-                
-                # Check if migration is needed
-                if any('-' in key or 'contracts' in deployments for key in deployments):
-                    print("Migrating deployments to new format...")
-                    deployments = migrate_deployments(deployments)
-                    # Save the migrated version
-                    with open(DEPLOYMENTS_FILE, 'w') as f_out:
-                        json.dump(deployments, f_out, indent=2)
-                
-                return deployments
+                return json.load(f)
             except json.JSONDecodeError as e:
-                print(f"Error parsing {DEPLOYMENTS_FILE}: {e}")
+                print(f"Error parsing {dep_file}: {e}")
                 return {}
     return {}
 
 def save_deployments(deployments: dict) -> None:
-    """Save deployments to deployments.json."""
-    # Ensure the directory exists
-    DEPLOYMENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(DEPLOYMENTS_FILE, 'w') as f:
+    """Save deployments to the network-specific JSON file."""
+    dep_file = get_deployments_file()
+    dep_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(dep_file, 'w') as f:
         json.dump(deployments, f, indent=2)
-    print(f"Saved deployments to {DEPLOYMENTS_FILE}")
+    print(f"Saved deployments to {dep_file}")
 
 # Contract categories
 UPLOAD_ONLY_CONTRACTS = [
@@ -451,72 +409,25 @@ DEPLOY_ONLY_CONTRACTS = [
 ]
 
 def generate_deployments_md(deployments: dict) -> None:
-    """Generate a markdown file with deployment details."""
-    md = "| Contract | Network | Contract ID | Wasm Hash |\n"
-    md += "|----------|---------|-------------|-----------|\n"
-    
-    # Skip these top-level keys that aren't contract deployments
-    skip_keys = {'network', 'timestamp', 'cli_version', 'note', 'contracts'}
-    
-    # Track processed contracts to avoid duplicates
-    processed_contracts = set()
-    
-    # First, process contracts from the 'contracts' array (old format)
-    if 'contracts' in deployments and isinstance(deployments['contracts'], list):
-        for contract_info in deployments['contracts']:
-            if not isinstance(contract_info, dict):
-                continue
-                
-            # Convert contract name to underscore format
-            contract_name = contract_info.get('name', '').replace('-', '_')
-            if not contract_name or contract_name in processed_contracts:
-                continue
-                
-            processed_contracts.add(contract_name)
-            
-            # Skip if we have a direct entry for this contract (prefer direct entries)
-            if contract_name in deployments and isinstance(deployments[contract_name], dict):
-                continue
-                
-            # Add to markdown
-            network = contract_info.get('network', 'testnet')
-            contract_id = contract_info.get('contract_id', contract_info.get('address', 'Not deployed'))
-            wasm_hash = contract_info.get('wasm_hash', 'N/A')
-            
-            if isinstance(contract_id, dict):
-                contract_id = contract_id.get('address', 'Not deployed')
-                
-            md += f"| {contract_name} | {network} | `[{contract_id}](https://stellar.expert/explorer/testnet/contract/{contract_id})` | `{wasm_hash}` |\n"
-    
-    # Process direct contract entries (new format)
+    """Generate a network-specific markdown file with deployment details."""
+    skip_keys = {'network', 'timestamp', 'cli_version', 'note'}
+
+    md = f"# Deployments — {NETWORK}\n\n"
+    md += "| Contract | Contract ID | Wasm Hash |\n"
+    md += "|----------|-------------|-----------|\n"
+
     for contract, info in deployments.items():
-        # Skip non-dictionary items, metadata keys, and hyphenated names
-        if (not isinstance(info, dict) or 
-            contract in skip_keys or 
-            '-' in contract):
+        if not isinstance(info, dict) or contract in skip_keys:
             continue
-            
-        # Skip if we've already processed this contract
-        if contract in processed_contracts:
-            continue
-            
-        processed_contracts.add(contract)
-        
-        network = info.get('network', 'testnet')
-        contract_id = info.get('contract_id', info.get('address', 'Not deployed'))
+
+        contract_id = info.get('contract_id', 'Upload only')
         wasm_hash = info.get('wasm_hash', 'N/A')
-        
-        if isinstance(contract_id, dict):
-            contract_id = contract_id.get('address', 'Not deployed')
-            
-        md += f"| {contract} | {network} | `{contract_id}` | `{wasm_hash}` |\n"
-    
-    # Add a note if no deployments were found
-    if md.count('\n') <= 4:  # Only headers in the markdown
-        md += "| No deployments found | | | |\n"
-    
-    with open(DEPLOYMENTS_MD, 'w') as f:
+        md += f"| {contract} | `{contract_id}` | `{wasm_hash}` |\n"
+
+    dep_md = get_deployments_md()
+    with open(dep_md, 'w') as f:
         f.write(md)
+    print(f"Generated {dep_md}")
 
 def main():
     """Main deployment function."""
@@ -533,21 +444,10 @@ def main():
     resolve_network(args.network)
 
     print(f"Starting deployment with deployer: {args.deployer_acct}")
-    
-    # Load existing deployments and clean up old format
+    print(f"Deployments file: {get_deployments_file()}")
+
+    # Load existing deployments for this network
     deployments = load_deployments()
-    
-    # Remove old hyphenated entries if they exist
-    for contract in CONTRACTS:
-        hyphenated = contract.replace('_', '-')
-        if hyphenated in deployments:
-            print(f"Removing old hyphenated entry: {hyphenated}")
-            del deployments[hyphenated]
-    
-    # Clean up old contracts array if it exists
-    if 'contracts' in deployments:
-        print("Removing old contracts array from deployments")
-        del deployments['contracts']
     
     try:
         # Process each contract in order
@@ -560,23 +460,15 @@ def main():
                 
                 if contract in deployments and 'wasm_hash' in deployments[contract]:
                     deployed_entry = deployments[contract]
-                    same_hash = deployed_entry.get('wasm_hash') == actual_hash
-                    same_network = deployed_entry.get('network') == NETWORK
-
-                    if same_hash and same_network and not args.force:
+                    if deployed_entry.get('wasm_hash') == actual_hash and not args.force:
                         print(f"✅ {contract} already deployed to {NETWORK} with matching hash")
                         print(f"   Contract ID: {deployed_entry.get('contract_id')}")
-                        print(f"   Skipping deployment - no changes needed (use --force to override)")
+                        print(f"   Skipping (use --force to override)")
                         continue
-                    elif same_hash and same_network and args.force:
+                    elif deployed_entry.get('wasm_hash') == actual_hash:
                         print(f"🔄 {contract} WASM unchanged but --force specified, redeploying...")
-                    elif same_hash and not same_network:
-                        print(f"🌐 {contract} deployed to {deployed_entry.get('network')} but targeting {NETWORK}")
-                        print(f"   Will deploy to {NETWORK}...")
                     else:
                         print(f"⚠️  {contract} has different WASM hash than deployed")
-                        print(f"   Deployed: {deployed_entry.get('wasm_hash')}")
-                        print(f"   Current:  {actual_hash}")
                         print(f"   Will redeploy to update...")
                 else:
                     print(f"🆕 {contract} not yet deployed to {NETWORK}")
@@ -621,8 +513,6 @@ def main():
         deployments.update({
             'network': NETWORK,
             'timestamp': int(time.time()),
-            'cli_version': '23.0.1',
-            'note': 'Deployed with standardized underscore format'
         })
         
         # Save final state

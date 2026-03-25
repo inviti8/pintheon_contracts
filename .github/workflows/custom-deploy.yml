@@ -346,32 +346,32 @@ jobs:
             exit 1
           fi
           
+          DEPLOY_JSON="deployments.${{ env.NETWORK }}.json"
+          DEPLOY_MD="deployments.${{ env.NETWORK }}.md"
+
           # Save deployment details as an artifact with release information
-          if [ -f deployments.json ]; then
-            # Add release info to deployments.json
+          if [ -f "$DEPLOY_JSON" ]; then
             jq --arg release "${{ env.RELEASE_NAME }}" --arg version "${{ env.VERSION }}" \
-              '. + {release: $release, version: $version}' deployments.json > deployment_details.json
-            mv deployment_details.json deployments.json  # Update original file too
-            cp deployments.json deployment_details.json  # Create a copy for the artifact
+              '. + {release: $release, version: $version}' "$DEPLOY_JSON" > deployment_details.json
+            cp deployment_details.json "$DEPLOY_JSON"
           else
-            echo "{\"status\": \"error\", \"message\": \"Deployment failed or deployments.json not created\", \"release\": \"${{ env.RELEASE_NAME }}\", \"version\": \"${{ env.VERSION }}\"}" > deployment_details.json
+            echo "{\"status\": \"error\", \"message\": \"Deployment failed or $DEPLOY_JSON not created\"}" > deployment_details.json
           fi
-          
+
           # Create a summary of the deployment
           echo "## 🚀 ${{ env.RELEASE_NAME }} Deployment Summary (v${{ env.VERSION }})" >> $GITHUB_STEP_SUMMARY
           echo "### Release Information" >> $GITHUB_STEP_SUMMARY
           echo "- **Release Name**: ${{ env.RELEASE_NAME}}" >> $GITHUB_STEP_SUMMARY
           echo "- **Version**: ${{ env.VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Deployment Type**: ${{ env.IS_FAST_DEPLOY == 'true' && 'Fast' || 'Standard' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Network**: ${{ env.NETWORK }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Deployment Details" >> $GITHUB_STEP_SUMMARY
-          if [ -f deployments.md ]; then
-            cat deployments.md >> $GITHUB_STEP_SUMMARY
+          if [ -f "$DEPLOY_MD" ]; then
+            cat "$DEPLOY_MD" >> $GITHUB_STEP_SUMMARY
           else
             echo "No deployment details available. Check the logs for errors." >> $GITHUB_STEP_SUMMARY
           fi
-          
-          # Upload deployment details as an artifact
+
           echo "DEPLOYMENT_DETAILS=deployment_details.json" >> $GITHUB_ENV
           
       - name: Run post-deployment actions for hvym-collective
@@ -419,22 +419,23 @@ jobs:
         run: |
           echo "🌐 Submitting to Stellar Expert..."
           
-          # Create a clean copy of deployments.json for processing
-          if [ ! -f "deployments.json" ]; then
-            echo "Error: deployments.json not found"
+          DEPLOY_JSON="deployments.${{ env.NETWORK }}.json"
+
+          # Create a clean copy of deployments file for processing
+          if [ ! -f "$DEPLOY_JSON" ]; then
+            echo "Error: $DEPLOY_JSON not found"
             exit 0
           fi
-          
+
           # Create a clean copy and validate JSON
           CLEAN_DEPLOYMENTS="clean_deployments.json"
-          jq '.' deployments.json > "$CLEAN_DEPLOYMENTS" || {
-            echo "Error: Invalid JSON in deployments.json"
-            jq -c . deployments.json | head -n 5  # Show first 5 lines for debugging
+          jq '.' "$DEPLOY_JSON" > "$CLEAN_DEPLOYMENTS" || {
+            echo "Error: Invalid JSON in $DEPLOY_JSON"
             exit 1
           }
-          
+
           # Get list of contracts, filtering out metadata fields
-          CONTRACTS=$(jq -r 'keys[] | select(. != "network" and . != "timestamp" and . != "cli_version" and . != "note" and . != "release" and . != "version")' "$CLEAN_DEPLOYMENTS")
+          CONTRACTS=$(jq -r 'keys[] | select(. != "network" and . != "timestamp" and . != "release" and . != "version")' "$CLEAN_DEPLOYMENTS")
           
           if [ -z "$CONTRACTS" ]; then
             echo "No valid contracts found in deployments.json"
@@ -488,7 +489,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deployments-md
-          path: deployments.md
+          path: deployments.${{ env.NETWORK }}.md
 
       - name: Update release notes with deployments
         env:
@@ -517,10 +518,12 @@ jobs:
           echo "Current release ID: $RELEASE_ID"
           echo "Current body length: ${#CURRENT_BODY} characters"
           
+          DEPLOY_MD="deployments.${{ env.NETWORK }}.md"
+
           # Read the deployments markdown
-          if [ -f "deployments.md" ]; then
-            DEPLOYMENTS_MD=$(cat deployments.md)
-            echo "Read deployments.md (${#DEPLOYMENTS_MD} characters)"
+          if [ -f "$DEPLOY_MD" ]; then
+            DEPLOYMENTS_MD=$(cat "$DEPLOY_MD")
+            echo "Read $DEPLOY_MD (${#DEPLOYMENTS_MD} characters)"
             
             # Prepare the new body - ensure we don't duplicate the deployment details
             if [[ "$CURRENT_BODY" == *"## Deployment Details"* ]]; then
@@ -560,20 +563,21 @@ jobs:
             
             echo "✅ Successfully updated release notes"
           else
-            echo "Error: deployments.md not found"
+            echo "Error: $DEPLOY_MD not found"
             exit 1
           fi
 
-      - name: Commit deployments.json to repo
+      - name: Commit deployments to repo
         if: success()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          DEPLOY_JSON="deployments.${{ env.NETWORK }}.json"
+          DEPLOY_MD="deployments.${{ env.NETWORK }}.md"
+
           # Save updated files before switching branches
-          cp deployments.json /tmp/deployments.json
-          if [ -f deployments.md ]; then
-            cp deployments.md /tmp/deployments.md
-          fi
+          cp "$DEPLOY_JSON" /tmp/ 2>/dev/null || true
+          cp "$DEPLOY_MD" /tmp/ 2>/dev/null || true
 
           # Configure git
           git config user.name "github-actions[bot]"
@@ -584,18 +588,16 @@ jobs:
           git checkout main
 
           # Copy updated files back
-          cp /tmp/deployments.json deployments.json
-          if [ -f /tmp/deployments.md ]; then
-            cp /tmp/deployments.md deployments.md
-          fi
+          cp "/tmp/$DEPLOY_JSON" . 2>/dev/null || true
+          cp "/tmp/$DEPLOY_MD" . 2>/dev/null || true
 
           # Commit and push if there are changes
-          git add deployments.json deployments.md
+          git add "$DEPLOY_JSON" "$DEPLOY_MD" 2>/dev/null || true
           if git diff --cached --quiet; then
-            echo "No changes to deployments.json, nothing to commit"
+            echo "No changes to commit"
           else
             DEPLOY_TAG="${{ env.RELEASE_NAME }}-v${{ env.VERSION }}-${{ env.NETWORK }}"
-            git commit -m "Update deployments.json from deploy ${DEPLOY_TAG}"
+            git commit -m "Update $DEPLOY_JSON from deploy ${DEPLOY_TAG}"
             git push origin main
-            echo "✅ Committed and pushed deployments.json to main"
+            echo "✅ Committed and pushed $DEPLOY_JSON to main"
           fi
