@@ -560,13 +560,19 @@ def main():
                 
                 if contract in deployments and 'wasm_hash' in deployments[contract]:
                     deployed_entry = deployments[contract]
-                    if deployed_entry.get('wasm_hash') == actual_hash and not args.force:
+                    same_hash = deployed_entry.get('wasm_hash') == actual_hash
+                    same_network = deployed_entry.get('network') == NETWORK
+
+                    if same_hash and same_network and not args.force:
                         print(f"✅ {contract} already deployed to {NETWORK} with matching hash")
                         print(f"   Contract ID: {deployed_entry.get('contract_id')}")
                         print(f"   Skipping deployment - no changes needed (use --force to override)")
                         continue
-                    elif deployed_entry.get('wasm_hash') == actual_hash and args.force:
+                    elif same_hash and same_network and args.force:
                         print(f"🔄 {contract} WASM unchanged but --force specified, redeploying...")
+                    elif same_hash and not same_network:
+                        print(f"🌐 {contract} deployed to {deployed_entry.get('network')} but targeting {NETWORK}")
+                        print(f"   Will deploy to {NETWORK}...")
                     else:
                         print(f"⚠️  {contract} has different WASM hash than deployed")
                         print(f"   Deployed: {deployed_entry.get('wasm_hash')}")
