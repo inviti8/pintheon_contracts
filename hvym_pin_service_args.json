@@ -1,5 +1,5 @@
 {
-  "admin_addr": "lepus-luminary-1",
+  "admin_addr": "deployer",
   "pin_fee": 0.1,
   "join_fee": 0.5,
   "min_pin_qty": 3,

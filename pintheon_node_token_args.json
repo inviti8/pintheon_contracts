@@ -1,5 +1,5 @@
 {
-  "admin": "lepus-luminary-1",
+  "admin": "deployer",
   "name": "Sample Node Token",
   "symbol": "NODE",
   "node_id": "node_123456789",

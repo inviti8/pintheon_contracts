@@ -170,16 +170,24 @@ def get_native_xlm_sac() -> str:
         _native_xlm_sac = resolve_native_xlm_sac()
     return _native_xlm_sac
 
-def load_contract_args(contract_name: str) -> Optional[dict]:
+def load_contract_args(contract_name: str, deployer_acct: Optional[str] = None) -> Optional[dict]:
     """Load constructor arguments from JSON file.
 
-    Token/pay_token fields set to "native" are resolved to the native XLM
-    Stellar Asset Contract address for the target network at deploy time.
+    Placeholder resolution (applied before any other processing):
+      - "deployer" in admin/admin_addr fields → deployer_acct identity name
+      - "native"  in token/pay_token fields  → network-specific XLM SAC address
     """
     args_file = f"{contract_name}_args.json"
     try:
         with open(args_file) as f:
             args = json.load(f)
+
+        # Resolve "deployer" admin placeholders to the deployer account identity
+        if deployer_acct:
+            for key in ['admin', 'admin_addr']:
+                if args.get(key) == "deployer":
+                    args[key] = deployer_acct
+                    print(f"  Resolved admin to deployer: {deployer_acct}")
 
         # Resolve "native" token placeholders to the network-specific XLM SAC
         for key in ['token', 'pay_token']:
@@ -588,7 +596,7 @@ def main():
             if contract in DEPLOY_ONLY_CONTRACTS:
                 print(f"Deploying {contract}...")
                 try:
-                    contract_args = load_contract_args(contract)
+                    contract_args = load_contract_args(contract, deployer_acct=args.deployer_acct)
                     contract_id = deploy_contract(contract, wasm_hash, args.deployer_acct, contract_args)
                     contract_info['contract_id'] = contract_id
                     print(f"Deployed {contract} with ID: {contract_id}")
