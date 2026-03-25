@@ -1,69 +1,69 @@
 {
-  "network": "public",
-  "timestamp": 1774401523,
+  "network": "testnet",
+  "timestamp": 1774404430,
   "cli_version": "23.0.1",
   "note": "Deployed with standardized underscore format",
   "pintheon_ipfs_token": {
     "contract_dir": "pintheon-ipfs-deployer/pintheon-ipfs-token",
     "wasm_hash": "416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6",
     "contract_id": "",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401466
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404389
   },
   "pintheon_node_token": {
     "contract_dir": "pintheon-node-deployer/pintheon-node-token",
     "wasm_hash": "3dad79585c6bef820984c18c7465454a2e1113a686e787a0b6ed1b562fb1e20e",
     "contract_id": "",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401467
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404394
   },
   "opus_token": {
     "contract_dir": "opus_token",
     "wasm_hash": "1e65df19aab602c415909ef6ab3043ffd349c21c35b97aafb3946c471d61cd39",
-    "contract_id": "CAXX7JEGO2P2X6KMXCII2ISCA24L7KHU6O3O66BXRMDAJ5Y5T7GSZEK6",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401468
+    "contract_id": "CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404395
   },
   "hvym_collective": {
     "contract_dir": "hvym-collective",
     "wasm_hash": "42549904d3f537404746b43460a560820f80acfdabb433e33cc63bdf8238ed4b",
-    "contract_id": "CBZPNQJUPE5E4BOHA7PYVH44B4RWEQQW4QU4BL6LHQOWZYAU5ZRNWJYL",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401481
+    "contract_id": "CC6GWVUM54FBCCWZ4YJUCQCXC22C3IIQZG5JCTN3NHRGY7RSL6ZIJKJT",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404399
   },
   "hvym_roster": {
     "contract_dir": "hvym-roster",
     "wasm_hash": "bd5266c2c0355598b3b038a544ac38f13d524930ab48c8767b09b941c7385353",
-    "contract_id": "CCU2CMPPPYAVJQFDRXRTPGTWSEXA7ZOZA3TDOOKAHBOCERQ2O3ISDCOP",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401493
+    "contract_id": "CCG3LT5SHVQ2QLCFZYS3WXMNQFQ4GTGVPXDTIPL4FT2MBVADVJLUTQBK",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404405
   },
   "hvym_pin_service": {
     "wasm_hash": "448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401502,
-    "contract_id": "CCMEKYORB732TMYJJ6FR5EZM3XRWOE2U4HNGZUWBLTMXATVRZ2DQYOBZ"
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404409,
+    "contract_id": "CDYUS4OXHGVX4AFNERP3CQAMI5JNDTPQZ6MAV3EH53NN3YYPJW2SW2FP"
   },
   "hvym_registry": {
     "wasm_hash": "39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401516,
-    "contract_id": "CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV"
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404424,
+    "contract_id": "CAYZSYW4XO7XU3PNYILG256VYLFJEBTNCA4DTPRJ6GP7QGS2U2Z2R2HN"
   },
   "release": "alpha",
-  "version": "0.09",
+  "version": "1.1.0",
   "hvym_pin_service_factory": {
     "wasm_hash": "d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d",
-    "network": "public",
-    "deployer": "lepus-luminary-1",
-    "timestamp": 1774401507,
-    "contract_id": "CBQDESXTFVABDDDUNQFQPO3I3LVFELTGCOSSEFXD4OC7KYVDULQ3LZLX"
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1774404415,
+    "contract_id": "CBWEFPAAUYARY6SS4UAUFTJEF2YNCGBH2BGDMTSS7OJKLPYMDLDAWMFG"
   }
 }
