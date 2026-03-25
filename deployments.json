@@ -43,6 +43,13 @@
     "deployer": "lepus-luminary-1",
     "timestamp": 1772575822
   },
+  "hvym_pin_service": {
+    "wasm_hash": "448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a",
+    "network": "public",
+    "deployer": "lepus-luminary-1",
+    "timestamp": 1772583924,
+    "contract_id": "CAWZQ2AWO4H5YCWUHCMGADLZJ4P45PF7XNMFK3AM5W3XTQ2DPZQCK36G"
+  },
   "hvym_registry": {
     "wasm_hash": "39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1",
     "network": "public",
