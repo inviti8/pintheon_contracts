@@ -138,13 +138,54 @@ def get_file_hash(filepath):
             sha256_hash.update(chunk)
     return sha256_hash.hexdigest()
 
+def resolve_native_xlm_sac() -> str:
+    """Resolve the native XLM Stellar Asset Contract address for the target network."""
+    try:
+        result = subprocess.run(
+            [
+                "stellar", "contract", "id", "asset",
+                "--asset", "native",
+                "--rpc-url", RPC_URL,
+                "--network-passphrase", NETWORK_PASSPHRASE,
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        sac_address = result.stdout.strip()
+        print(f"Resolved native XLM SAC for {NETWORK}: {sac_address}")
+        return sac_address
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to resolve native XLM SAC: {e.stderr.strip()}")
+        sys.exit(1)
+
+# Cache the resolved SAC address so we only call the CLI once
+_native_xlm_sac: Optional[str] = None
+
+def get_native_xlm_sac() -> str:
+    """Get native XLM SAC address, resolving and caching on first call."""
+    global _native_xlm_sac
+    if _native_xlm_sac is None:
+        _native_xlm_sac = resolve_native_xlm_sac()
+    return _native_xlm_sac
+
 def load_contract_args(contract_name: str) -> Optional[dict]:
-    """Load constructor arguments from JSON file."""
+    """Load constructor arguments from JSON file.
+
+    Token/pay_token fields set to "native" are resolved to the native XLM
+    Stellar Asset Contract address for the target network at deploy time.
+    """
     args_file = f"{contract_name}_args.json"
     try:
         with open(args_file) as f:
             args = json.load(f)
-            
+
+        # Resolve "native" token placeholders to the network-specific XLM SAC
+        for key in ['token', 'pay_token']:
+            if args.get(key) == "native":
+                args[key] = get_native_xlm_sac()
+
         # Convert XLM to stroops for hvym_collective and hvym_roster
         if contract_name == "hvym_collective":
             for key in ['join_fee', 'mint_fee', 'reward']:
@@ -158,7 +199,7 @@ def load_contract_args(contract_name: str) -> Optional[dict]:
             for key in ['pin_fee', 'join_fee', 'min_offer_price', 'pinner_stake']:
                 if key in args:
                     args[key] = int(float(args[key]) * 10_000_000)
-        
+
         return args
     except FileNotFoundError:
         print(f"No argument file found for {contract_name}")
