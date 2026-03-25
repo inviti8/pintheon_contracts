@@ -50,6 +50,13 @@
     "timestamp": 1772583924,
     "contract_id": "CAWZQ2AWO4H5YCWUHCMGADLZJ4P45PF7XNMFK3AM5W3XTQ2DPZQCK36G"
   },
+  "hvym_registry": {
+    "wasm_hash": "39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1",
+    "network": "public",
+    "deployer": "lepus-luminary-1",
+    "timestamp": 1772583924,
+    "contract_id": "CDHTRKZDLJ7XFOMOVYVUWN6HYQLLLPEX53W3XTWRHNZ62K5FWNR6VEIU"
+  },
   "release": "alpha",
   "version": "0.09",
   "hvym_pin_service_factory": {
