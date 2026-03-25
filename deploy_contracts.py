@@ -518,6 +518,7 @@ def main():
     parser.add_argument('--deployer-acct', required=True, help='Deployer account')
     parser.add_argument('--network', default=None, help='Network to deploy to (testnet, futurenet, public, standalone)')
     parser.add_argument('--wasm-dir', default=WASM_DIR, help='Directory containing WASM files')
+    parser.add_argument('--force', action='store_true', help='Force redeploy even if WASM hash matches (e.g. to fix constructor args)')
     args = parser.parse_args()
 
     # Resolve network from: CLI flag > STELLAR_NETWORK env var > public (mainnet)
@@ -551,11 +552,13 @@ def main():
                 
                 if contract in deployments and 'wasm_hash' in deployments[contract]:
                     deployed_entry = deployments[contract]
-                    if deployed_entry.get('wasm_hash') == actual_hash:
+                    if deployed_entry.get('wasm_hash') == actual_hash and not args.force:
                         print(f"✅ {contract} already deployed to {NETWORK} with matching hash")
                         print(f"   Contract ID: {deployed_entry.get('contract_id')}")
-                        print(f"   Skipping deployment - no changes needed")
+                        print(f"   Skipping deployment - no changes needed (use --force to override)")
                         continue
+                    elif deployed_entry.get('wasm_hash') == actual_hash and args.force:
+                        print(f"🔄 {contract} WASM unchanged but --force specified, redeploying...")
                     else:
                         print(f"⚠️  {contract} has different WASM hash than deployed")
                         print(f"   Deployed: {deployed_entry.get('wasm_hash')}")
