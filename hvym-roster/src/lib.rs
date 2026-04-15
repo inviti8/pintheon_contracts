@@ -117,8 +117,14 @@ impl RosterContract {
         amount
     }
 
-    pub fn join(e: Env, caller: Address, name: String, canon: String) {
-        caller.require_auth();
+    pub fn join(e: Env, caller: Address, member: Address, name: String, canon: String) {
+        // Admin-gated: only admins (or the portal / collective acting as admin)
+        // can add a member to the roster. Prevents any funded Stellar account
+        // from joining directly.
+        RosterContract::require_admin_auth(e.clone(), caller.clone());
+
+        // Member must also authorize — they are still paying the join fee.
+        member.require_auth();
 
         // Validate input lengths
         if name.len() as u32 > MAX_STRING_LENGTH || canon.len() as u32 > MAX_STRING_LENGTH {
@@ -127,32 +133,32 @@ impl RosterContract {
 
         // Get roster and check if member already exists
         let roster: Roster = storage_g(e.clone(), Kind::Permanent, Datakey::Roster).expect("could not find roster");
-        
-        if e.storage().persistent().has(&Datakey::Member(caller.clone())) {
+
+        if e.storage().persistent().has(&Datakey::Member(member.clone())) {
             panic!("already part of roster");
         }
 
-        // Transfer join fee
+        // Transfer join fee from the joining member
         let client = token::Client::new(&e, &roster.pay_token);
         let join_fee = roster.join_fee as i128;
-        
-        client.transfer(&caller, &e.current_contract_address(), &join_fee);
+
+        client.transfer(&member, &e.current_contract_address(), &join_fee);
 
         // Create and store member
-        let member = Member {
-            address: caller.clone(),
+        let member_record = Member {
+            address: member.clone(),
             name: name.clone(),
             canon: canon.clone(),
             paid: roster.join_fee,
         };
-        
+
         e.storage()
             .persistent()
-            .set(&Datakey::Member(caller.clone()), &member);
+            .set(&Datakey::Member(member.clone()), &member_record);
 
         // Emit join event
         let event = JoinEvent {
-            member: caller,
+            member,
             name,
             canon,
             amount: roster.join_fee,

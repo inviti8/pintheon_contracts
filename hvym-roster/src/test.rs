@@ -46,7 +46,7 @@ fn test_join_and_remove() {
     let canon = String::from_val(&env, &"alice_canon");
 
     assert_eq!(roster.is_member(&user), false);
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
     assert_eq!(roster.is_member(&user), true);
     assert_eq!(roster.remove(&admin, &user), true);
     assert_eq!(roster.is_member(&user), false);
@@ -70,8 +70,8 @@ fn test_double_join_should_fail() {
     let name = String::from_val(&env, &"Alice");
     let canon = String::from_val(&env, &"alice_canon");
 
-    roster.join(&user, &name, &canon);
-    roster.join(&user, &name, &canon); // should panic
+    roster.join(&admin, &user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon); // should panic
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn test_fund_and_withdraw() {
     // User joins the roster
     let current_ledger = env.ledger().sequence();
     pay_token_client.approve(&user, &roster.address, &1000, &(current_ledger + 1000));
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     // Verify balances after joining
     assert_eq!(pay_token_client.balance(&user), 900);
@@ -145,7 +145,7 @@ fn test_emits_join_and_remove_events() {
     let name = String::from_val(&env, &"Alice");
     let canon = String::from_val(&env, &"alice_canon");
 
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
     let events = env.events().all();
     let join_event = events.last().unwrap();
 
@@ -366,7 +366,7 @@ fn test_multi_admin_functionality() {
     // Admin3 can remove members
     let name = String::from_val(&env, &"Alice");
     let canon = String::from_val(&env, &"alice_canon");
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
     assert_eq!(roster.is_member(&user), true);
     roster.remove(&admin3, &user);
     assert_eq!(roster.is_member(&user), false);
@@ -396,7 +396,7 @@ fn test_update_canon() {
     let new_canon = String::from_val(&env, &"alice_new_canon");
 
     // User joins
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
     assert_eq!(roster.is_member(&user), true);
 
     // User updates their own canon
@@ -423,7 +423,7 @@ fn test_admin_can_update_member_canon() {
     let new_canon = String::from_val(&env, &"admin_assigned_canon");
 
     // User joins
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     // Admin updates user's canon
     let result = roster.update_canon(&admin, &user, &new_canon);
@@ -454,8 +454,8 @@ fn test_update_canon_unauthorized() {
     let new_canon = String::from_val(&env, &"hacked_canon");
 
     // Both users join
-    roster.join(&user1, &name1, &canon1);
-    roster.join(&user2, &name2, &canon2);
+    roster.join(&admin, &user1, &name1, &canon1);
+    roster.join(&admin, &user2, &name2, &canon2);
 
     // User2 tries to update user1's canon (should fail)
     roster.update_canon(&user2, &user1, &new_canon);
@@ -547,7 +547,7 @@ fn test_join_name_too_long() {
     let long_name = String::from_val(&env, &long_str);
     let canon = String::from_val(&env, &"valid_canon");
 
-    roster.join(&user, &long_name, &canon);
+    roster.join(&admin, &user, &long_name, &canon);
 }
 
 #[test]
@@ -568,7 +568,7 @@ fn test_update_canon_too_long() {
     let name = String::from_val(&env, &"Alice");
     let canon = String::from_val(&env, &"valid_canon");
 
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     // Try to update with a canon that's too long (101 characters)
     let long_str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; // 101 'b's
@@ -633,7 +633,7 @@ fn test_member_paid() {
     let canon = String::from_val(&env, &"alice_canon");
 
     // User joins the roster
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     // Check member_paid returns the join fee
     let paid = roster.member_paid(&user);
@@ -681,8 +681,8 @@ fn test_member_paid_after_multiple_members() {
     let canon2 = String::from_val(&env, &"bob_canon");
 
     // Both users join
-    roster.join(&user1, &name1, &canon1);
-    roster.join(&user2, &name2, &canon2);
+    roster.join(&admin, &user1, &name1, &canon1);
+    roster.join(&admin, &user2, &name2, &canon2);
 
     // Check each member's paid amount
     assert_eq!(roster.member_paid(&user1), join_fee);
@@ -707,7 +707,7 @@ fn test_get_canon() {
     let canon = String::from_val(&env, &"alice_canon_data");
 
     // User joins the roster
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     // Get canon should return the canon
     let retrieved_canon = roster.get_canon(&user);
@@ -733,6 +733,52 @@ fn test_get_canon_returns_none_for_non_member() {
 }
 
 #[test]
+#[should_panic(expected = "unauthorized: admin access required")]
+fn test_join_requires_admin_caller() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let non_admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_addr) = create_token_contract(&env, &admin);
+    mint_tokens(&pay_token_client, &admin, &user, &100);
+
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, 10_u32, &pay_token_addr))
+    );
+
+    let name = String::from_val(&env, &"Alice");
+    let canon = String::from_val(&env, &"alice_canon");
+
+    // Non-admin caller attempting to add a member should be rejected
+    roster.join(&non_admin, &user, &name, &canon);
+}
+
+#[test]
+fn test_admin_can_join_member() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let (pay_token_client, pay_token_addr) = create_token_contract(&env, &admin);
+    mint_tokens(&pay_token_client, &admin, &user, &100);
+
+    let roster = RosterContractClient::new(
+        &env,
+        &env.register(RosterContract, (&admin, 10_u32, &pay_token_addr))
+    );
+
+    let name = String::from_val(&env, &"Alice");
+    let canon = String::from_val(&env, &"alice_canon");
+
+    // Admin joins the member on their behalf; member's funds are used
+    roster.join(&admin, &user, &name, &canon);
+    assert_eq!(roster.is_member(&user), true);
+    assert_eq!(pay_token_client.balance(&user), 90);
+}
+
+#[test]
 fn test_get_canon_after_update() {
     let env = Env::default();
     env.mock_all_auths();
@@ -751,7 +797,7 @@ fn test_get_canon_after_update() {
     let updated_canon = String::from_val(&env, &"updated_canon");
 
     // User joins with original canon
-    roster.join(&user, &name, &original_canon);
+    roster.join(&admin, &user, &name, &original_canon);
     assert_eq!(roster.get_canon(&user), Some(original_canon));
 
     // Update canon

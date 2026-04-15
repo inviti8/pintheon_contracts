@@ -122,7 +122,7 @@ fn test_rent_estimation_join_operation() {
 
     // Measure the join operation
     let (_, usage) = measure_operation(&env, "join", || {
-        roster.join(&user, &name, &canon);
+        roster.join(&admin, &user, &name, &canon);
     });
 
     println!("\n--- JOIN Operation Resource Usage ---");
@@ -152,7 +152,7 @@ fn test_rent_estimation_update_canon() {
     // Setup: user joins first
     let name = String::from_val(&env, &"Alice");
     let canon = String::from_val(&env, &"initial_canon");
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     let new_canon = String::from_val(&env, &"updated_canon_with_more_data_here");
 
@@ -185,7 +185,7 @@ fn test_rent_estimation_read_operations() {
     // Setup: user joins first
     let name = String::from_val(&env, &"Alice");
     let canon = String::from_val(&env, &"alice_canon");
-    roster.join(&user, &name, &canon);
+    roster.join(&admin, &user, &name, &canon);
 
     let mut usages: Vec<ResourceUsage> = Vec::new();
 
@@ -300,7 +300,7 @@ fn test_rent_estimation_scaling_members() {
 
         let op_name = std::format!("join_member_{}", i);
         let (_, usage) = measure_operation(&env, &op_name, || {
-            roster.join(&user, &name, &canon);
+            roster.join(&admin, &user, &name, &canon);
         });
         usages.push(usage);
     }
@@ -351,7 +351,7 @@ fn test_rent_estimation_canon_size_impact() {
 
         let op_name = std::format!("join_canon_{}_chars", size);
         let (_, usage) = measure_operation(&env, &op_name, || {
-            roster.join(&user, &name, &canon);
+            roster.join(&admin, &user, &name, &canon);
         });
         usages.push(usage);
     }
@@ -398,7 +398,7 @@ fn test_rent_estimation_full_workflow() {
     let name1 = String::from_val(&env, &"Alice");
     let canon1 = String::from_val(&env, &"alice_canon");
     let (_, usage) = measure_operation(&env, "3. user1_join", || {
-        roster.join(&user1, &name1, &canon1);
+        roster.join(&admin, &user1, &name1, &canon1);
     });
     usages.push(usage);
 
@@ -406,7 +406,7 @@ fn test_rent_estimation_full_workflow() {
     let name2 = String::from_val(&env, &"Bob");
     let canon2 = String::from_val(&env, &"bob_canon");
     let (_, usage) = measure_operation(&env, "4. user2_join", || {
-        roster.join(&user2, &name2, &canon2);
+        roster.join(&admin, &user2, &name2, &canon2);
     });
     usages.push(usage);
 
