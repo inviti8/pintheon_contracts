@@ -1,0 +1,58 @@
+{
+  "pintheon_ipfs_token": {
+    "wasm_hash": "416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915333
+  },
+  "pintheon_node_token": {
+    "wasm_hash": "3dad79585c6bef820984c18c7465454a2e1113a686e787a0b6ed1b562fb1e20e",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915333
+  },
+  "opus_token": {
+    "wasm_hash": "1e65df19aab602c415909ef6ab3043ffd349c21c35b97aafb3946c471d61cd39",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915334,
+    "contract_id": "CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU"
+  },
+  "hvym_collective": {
+    "wasm_hash": "42549904d3f537404746b43460a560820f80acfdabb433e33cc63bdf8238ed4b",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915337,
+    "contract_id": "CDPDM3XDYZSQE4ZWWK2PGFJP74IS7UH3OYPGGPO7TI2KP4JDH7E54EL7"
+  },
+  "hvym_roster": {
+    "wasm_hash": "3f88b09753a43291da62799db81a051fda10ce97e7a091ad8ace4da17c62c284",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915347,
+    "contract_id": "CBDOEYS5Z6RXRBIHJK72JPE2GIPR2HTUGIVHKVCOASKXGKL73Y4HOMVM"
+  },
+  "hvym_pin_service": {
+    "wasm_hash": "448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915352,
+    "contract_id": "CBWZFS3QRW67SHEX5KLY7OFOTA3V5TF6V5QIDQQ52GQT7FY5Y5OQXIWW"
+  },
+  "hvym_pin_service_factory": {
+    "wasm_hash": "d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915358,
+    "contract_id": "CD3OUO6BSCOQWMCPE5LFSG2F2TQSNNDZGA3EITKYSE74ZACO5OXGBQ5A"
+  },
+  "hvym_registry": {
+    "wasm_hash": "39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1776915363,
+    "contract_id": "CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V"
+  },
+  "network": "testnet",
+  "timestamp": 1776915367
+}
