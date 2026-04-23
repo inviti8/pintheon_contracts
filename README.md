@@ -164,6 +164,7 @@ print(client.get_admin_list())
 | `hvym_post_deploy.py` | Fund the collective contract and set the OPUS token address |
 | `generate_bindings.py` | Generate Python bindings using `stellar-contract-bindings` |
 | `verify_deployment_hashes.py` | Verify that locally-built WASM matches the hashes recorded in `deployments.*.json` |
+| `verify_registry.py` | Verify `deployments.{network}.json` against the on-chain `hvym_registry`, optionally against on-ledger WASM bytes ([`REGISTRY_VERIFICATION.md`](REGISTRY_VERIFICATION.md)) |
 | `setup_deployer_identity.py` | Load a deployer secret (from `ACCT_SECRET` / env) into the Stellar CLI keystore for CI |
 | `setup_local_stellar.py` | Spin up a local Stellar / soroban-rpc node for standalone testing (see [LOCAL_STELLAR_NODE.md](LOCAL_STELLAR_NODE.md)) |
 | `check_rpc.py` | Probe an RPC endpoint for basic reachability |
@@ -190,6 +191,7 @@ workflow description.
 | Doc | Topic |
 |---|---|
 | [`workflows.md`](workflows.md) | Complete build / test / deploy / bindings workflow reference |
+| [`REGISTRY_VERIFICATION.md`](REGISTRY_VERIFICATION.md) | Using `verify_registry.py` to prove on-ledger contracts match this repo |
 | [`HVYM_PIN_SERVICE.md`](HVYM_PIN_SERVICE.md) | `hvym-pin-service` design — slot pool, epoch expiration, CID Hunter |
 | [`hvym-registry/USAGE.md`](hvym-registry/USAGE.md) | `hvym-registry` CLI guide |
 | [`IMPORT_NAMING_GUIDE.md`](IMPORT_NAMING_GUIDE.md) | How to determine the correct `contractimport!` WASM path |
