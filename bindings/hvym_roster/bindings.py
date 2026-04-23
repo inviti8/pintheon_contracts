@@ -327,6 +327,7 @@ class Client(ContractClient):
     def join(
         self,
         caller: Union[Address, str],
+        member: Union[Address, str],
         name: bytes,
         canon: bytes,
         source: Union[str, MuxedAccount] = NULL_ACCOUNT,
@@ -339,7 +340,12 @@ class Client(ContractClient):
     ) -> AssembledTransaction[None]:
         return self.invoke(
             "join",
-            [scval.to_address(caller), scval.to_string(name), scval.to_string(canon)],
+            [
+                scval.to_address(caller),
+                scval.to_address(member),
+                scval.to_string(name),
+                scval.to_string(canon),
+            ],
             parse_result_xdr_fn=lambda _: None,
             source=source,
             signer=signer,
@@ -724,6 +730,7 @@ class ClientAsync(ContractClientAsync):
     async def join(
         self,
         caller: Union[Address, str],
+        member: Union[Address, str],
         name: bytes,
         canon: bytes,
         source: Union[str, MuxedAccount] = NULL_ACCOUNT,
@@ -736,7 +743,12 @@ class ClientAsync(ContractClientAsync):
     ) -> AssembledTransactionAsync[None]:
         return await self.invoke(
             "join",
-            [scval.to_address(caller), scval.to_string(name), scval.to_string(canon)],
+            [
+                scval.to_address(caller),
+                scval.to_address(member),
+                scval.to_string(name),
+                scval.to_string(canon),
+            ],
             parse_result_xdr_fn=lambda _: None,
             source=source,
             signer=signer,
