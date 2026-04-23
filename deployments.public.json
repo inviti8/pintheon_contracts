@@ -4,7 +4,7 @@
   "cli_version": "23.0.1",
   "release": "alpha",
   "version": "1.1.0",
-  "note": "Contract IDs reconciled against the on-chain hvym_registry at CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV. hvym_pin_service_factory is intentionally omitted from this release (WASM uploaded to mainnet, no factory instance deployed).",
+  "note": "Contract IDs can be verified against the on-chain hvym_registry at CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV. hvym_pin_service_factory is not deployed as an instance for this release (WASM uploaded, no factory contract).",
   "pintheon_ipfs_token": {
     "contract_dir": "pintheon-ipfs-deployer/pintheon-ipfs-token",
     "wasm_hash": "416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6",

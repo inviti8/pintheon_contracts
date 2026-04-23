@@ -14,14 +14,16 @@
 
 ### Contracts
 
-Mainnet IDs reconciled against the on-chain `hvym_registry` at
-`CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV`. Reproduce with:
+Mainnet contract IDs can be verified against the on-chain `hvym_registry`
+at `CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV`. Run:
 
 ```bash
 python verify_registry.py --network public \
   --registry-id CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV \
   --verify-wasm
 ```
+
+See [`REGISTRY_VERIFICATION.md`](REGISTRY_VERIFICATION.md) for details.
 
 | Contract | Testnet | Mainnet (Public) |
 |---|---|---|
@@ -37,12 +39,6 @@ python verify_registry.py --network public \
 Authoritative records: [`deployments.testnet.json`](deployments.testnet.json)
 / [`deployments.public.json`](deployments.public.json) and their `.md`
 siblings.
-
-> **Correction note (2026-04-23):** an earlier draft of this release file
-> recorded stale testnet contract IDs for the mainnet column. The table
-> above is the result of verifying against the on-chain registry plus
-> `stellar contract fetch` on each ID. All mainnet WASMs at these IDs are
-> byte-identical to the repo's `wasm/` artifacts (sha256 verified).
 
 ### New since v1.0.0
 

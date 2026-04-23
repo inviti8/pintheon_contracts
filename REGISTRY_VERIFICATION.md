@@ -20,15 +20,13 @@ Two properties the cooperative depends on:
    read the code that handles their keys, funds, and OPUS allocations.
    That guarantee is only real if the on-chain WASM matches the repo.
 
-The script enforces both properties automatically. It was added after a
-real incident: on 2026-04-23, verification against the mainnet registry at
-`CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV` revealed that
-`deployments.public.json` had been published with five stale testnet
-contract IDs copy-pasted into the mainnet file. The WASMs were correct;
-the IDs weren't. A downstream consumer following the file would have
-pointed at contracts that didn't exist on mainnet. The fix was to run the
-verifier, take its output as ground truth, and correct the file. This doc
-exists so that kind of drift gets caught the next time by default.
+The script enforces both properties automatically against any network
+the HEAVYMETA contracts are deployed to. It is the standard tool members,
+auditors, and downstream integrators should use to confirm that the
+contract IDs they're about to trust — in bindings, client apps,
+documentation, or release notes — point at contracts that (a) are
+registered in the on-chain source of truth, and (b) run the exact WASM
+bytes present in this repository at a given commit.
 
 ## What the script proves
 
