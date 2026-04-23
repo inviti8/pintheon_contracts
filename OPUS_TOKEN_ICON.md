@@ -91,7 +91,7 @@ image = "https://<your-domain>/assets/opus-token-128.png"
 ### Important Notes
 
 - Use `contract = "C..."` — **do not** use `code`/`issuer` (those are for classic Stellar assets, not Soroban contract tokens).
-- The testnet contract ID `CB3MM62JMDTNVJVOXORUOOPBFAWVTREJLA5VN4YME4MBNCHGBHQPQH7G` comes from `deployments.json`. Update this whenever the contract is redeployed to a new address.
+- The testnet contract ID comes from `deployments.testnet.json` (`opus_token.contract_id`). Current value: `CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU`. Update this whenever the contract is redeployed to a new address.
 - `display_decimals = 7` matches Stellar's standard stroops precision.
 - `status = "test"` for testnet, `status = "live"` for mainnet.
 
@@ -200,21 +200,28 @@ content-type: text/plain; charset=utf-8
 
 ## Step 5 — Per-Deployment: Keep `stellar.toml` in Sync
 
-Every time `deploy_contracts.py` deploys a new `opus_token` instance, the contract ID in `deployments.json` changes. The `stellar.toml` must be updated to match.
+Every time `deploy_contracts.py` deploys a new `opus_token` instance, the
+contract ID in the matching per-network deployments file changes. The
+`stellar.toml` must be updated to match.
 
 ### Where to find the current contract ID
 
 ```bash
-# From deployments.json
-cat deployments.json | python -c "import sys,json; d=json.load(sys.stdin); print(d['opus_token']['contract_id'])"
+# Testnet
+python -c "import json; print(json.load(open('deployments.testnet.json'))['opus_token']['contract_id'])"
+
+# Mainnet
+python -c "import json; print(json.load(open('deployments.public.json'))['opus_token']['contract_id'])"
 ```
 
-Or check `deployments.json` directly — the `opus_token.contract_id` field.
+Or open `deployments.testnet.json` / `deployments.public.json` directly —
+the `opus_token.contract_id` field.
 
 ### Suggested process after each deployment
 
-1. Run `deploy_contracts.py` — `deployments.json` is updated automatically.
-2. Read the new `opus_token.contract_id` from `deployments.json`.
+1. Run `deploy_contracts.py --network {testnet|public}` — the matching
+   `deployments.{network}.json` is updated automatically.
+2. Read the new `opus_token.contract_id` from that file.
 3. Update the `contract = "..."` line in `stellar.toml` with the new ID.
 4. Deploy the updated `stellar.toml` to your web host.
 
@@ -234,7 +241,7 @@ Add a file at `assets/<CONTRACT_ID>.json`:
 
 ```json
 {
-  "contract": "CB3MM62JMDTNVJVOXORUOOPBFAWVTREJLA5VN4YME4MBNCHGBHQPQH7G",
+  "contract": "CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF",
   "name": "Opus",
   "code": "OPUS",
   "org": "Pintheon",
@@ -242,6 +249,8 @@ Add a file at `assets/<CONTRACT_ID>.json`:
   "icon": "https://pintheon.io/assets/opus-token-128.png"
 }
 ```
+
+(Use the mainnet `opus_token.contract_id` from `deployments.public.json`.)
 
 This is separate from stellar.toml and only affects DeFi protocol UIs, not block explorers.
 
@@ -270,17 +279,17 @@ See the workflow's README for the exact YAML syntax.
 | 3 | Serve `stellar.toml` with CORS headers | `Access-Control-Allow-Origin: *` |
 | 4 | Set `home_domain` on deployer account | Via `stellar tx new set-options --home-domain` |
 | 5 | Verify with curl / stellar.expert validator | Confirm headers, TOML content, image URL |
-| 6 | Update `stellar.toml` after each redeployment | Contract ID changes each time `deploy_contracts.py` runs |
+| 6 | Update `stellar.toml` after each redeployment | Contract ID changes each time `deploy_contracts.py` runs; read from `deployments.{network}.json` |
 | 7 | (Optional) Submit PR to soroswap/token-list | For DeFi UI visibility |
 | 8 | (Optional) Add stellar-expert build workflow | For source verification badge |
 
 ---
 
-## Current Contract IDs (from `deployments.json`)
+## Current Contract IDs
 
-| Network | Contract ID |
-|---|---|
-| Testnet (alpha-v0.09) | `CB3MM62JMDTNVJVOXORUOOPBFAWVTREJLA5VN4YME4MBNCHGBHQPQH7G` |
-| Mainnet | Not yet deployed |
+| Network | Contract ID | Source |
+|---|---|---|
+| Testnet | `CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU` | `deployments.testnet.json` |
+| Mainnet (Public) | `CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF` | `deployments.public.json` |
 
-These IDs are authoritative in `deployments.json`. Always read from there after a deployment rather than hardcoding.
+These IDs are authoritative in the matching per-network `deployments.{network}.json`. Always read from there after a deployment rather than hardcoding.

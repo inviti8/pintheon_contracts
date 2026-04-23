@@ -2,8 +2,8 @@
 name = "hvym-file-token"
 description = "Custom file data token for Heavymeta Network, code variant based on Soroban Token SDK."
 version = "0.0.8"
-homepage = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-file-token"
-repository = "https://github.com/inviti8/philos_contracts/custom_crates/hvym-file-token"
+homepage = "https://github.com/inviti8/hvym_contracts/tree/main/custom_crates/hvym-file-token"
+repository = "https://github.com/inviti8/hvym_contracts"
 authors = ["Heavymeta <metavinci@heavymeta.art>"]
 readme = "./README.md"
 license = "Apache-2.0"

@@ -1,74 +1,78 @@
-# GitHub Workflows for Soroban Contract Validation
+# GitHub Workflows
 
-This directory contains the GitHub Actions workflow for building and releasing Soroban contracts for validation on stellar.expert.
+This directory contains the CI/CD workflows for `hvym_contracts`.
 
-## Workflow File
+## Workflow files
 
-### `custom-release.yml` (Recommended)
-**Use this for all releases**
+| File | Trigger | Purpose |
+|---|---|---|
+| `custom-deploy.yml` | workflow_dispatch (manual) | Build + test + deploy all contracts for a chosen network. Writes `deployments.{network}.json` + `.md` back to the repo. |
+| `custom-release.yml` | git tag push | Build and publish a GitHub Release with optimized WASMs, SHA-256 hashes, and build attestations. Submits validation data to stellar.expert. |
+| `mainnet-release.yml` | git tag push (mainnet) | Mainnet-specific release packaging. |
 
-- ✅ Handles contract dependencies correctly
-- ✅ Builds `hvym-collective` with all dependencies available
-- ✅ Creates releases for all contracts
-- ✅ Works with `contractimport!` statements
+## Secrets required
 
-**When to use:** Always use this for production and testing releases
+| Secret | Used by | Purpose |
+|---|---|---|
+| `ACCT_SECRET` | `custom-deploy.yml` | Deployer identity secret key. Loaded into the Stellar CLI keystore at job start via `setup_deployer_identity.py`. Never echoed. |
+| `TESTNET_DEPLOYER` | `custom-deploy.yml` | Fallback alias expected by some steps if ACCT_SECRET is not set for the testnet branch. |
+| `HVYM_SECRET` | `custom-release.yml` / `mainnet-release.yml` | Release-signing / validation submission credential. |
 
-## Dependency Issue
+All secrets flow through `${{ secrets.NAME }}` and are never printed to
+workflow logs.
 
-The `hvym-collective` contract imports other contracts using `contractimport!`:
+## WASM embedding in contracts
 
-```rust
-mod pintheon_node_token {
-    soroban_sdk::contractimport!(
-        file = "../pintheon-node-deployer/pintheon-node-token/target/wasm32-unknown-unknown/release/pintheon_node_token.optimized.wasm"
-    );
-}
+Two contracts embed the WASM of sibling contracts. The workflow must build
+them in dependency order:
+
+- `hvym-collective` uses `include_bytes!("../../wasm/pintheon_node_token.optimized.wasm")`
+  and the equivalent for `pintheon_ipfs_token`. Those two tokens must be
+  built *first* and their optimized WASM copied into `wasm/` at the repo
+  root.
+- `hvym-pin-service-factory` uses `contractimport!` against
+  `../hvym-pin-service/target/wasm32v1-none/release/hvym_pin_service.optimized.wasm`.
+  `hvym-pin-service` must be built *first*.
+
+Both contracts build against the `wasm32v1-none` Rust target — the legacy
+`wasm32-unknown-unknown` target is no longer used.
+
+See [`../../IMPORT_NAMING_GUIDE.md`](../../IMPORT_NAMING_GUIDE.md) for the
+full embedding mechanics.
+
+## Dependency build order (matches `build_contracts.py`)
+
+```
+pintheon-node-token
+pintheon-ipfs-token
+opus_token
+hvym-collective              ← embeds node + ipfs token WASMs via include_bytes!
+hvym-roster
+hvym-pin-service
+hvym-pin-service-factory     ← contractimport! hvym-pin-service
+hvym-registry
 ```
 
-This means:
-1. Other contracts must be built first
-2. WASM files must exist in the expected paths
-3. The standard stellar-expert workflow can't handle this
+## Triggering workflows
 
-## Solution: Custom Workflow
+### Deploy (manual)
+1. GitHub → **Actions** → **Custom Deploy Soroban Contracts**
+2. **Run workflow** → select network (`testnet` / `public`)
+3. The workflow commits the updated `deployments.{network}.json` and
+   `deployments.{network}.md` back to the repository on success.
 
-The `custom-release.yml` workflow:
-
-1. **Builds dependencies first:**
-   - `opus_token`
-   - `pintheon_node_token` 
-   - `pintheon_ipfs_token`
-
-2. **Uploads dependency artifacts** to GitHub Actions
-
-3. **Downloads artifacts** in the hvym-collective job
-
-4. **Copies WASM files** to the expected paths
-
-5. **Builds hvym-collective** with all dependencies available
-
-6. **Creates releases** for all contracts
-7. **Submits validation data** to StellarExpert API
-
-## Usage
-
-### Automatic Release
+### Release (tag-triggered)
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
-### Manual Release
-1. Go to GitHub Actions
-2. Select "Custom Build and Release Soroban Contracts"
-3. Click "Run workflow"
-4. Enter release name
-5. Click "Run workflow"
+Mainnet releases use a separate tag convention — see
+`mainnet-release.yml` for the exact prefix it listens for.
 
 ## Validation on stellar.expert
 
-After deployment, contracts are automatically validated on stellar.expert because:
-- The workflow submits binary hash, repository name, and commit SHA to StellarExpert's validation API
-- Contracts are built from GitHub releases with matching hashes
-- Source code is available for display 
+`custom-release.yml` submits binary hash, repository slug, and commit SHA
+to the stellar.expert validation API. The explorer verifies the
+on-chain contract WASM hash against the GitHub release artifact, enabling
+the "verified source" badge.

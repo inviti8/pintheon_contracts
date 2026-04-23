@@ -3,7 +3,8 @@
 Temporary test file to verify roster bindings work.
 
 Available methods in RosterClient:
-- join(caller, name, canon)
+- join(caller, member, name, canon)   # admin-gated; caller must be an admin,
+                                       # member must also sign (member.require_auth)
 - remove(admin_caller, member_to_remove)
 - symbol()
 - is_admin(address)
@@ -89,9 +90,25 @@ def submit_and_wait(tx, rpc_url: str, timeout: int = 30) -> dict:
     result["error"] = "Transaction timed out"
     return result
 
-# Test account for joining
-SECRET_KEY = "SD6QCVHJLSZO6G3K2LGOXTEWBBF6ROK24UKPA4D6BOE6U7XXIMGNK4E4"
+# Test account for joining.
+#
+# Never commit a real secret. Export TEST_ROSTER_SECRET in your shell to a
+# funded testnet account you control, e.g.:
+#
+#   export TEST_ROSTER_SECRET="S...your testnet secret..."
+#
+# Or paste a secret here temporarily ONLY for local runs and revert before
+# committing. Stellar secret keys begin with "S" and are 56 characters.
+import os
+
+SECRET_KEY = os.environ.get("TEST_ROSTER_SECRET", "SREPLACE_WITH_YOUR_TESTNET_SECRET_KEY")
 NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
+
+if SECRET_KEY.startswith("SREPLACE"):
+    raise SystemExit(
+        "TEST_ROSTER_SECRET not set. Export a funded testnet secret key "
+        "before running this script (see comment above)."
+    )
 
 
 def check_account_balance(public_key: str) -> float:

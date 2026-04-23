@@ -71,8 +71,10 @@ stellar contract invoke \
   --caller <ADMIN_PUBLIC_KEY> \
   --name opus_token \
   --network Testnet \
-  --contract_id CBFPP5MAVQOCRTH2EYMWQTK4XRIZTDREK54SUUC5QABERSXVQZCLUKKR
+  --contract_id CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU
 ```
+
+(The testnet `opus_token` ID above comes from `deployments.testnet.json` — replace with the current value before running.)
 
 ### Register a mainnet contract
 
@@ -87,8 +89,10 @@ stellar contract invoke \
   --caller <ADMIN_PUBLIC_KEY> \
   --name opus_token \
   --network Mainnet \
-  --contract_id CBFPP5MAVQOCRTH2EYMWQTK4XRIZTDREK54SUUC5QABERSXVQZCLUKKR
+  --contract_id CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF
 ```
+
+(The mainnet `opus_token` ID above comes from `deployments.public.json` — replace with the current value before running.)
 
 Note: The `--rpc-url` and `--network-passphrase` refer to where the *registry* is deployed, not the network being registered. You can store both testnet and mainnet contract IDs in a single registry instance.
 
@@ -101,26 +105,26 @@ CALLER=<ADMIN_PUBLIC_KEY>
 RPC="https://soroban-testnet.stellar.org"
 PASS="Test SDF Network ; September 2015"
 
-# Testnet IDs
+# Testnet IDs (from deployments.testnet.json — always re-check before running)
 stellar contract invoke --id $REGISTRY --source $SOURCE --rpc-url $RPC --network-passphrase "$PASS" \
   -- set_contract_id --caller $CALLER --name opus_token --network Testnet \
-  --contract_id CB3MM62JMDTNVJVOXORUOOPBFAWVTREJLA5VN4YME4MBNCHGBHQPQH7G
+  --contract_id CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU
 
 stellar contract invoke --id $REGISTRY --source $SOURCE --rpc-url $RPC --network-passphrase "$PASS" \
   -- set_contract_id --caller $CALLER --name hvym_collective --network Testnet \
-  --contract_id CDHCUQAWJMKHOFKTUGG5V42EUVL34YHI3JO4ZPN5VRZM5U5O3CKAW2CG
+  --contract_id CDPDM3XDYZSQE4ZWWK2PGFJP74IS7UH3OYPGGPO7TI2KP4JDH7E54EL7
 
 stellar contract invoke --id $REGISTRY --source $SOURCE --rpc-url $RPC --network-passphrase "$PASS" \
   -- set_contract_id --caller $CALLER --name hvym_roster --network Testnet \
-  --contract_id CBPXEDAO5IHPLFHM3WM553KVJUM73TXY2Z3R3YUM4LM3XISX5F2WFWLC
+  --contract_id CBDOEYS5Z6RXRBIHJK72JPE2GIPR2HTUGIVHKVCOASKXGKL73Y4HOMVM
 
 stellar contract invoke --id $REGISTRY --source $SOURCE --rpc-url $RPC --network-passphrase "$PASS" \
   -- set_contract_id --caller $CALLER --name hvym_pin_service --network Testnet \
-  --contract_id CAWZQ2AWO4H5YCWUHCMGADLZJ4P45PF7XNMFK3AM5W3XTQ2DPZQCK36G
+  --contract_id CBWZFS3QRW67SHEX5KLY7OFOTA3V5TF6V5QIDQQ52GQT7FY5Y5OQXIWW
 
 stellar contract invoke --id $REGISTRY --source $SOURCE --rpc-url $RPC --network-passphrase "$PASS" \
   -- set_contract_id --caller $CALLER --name hvym_pin_service_factory --network Testnet \
-  --contract_id CAPTUV4EPELHHALQRMMF3RQ5XDE5KV6AAFIGYOKOZ6O7Y7SLPFHAAGA7
+  --contract_id CD3OUO6BSCOQWMCPE5LFSG2F2TQSNNDZGA3EITKYSE74ZACO5OXGBQ5A
 ```
 
 ## 4. Query contract IDs
@@ -260,7 +264,7 @@ Use these names when calling `set_contract_id` / `get_contract_id`:
 | `pintheon_node_token` | Pintheon Node Token |
 | `hvym_registry` | This registry contract |
 
-Names are free-form strings — you can register any name. The above are the standard names matching `deployments.json`.
+Names are free-form strings — you can register any name. The above are the standard names matching the per-network deployments files (`deployments.testnet.json` / `deployments.public.json`).
 
 ## 9. Using from another Soroban contract
 

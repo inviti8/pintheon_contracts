@@ -19,12 +19,17 @@ Before running the examples, update `config.py` with your deployed contract addr
 
 ```python
 CONTRACTS = {
-    "hvym_collective": "CXXXXXXX...",   # Your collective contract ID
-    "hvym_roster": "CXXXXXXX...",       # Your roster contract ID
-    "opus_token": "CXXXXXXX...",        # Your opus token contract ID
-    "hvym_pin_service": "CXXXXXXX...",  # Your pin service contract ID
+    "hvym_collective": "CXXXXXXX...",          # Your collective contract ID
+    "hvym_roster": "CXXXXXXX...",              # Your roster contract ID
+    "opus_token": "CXXXXXXX...",               # Your opus token contract ID
+    "hvym_pin_service": "CXXXXXXX...",         # Your pin service contract ID
+    "hvym_pin_service_factory": "CXXXXXXX...", # Your pin service factory contract ID
+    "hvym_registry": "CXXXXXXX...",            # Your registry contract ID
 }
 ```
+
+Current deployed contract IDs are tracked in `deployments.testnet.json` and
+`deployments.public.json` in the repo root.
 
 ## Examples
 
@@ -80,6 +85,18 @@ Shows how to publish files and deploy tokens:
 export STELLAR_SECRET_KEY=SXXXXX...
 
 python 04_publish_file.py
+```
+
+### 5. Roster Example (`05_roster_example.py`)
+
+Interacts with the `hvym_roster` contract. Note that `join()` is
+**admin-gated** — the caller must be a roster admin, and the member being
+added must also sign the transaction. Signature:
+`join(caller, member, name, canon)`.
+
+```bash
+export STELLAR_SECRET_KEY=SXXXXX...  # must be an admin
+python 05_roster_example.py
 ```
 
 ### 6. Pin Service Queries (`06_pin_service_queries.py`)
@@ -140,6 +157,18 @@ Admin operations for managing the pin service:
 export STELLAR_SECRET_KEY=SXXXXX...
 
 python 09_pin_service_admin.py
+```
+
+### 10–11. Pin Service Factory (`10_pin_service_factory_queries.py`, `11_pin_service_factory_deploy.py`)
+
+Read-only queries and deploy-new-pinner-instance flows against the
+`hvym_pin_service_factory` contract.
+
+```bash
+python 10_pin_service_factory_queries.py
+
+export STELLAR_SECRET_KEY=SXXXXX...
+python 11_pin_service_factory_deploy.py
 ```
 
 ## Client Types

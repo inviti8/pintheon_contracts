@@ -219,7 +219,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Build Soroban contracts with metadata')
     parser.add_argument('--contract', help='Specific contract to build')
     parser.add_argument('--source-repo', 
-                      default='github:inviti8/philos_contracts',
+                      default='github:inviti8/hvym_contracts',
                       help='Source repository in format "github:owner/repo"')
     return parser.parse_args()
 

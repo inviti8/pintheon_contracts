@@ -1,177 +1,199 @@
-# Pintheon Contracts - Soroban Smart Contracts
+# hvym_contracts — Soroban smart contracts for the Heavymeta / Pintheon ecosystem
 
-This repository contains Soroban smart contracts for the Philos ecosystem, including HVYM Collective, Opus Token, and Pintheon tokens.
+This repository contains the Soroban smart contracts that power the Heavymeta
+Cooperative's Pintheon ecosystem: membership (`hvym-collective`), the protected
+member roster (`hvym-roster`), IPFS pin management (`hvym-pin-service` +
+`hvym-pin-service-factory`), the on-chain contract registry (`hvym-registry`),
+and the `opus_token` / `pintheon_node_token` / `pintheon_ipfs_token` SEP-41
+tokens.
+
+> **Repo note:** this repository was previously named `pintheon_contracts`;
+> the canonical GitHub location is now `inviti8/hvym_contracts`. GitHub
+> redirects the old URL, but please update local remotes:
+> `git remote set-url origin git@github.com:inviti8/hvym_contracts.git`.
 
 ## Requirements
 
-- **Soroban SDK**: 22.0.8
-- **Stellar CLI**: 22.8.2
-- **Rust**: Latest stable with `wasm32-unknown-unknown` target
+| Tool | Version |
+|---|---|
+| Soroban SDK | `23.0.1` (locked; resolves higher at build time) |
+| Stellar CLI | `23.0.1`+ (see `cli_version` in `deployments.public.json`) |
+| Rust | latest stable with the `wasm32v1-none` target (`rustup target add wasm32v1-none`) |
+| Python | 3.10+ (for tooling scripts — see `requirements.txt` / `requirements-dev.txt`) |
 
-## Contract Validation on stellar.expert
+## License
 
-This repository is configured with a GitHub Actions workflow that automatically builds and releases contracts for validation on [stellar.expert](https://stellar.expert/explorer/testnet/contract/validation).
+Apache-2.0. Smart contracts are on-chain by definition; permissive licensing
+keeps them transparent and auditable. See [LICENSE](LICENSE).
 
-### Contract Dependencies
+---
 
-⚠️ **The `hvym-collective` contract depends on other contracts** in this repository. It uses `contractimport!` to import:
-- `pintheon-node-token`
-- `pintheon-ipfs-token` 
-- `opus-token`
+## Contract layout
 
-This means the standard stellar-expert workflow won't work because it builds contracts in isolation. **You must use the custom workflow.**
+| Directory | Contract | Purpose |
+|---|---|---|
+| `hvym-collective/` | `hvym_collective` | Membership, join fees, OPUS allocation, payout routing |
+| `hvym-roster/` | `hvym_roster` | Admin-managed member roster (canon metadata); `join()` is admin-gated |
+| `hvym-pin-service/` | `hvym_pin_service` | IPFS pin slot pool with epoch expiration and flag-based CID Hunter reputation |
+| `hvym-pin-service-factory/` | `hvym_pin_service_factory` | Deploys per-pinner pin-service instances; embeds the pin-service WASM |
+| `hvym-registry/` | `hvym_registry` | On-chain source-of-truth for contract IDs per network (Testnet / Mainnet) |
+| `opus_token/` | `opus_token` | OPUS SEP-41 token |
+| `pintheon-node-deployer/pintheon-node-token/` | `pintheon_node_token` | Node-identity SEP-41 token (upload-only, deployed via factory flow) |
+| `pintheon-ipfs-deployer/pintheon-ipfs-token/` | `pintheon_ipfs_token` | IPFS-asset SEP-41 token (upload-only) |
+| `custom_crates/hvym-file-token/` | — | Shared crate: file-metadata token helpers |
+| `custom_crates/hvym-node-token/` | — | Shared crate: node-metadata token helpers |
 
-📖 **See [IMPORT_NAMING_GUIDE.md](IMPORT_NAMING_GUIDE.md)** for detailed instructions on how to determine the correct import file names when updating contract dependencies.
+### Dependencies between contracts
 
-### Workflow
+- `hvym-collective` imports `pintheon-node-token`, `pintheon-ipfs-token`, and
+  `opus-token` via `contractimport!`. Those must be built **first**.
+- `hvym-pin-service-factory` imports `hvym-pin-service`'s WASM via
+  `contractimport!`. If the pin-service ABI changes, rebuild **both**.
 
-- Use `.github/workflows/custom-release.yml` 
-- Handles dependency order correctly
-- Builds dependencies first, then `hvym-collective`
+See [`IMPORT_NAMING_GUIDE.md`](IMPORT_NAMING_GUIDE.md) for how
+`contractimport!` resolves paths, and [`workflows.md`](workflows.md) for
+full build order and command reference.
 
-### How to Trigger a Release
+## Deployment records (per-network)
 
-1. **Create and push a new tag** (this triggers the workflow):
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
+Deployments are tracked in **per-network** files. The legacy aggregated
+`deployments.json` is retained only for historical reference.
 
-2. **The custom workflow will automatically:**
-   - Build dependency contracts first (opus_token, pintheon_node_token, pintheon_ipfs_token)
-   - Build hvym-collective with dependencies available
-   - Create optimized WASM files
-   - Generate GitHub releases with build artifacts
-   - Include SHA256 hashes for verification
-   - Generate build attestations
-   - Submit contract validation data to StellarExpert
+| File | Network | Human-readable |
+|---|---|---|
+| `deployments.testnet.json` | Stellar Testnet | [`deployments.testnet.md`](deployments.testnet.md) |
+| `deployments.public.json` | Stellar Mainnet (Public) | [`deployments.public.md`](deployments.public.md) |
 
-## Python Bindings
+Tooling selects the correct file from the `--network` flag or the
+`STELLAR_NETWORK` environment variable. See `deploy_contracts.py` and
+`hvym_post_deploy.py`.
 
-This repository includes scripts to generate Python bindings for interacting with the Soroban smart contracts using the `stellar-contract-bindings` tool.
+## Quickstart
 
-### Prerequisites
+### Build
 
-1. Activate the Python virtual environment:
-   ```bash
-   pyenv activate pintheon_contracts
-   ```
+```bash
+# Build all contracts in dependency order
+python build_contracts.py
 
-2. Install development dependencies:
-   ```bash
-   pip install -r requirements-dev.txt
-   ```
+# Build a single contract
+python build_contracts.py --contract hvym-pin-service
+```
 
-### Generating Bindings
+### Test
 
-1. First, ensure you have built the contract WASM files (they should be in the `wasm/` directory).
+```bash
+# Run all tests across every contract crate
+python test_all_contracts.py
 
-2. Generate Python bindings for all contracts:
-   ```bash
-   python generate_bindings.py
-   ```
+# Or run a single crate's tests directly
+cargo test -p hvym-roster
+```
 
-3. Or generate bindings for a specific contract:
-   ```bash
-   python generate_bindings.py --contract hvym-collective
-   ```
+### Deploy
 
-### Using the Generated Bindings
+```bash
+# Testnet (reads deployments.testnet.json)
+python deploy_contracts.py --deployer-acct TESTNET_DEPLOYER --network testnet
 
-Example of using the generated Python bindings:
+# Mainnet (reads deployments.public.json)
+python deploy_contracts.py --deployer-acct lepus-luminary-1 --network public
+
+# Force re-deploy even when WASM hash is unchanged
+python deploy_contracts.py --deployer-acct TESTNET_DEPLOYER --network testnet --force
+```
+
+Constructor arguments live in `<contract>_args.json` files in the repo root
+and support two placeholders resolved by the deploy script at runtime:
+
+- `"deployer"` → the deployer identity's public key (from `--deployer-acct`)
+- `"native"`   → the network's XLM SAC address (resolved via
+  `stellar contract id asset --asset native`)
+
+### Post-deploy (collective funding + OPUS allocation)
+
+```bash
+python hvym_post_deploy.py \
+  --deployer-acct <IDENTITY> \
+  --network testnet \
+  --fund-amount 30 \
+  --initial-opus-alloc 40
+```
+
+### Verify hashes against on-file deployments
+
+```bash
+# Check a specific network
+python verify_deployment_hashes.py deployments.testnet.json
+
+# Or scan every deployments.*.json in the repo
+python verify_deployment_hashes.py
+```
+
+### Generate Python bindings
+
+```bash
+# From a deployment file (recommended)
+python generate_bindings.py --from-file deployments.testnet.json
+
+# Or for a single contract
+python generate_bindings.py --contract hvym-collective
+```
+
+Example usage of generated bindings:
 
 ```python
 from stellar_sdk import Keypair, Network
-from bindings.hvym_collective.client import Client as HvymCollectiveClient
+from bindings.hvym_collective.bindings import Client as HvymCollectiveClient
 
-# Initialize the client
 client = HvymCollectiveClient(
-    contract_id="YOUR_CONTRACT_ID",
+    contract_id="C...",  # from deployments.{network}.json
     rpc_url="https://soroban-testnet.stellar.org",
-    network_passphrase=Network.TESTNET_NETWORK_PASSPHRASE
+    network_passphrase=Network.TESTNET_NETWORK_PASSPHRASE,
 )
-
-# Call contract methods
-admin_list = client.get_admin_list()
-print("Admin list:", admin_list)
-
-# For transactions that require signing
-source_kp = Keypair.from_secret("YOUR_SECRET_KEY")
-tx = client.add_admin(
-    admin_to_add="GB123...",
-    source=source_kp
-)
-result = tx.sign_and_send()
-print("Transaction result:", result)
+print(client.get_admin_list())
 ```
 
-## Contract ID Extraction
+## Tooling overview
 
-The deployment script includes a robust contract ID extraction mechanism that works around limitations in the Stellar network's transaction result processing. This is particularly important for Soroban smart contracts where the contract ID is not always directly available in the transaction result.
+| Script | Purpose |
+|---|---|
+| `build_contracts.py` | Build all (or one) contracts, optimize WASM, copy to `wasm/` |
+| `test_all_contracts.py` | Run the full test suite across every contract crate |
+| `deploy_contracts.py` | Upload + deploy all contracts for a given network; respects `--force` and hash-skip logic |
+| `hvym_post_deploy.py` | Fund the collective contract and set the OPUS token address |
+| `generate_bindings.py` | Generate Python bindings using `stellar-contract-bindings` |
+| `verify_deployment_hashes.py` | Verify that locally-built WASM matches the hashes recorded in `deployments.*.json` |
+| `setup_deployer_identity.py` | Load a deployer secret (from `ACCT_SECRET` / env) into the Stellar CLI keystore for CI |
+| `setup_local_stellar.py` | Spin up a local Stellar / soroban-rpc node for standalone testing (see [LOCAL_STELLAR_NODE.md](LOCAL_STELLAR_NODE.md)) |
+| `check_rpc.py` | Probe an RPC endpoint for basic reachability |
 
-### How It Works
+## CI / GitHub Actions
 
-1. **Selenium-based Extraction (Primary Method)**
-   - The script uses a headless Chrome browser to load the transaction page on Stellar Expert
-   - It waits for the contract link to appear in the transaction details
-   - The contract ID is extracted from the link URL
-   - Includes automatic retries and error handling for reliability
+The repository ships three workflows under `.github/workflows/`:
 
-2. **Fallback Methods**
-   - If Selenium extraction fails, the script falls back to parsing the CLI output
-   - As a last resort, it attempts to extract the contract ID from the Horizon API
+- `custom-deploy.yml` — builds, tests, and deploys contracts in dependency
+  order. Uses `${{ secrets.ACCT_SECRET }}` to inject the deployer secret
+  into the Stellar CLI via `setup_deployer_identity.py`. Writes the matching
+  per-network `deployments.{network}.json` and markdown summary back into
+  the repo.
+- `custom-release.yml` — builds optimized WASMs and publishes a GitHub
+  release with SHA-256 hashes and build attestations for validation on
+  [stellar.expert](https://stellar.expert/).
+- `mainnet-release.yml` — mainnet-specific release packaging.
 
-### Requirements for Selenium
+See [`.github/workflows/README.md`](.github/workflows/README.md) for the full
+workflow description.
 
-- Chrome or Chromium browser installed
-- ChromeDriver (automatically managed by the script)
-- Python packages: `selenium`, `webdriver-manager`
+## Further reading
 
-### Troubleshooting
-
-If contract ID extraction fails:
-1. Check that Chrome/Chromium is installed
-2. Ensure the system has a graphical environment (even in headless mode)
-3. Look for error logs in the script output
-4. Check for screenshots saved as `stellar_expert_error_*.png` for debugging
-
-## Contract Structure
-
-- `hvym-collective/` - Main collective contract
-- `opus_token/` - OPUS token contract
-- `pintheon-node-deployer/pintheon-node-token/` - Node token contract
-- `pintheon-ipfs-deployer/pintheon-ipfs-token/` - IPFS token contract
-
-### Validation Process
-
-After deployment, contracts are automatically validated on stellar.expert because:
-
-1. The workflow submits binary hash, repository name, and commit SHA to StellarExpert's validation API
-2. Contracts are built from GitHub releases with matching hashes
-3. Source code is available for display on stellar.expert explorer
-
-### Manual Workflow Trigger
-
-You can also trigger the workflow manually:
-
-1. Go to GitHub Actions tab
-2. Select "Custom Build and Release Soroban Contracts"
-3. Click "Run workflow"
-4. Enter a unique release name
-5. Click "Run workflow"
-
-### Important Notes
-
-- The custom workflow is required for `hvym-collective` and any contracts with dependencies
-- Contracts must have unique names and versions to avoid conflicts
-- Build attestations are generated for security verification
-
-### Deployment
-
-Use the deployment scripts in this repository to deploy contracts to the Stellar network:
-
-- `deploy_contracts.py` - Main deployment script
-- `hvym_post_deploy.py` - Post-deployment operations
-- `deploy_node_and_ipfs.py` - Deploy Pintheon tokens
-
-For more information about deployment, see `workflows.md`. 
+| Doc | Topic |
+|---|---|
+| [`workflows.md`](workflows.md) | Complete build / test / deploy / bindings workflow reference |
+| [`HVYM_PIN_SERVICE.md`](HVYM_PIN_SERVICE.md) | `hvym-pin-service` design — slot pool, epoch expiration, CID Hunter |
+| [`hvym-registry/USAGE.md`](hvym-registry/USAGE.md) | `hvym-registry` CLI guide |
+| [`IMPORT_NAMING_GUIDE.md`](IMPORT_NAMING_GUIDE.md) | How to determine the correct `contractimport!` WASM path |
+| [`LOCAL_STELLAR_NODE.md`](LOCAL_STELLAR_NODE.md) | Running a local Stellar / soroban-rpc node |
+| [`OPUS_TOKEN_ICON.md`](OPUS_TOKEN_ICON.md) | Publishing the OPUS token icon via `stellar.toml` |
+| [`TOKEN_TOML.md`](TOKEN_TOML.md) | SEP-1 `stellar.toml` conventions used for HVYM tokens |
+| [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | Release history |

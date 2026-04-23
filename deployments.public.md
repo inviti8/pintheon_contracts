@@ -2,8 +2,8 @@
 
 | Contract | Contract ID | Wasm Hash |
 |----------|-------------|-----------|
-| pintheon_ipfs_token | `` | `416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6` |
-| pintheon_node_token | `` | `3dad79585c6bef820984c18c7465454a2e1113a686e787a0b6ed1b562fb1e20e` |
+| pintheon_ipfs_token | `Upload only` | `416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6` |
+| pintheon_node_token | `Upload only` | `3dad79585c6bef820984c18c7465454a2e1113a686e787a0b6ed1b562fb1e20e` |
 | opus_token | `CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF` | `1e65df19aab602c415909ef6ab3043ffd349c21c35b97aafb3946c471d61cd39` |
 | hvym_collective | `CC6GWVUM54FBCCWZ4YJUCQCXC22C3IIQZG5JCTN3NHRGY7RSL6ZIJKJT` | `42549904d3f537404746b43460a560820f80acfdabb433e33cc63bdf8238ed4b` |
 | hvym_roster | `CBUS33CAIMTV7T4M4G3FTH35QBAY6VWY3K4IZTYTRPD45ZDSQMSIZ2AB` | `3f88b09753a43291da62799db81a051fda10ce97e7a091ad8ace4da17c62c284` |

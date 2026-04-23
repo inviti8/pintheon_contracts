@@ -1,10 +1,11 @@
-| Contract | Network | Contract ID | Wasm Hash |
-|----------|---------|-------------|-----------|
-| pintheon_ipfs_token | testnet | `` | `416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6` |
-| pintheon_node_token | testnet | `` | `3dad79585c6bef820984c18c7465454a2e1113a686e787a0b6ed1b562fb1e20e` |
-| opus_token | testnet | `CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF` | `1e65df19aab602c415909ef6ab3043ffd349c21c35b97aafb3946c471d61cd39` |
-| hvym_collective | testnet | `CC6GWVUM54FBCCWZ4YJUCQCXC22C3IIQZG5JCTN3NHRGY7RSL6ZIJKJT` | `42549904d3f537404746b43460a560820f80acfdabb433e33cc63bdf8238ed4b` |
-| hvym_roster | testnet | `CCG3LT5SHVQ2QLCFZYS3WXMNQFQ4GTGVPXDTIPL4FT2MBVADVJLUTQBK` | `bd5266c2c0355598b3b038a544ac38f13d524930ab48c8767b09b941c7385353` |
-| hvym_pin_service | testnet | `CDYUS4OXHGVX4AFNERP3CQAMI5JNDTPQZ6MAV3EH53NN3YYPJW2SW2FP` | `448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a` |
-| hvym_registry | testnet | `CAYZSYW4XO7XU3PNYILG256VYLFJEBTNCA4DTPRJ6GP7QGS2U2Z2R2HN` | `39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1` |
-| hvym_pin_service_factory | testnet | `CBWEFPAAUYARY6SS4UAUFTJEF2YNCGBH2BGDMTSS7OJKLPYMDLDAWMFG` | `d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d` |
+# Deployments
+
+Deployment records are now tracked in **per-network** files:
+
+| Network | JSON (source of truth) | Human-readable |
+|---|---|---|
+| Testnet | [`deployments.testnet.json`](deployments.testnet.json) | [`deployments.testnet.md`](deployments.testnet.md) |
+| Mainnet (Public) | [`deployments.public.json`](deployments.public.json) | [`deployments.public.md`](deployments.public.md) |
+
+This file (`deployments.md`) and its sibling `deployments.json` are kept
+only for historical reference from the pre-split era. Do not edit them.

@@ -27,10 +27,11 @@ Builds all Soroban contracts in dependency order, or a single contract if specif
 pintheon-node-deployer/pintheon-node-token
 pintheon-ipfs-deployer/pintheon-ipfs-token
 opus_token
-hvym-collective
+hvym-collective                ← embeds the three token WASMs via contractimport!
 hvym-roster
 hvym-pin-service
-hvym-pin-service-factory   ← depends on hvym-pin-service (embeds its WASM)
+hvym-pin-service-factory       ← depends on hvym-pin-service (embeds its WASM)
+hvym-registry                  ← independent (no contractimport dependencies)
 ```
 
 ### Usage
@@ -91,7 +92,14 @@ python test_contract.py hvym-collective
 
 **Script:** `deploy_contracts.py`
 
-Uploads and/or deploys all contracts from the `wasm/` directory in the correct order. Reads constructor arguments from `<contract>_args.json` files in the project root. Updates `deployments.json` and `deployments.md` after each contract.
+Uploads and/or deploys all contracts from the `wasm/` directory in the correct
+order. Reads constructor arguments from `<contract>_args.json` files in the
+project root. Updates `deployments.{network}.json` and
+`deployments.{network}.md` after each contract.
+
+By default, the deploy step is skipped when the local WASM hash already matches
+the hash recorded in the per-network deployments file (avoiding a pointless
+redeploy). Pass `--force` to override.
 
 ### Contract Categories
 
@@ -105,15 +113,19 @@ Uploads and/or deploys all contracts from the `wasm/` directory in the correct o
 - `hvym_roster`
 - `hvym_pin_service`
 - `hvym_pin_service_factory`
+- `hvym_registry`
 
 ### Usage
 
 ```bash
-# Deploy all contracts
-python deploy_contracts.py --deployer-acct <ACCOUNT_NAME>
-
-# Deploy to a specific network
+# Deploy all contracts to testnet
 python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --network testnet
+
+# Deploy all contracts to mainnet
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --network public
+
+# Force redeploy even when WASM hash matches the recorded hash
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --network testnet --force
 
 # Deploy using WASM files from a custom directory
 python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --wasm-dir ./wasm
@@ -124,13 +136,28 @@ python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --wasm-dir ./wasm
 | Argument | Default | Description |
 |---|---|---|
 | `--deployer-acct` | (required) | Stellar CLI account name or secret key to use as deployer. |
-| `--network` | `testnet` | Network to deploy to (`testnet`, `futurenet`, `public`, `standalone`). Can also be set via `STELLAR_NETWORK` env var. |
+| `--network` | `public` | Network to deploy to (`testnet`, `futurenet`, `public`, `standalone`). Resolution order: `--network` flag → `STELLAR_NETWORK` env var → `public`. |
 | `--wasm-dir` | `./wasm` | Directory containing optimized `.wasm` files. |
+| `--force` | off | Redeploy even when the WASM hash matches the hash recorded in `deployments.{network}.json`. |
+
+### Args-file placeholders
+
+Values inside `<contract>_args.json` support two magic strings resolved at
+deploy time:
+
+| Placeholder | Resolved to |
+|---|---|
+| `"deployer"` | The deployer identity's G-address (from `--deployer-acct`) |
+| `"native"`   | The network's XLM SAC address (`stellar contract id asset --asset native`) |
+
+This keeps the args files network-agnostic — the same file works against
+testnet and mainnet without edits.
 
 ### Notes
 - Constructor arguments are loaded from `<contract_name>_args.json` files automatically.
 - Monetary values in args files (fees, prices) are specified in XLM and automatically converted to stroops (×10,000,000).
 - `STELLAR_NETWORK` environment variable can set the network before running the script.
+- Upload retries now handle both `TimeoutExpired` and `CalledProcessError` with fee escalation across attempts.
 
 ---
 
@@ -160,8 +187,8 @@ python hvym_post_deploy.py \
 
 ### Notes
 - Values are specified in XLM — the script converts to stroops internally.
-- Requires `hvym-collective` to be deployed and its contract ID to be in `deployments.json`.
-- Updates `deployments.json` with the opus token contract ID.
+- Requires `hvym-collective` to be deployed and its contract ID to be in `deployments.{network}.json`.
+- Updates `deployments.{network}.json` with the opus token contract ID.
 
 ---
 
@@ -174,21 +201,26 @@ Generates Python client bindings for deployed contracts using `stellar-contract-
 ### Activate the Virtual Environment
 
 ```bash
-source pintheon-contracts/Scripts/activate
+# Replace `hvym-contracts` with your local venv name (any name is fine)
+source hvym-contracts/Scripts/activate
 ```
 
 ### From Deployments File (recommended)
 
-Reads contract IDs from `deployments.json` and generates bindings for all contracts that have a `contract_id`:
+Reads contract IDs from a per-network deployments file (`deployments.testnet.json` or `deployments.public.json`) and generates bindings for all contracts that have a `contract_id`:
 
 ```bash
-python generate_bindings.py --from-file deployments.json
+# Testnet
+python generate_bindings.py --from-file deployments.testnet.json
+
+# Mainnet
+python generate_bindings.py --from-file deployments.public.json
 ```
 
 ### Filter Specific Contracts
 
 ```bash
-python generate_bindings.py --from-file deployments.json \
+python generate_bindings.py --from-file deployments.testnet.json \
   --contracts hvym_pin_service hvym_pin_service_factory
 ```
 
@@ -222,6 +254,7 @@ Bindings are written to `bindings/<contract_name>/`. Contracts without a `contra
 - `hvym_roster`
 - `hvym_pin_service`
 - `hvym_pin_service_factory`
+- `hvym_registry`
 
 ---
 
@@ -229,11 +262,15 @@ Bindings are written to `bindings/<contract_name>/`. Contracts without a `contra
 
 Each deployable contract reads its constructor arguments from a JSON file at the project root: `<contract_name>_args.json`.
 
+The placeholder strings `"deployer"` and `"native"` are resolved at deploy
+time — see **Args-file placeholders** in Section 3. Use them to keep the
+same args file network-agnostic.
+
 ### `hvym_collective_args.json`
 ```json
 {
-  "admin": "TESTNET_DEPLOYER",
-  "token": "<XLM_CONTRACT_ID>",
+  "admin": "deployer",
+  "token": "native",
   "join_fee": 210.0,
   "mint_fee": 0.5,
   "reward": 0.2,
@@ -245,8 +282,8 @@ Each deployable contract reads its constructor arguments from a JSON file at the
 ### `hvym_roster_args.json`
 ```json
 {
-  "admin": "TESTNET_DEPLOYER",
-  "token": "<XLM_CONTRACT_ID>",
+  "admin": "deployer",
+  "token": "native",
   "join_fee": 16.0
 }
 ```
@@ -255,13 +292,13 @@ Each deployable contract reads its constructor arguments from a JSON file at the
 ### `hvym_pin_service_args.json`
 ```json
 {
-  "admin_addr": "TESTNET_DEPLOYER",
+  "admin_addr": "deployer",
   "pin_fee": 1.0,
   "join_fee": 5.0,
   "min_pin_qty": 3,
   "min_offer_price": 1.0,
   "pinner_stake": 100.0,
-  "pay_token": "<XLM_CONTRACT_ID>",
+  "pay_token": "native",
   "max_cycles": 60,
   "flag_threshold": 3
 }
@@ -271,14 +308,21 @@ Each deployable contract reads its constructor arguments from a JSON file at the
 ### `hvym_pin_service_factory_args.json`
 ```json
 {
-  "admin": "TESTNET_DEPLOYER"
+  "admin": "deployer"
+}
+```
+
+### `hvym_registry_args.json`
+```json
+{
+  "admin": "deployer"
 }
 ```
 
 ### `opus_token_args.json`
 ```json
 {
-  "admin": "TESTNET_DEPLOYER"
+  "admin": "deployer"
 }
 ```
 
@@ -299,10 +343,19 @@ These are upload-only contracts. Their args files are used if deploying directly
 
 ## 7. Deployment Records
 
-- **`deployments.json`** — Machine-readable record of all contract WASM hashes and contract IDs. Updated automatically by `deploy_contracts.py` after each contract.
-- **`deployments.md`** — Human-readable markdown table of all deployments.
+Deployments are tracked in **per-network** files so testnet and mainnet state
+cannot clobber each other. `deploy_contracts.py` reads/writes the file that
+matches `--network`.
 
-### `deployments.json` Format
+| File | Network |
+|---|---|
+| `deployments.testnet.json` / `.md` | Testnet |
+| `deployments.public.json` / `.md`  | Mainnet (Public) |
+
+The legacy aggregated `deployments.json` / `deployments.md` are kept only for
+historical reference and should no longer be edited.
+
+### `deployments.{network}.json` Format
 
 ```json
 {
@@ -311,20 +364,35 @@ These are upload-only contracts. Their args files are used if deploying directly
   "cli_version": "23.0.1",
   "pintheon_ipfs_token": {
     "wasm_hash": "<64-char hex>",
-    "contract_id": "",
-    "network": "testnet"
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1234567890
   },
   "hvym_pin_service": {
     "wasm_hash": "<64-char hex>",
-    "contract_id": "<56-char contract ID>",
-    "network": "testnet"
+    "contract_id": "C...<56-char contract ID>",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1234567890
   },
-  "hvym_pin_service_factory": {
+  "hvym_registry": {
     "wasm_hash": "<64-char hex>",
-    "contract_id": "<56-char contract ID>",
-    "network": "testnet"
+    "contract_id": "C...<56-char contract ID>",
+    "network": "testnet",
+    "deployer": "TESTNET_DEPLOYER",
+    "timestamp": 1234567890
   }
 }
+```
+
+### Verifying hashes
+
+```bash
+# Verify a specific file
+python verify_deployment_hashes.py deployments.public.json
+
+# Or scan every deployments.*.json in the repo
+python verify_deployment_hashes.py
 ```
 
 ---
@@ -340,18 +408,20 @@ python build_contracts.py
 # 2. Test all contracts
 python test_all_contracts.py
 
-# 3. Deploy all contracts
-python deploy_contracts.py --deployer-acct <ACCOUNT_NAME>
+# 3. Deploy all contracts to a specific network
+python deploy_contracts.py --deployer-acct <ACCOUNT_NAME> --network testnet
 
 # 4. Post-deployment: fund collective and mint OPUS
 python hvym_post_deploy.py \
   --deployer-acct <ACCOUNT_NAME> \
+  --network testnet \
   --fund-amount 30 \
   --initial-opus-alloc 40
 
-# 5. Generate Python bindings
-source pintheon-contracts/Scripts/activate
-python generate_bindings.py --from-file deployments.json
+# 5. Generate Python bindings (use the matching per-network file)
+source hvym-contracts/Scripts/activate
+python generate_bindings.py --from-file deployments.testnet.json
+# or: python generate_bindings.py --from-file deployments.public.json
 ```
 
 ### Rebuild After Pin Service ABI Change
@@ -371,5 +441,5 @@ Pushing to `main` or creating a release tag triggers the automated pipeline whic
 1. Builds all contracts in dependency order
 2. Runs all tests
 3. Deploys to testnet
-4. Updates `deployments.json` as a release artifact
+4. Updates `deployments.{network}.json` as a release artifact
 5. Attestations are generated for each WASM hash

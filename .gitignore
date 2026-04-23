@@ -56,7 +56,30 @@ Thumbs.db
 *.log 
 deployer_acct.txt
 
-.stellar/identity/TESTNET_DEPLOYER.toml
+# Stellar CLI identities (contain encrypted secret keys — never commit)
+.stellar/
+stellar-cli-config/
+
+# Secrets / credentials (catch-all patterns)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.pkcs12
+*.jks
+*.keystore
+credentials
+credentials.*
+secrets.yml
+secrets.yaml
+*.secret
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
 
 account.json
 

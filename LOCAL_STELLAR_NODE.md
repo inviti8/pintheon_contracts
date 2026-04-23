@@ -120,12 +120,13 @@ docker run -d \
 
 ## 📁 File Structure
 ```
-philos_contracts/
-├── setup_local_stellar.py          # Main automation script
-├── soroban-rpc/                 # Config directory
-│   └── stellar-core.toml         # Generated config file
-├── deployments.json               # Current deployments
-└── deploy_contracts.py           # Updated to use local RPC
+hvym_contracts/
+├── setup_local_stellar.py            # Main automation script
+├── soroban-rpc/                      # Config directory
+│   └── stellar-core.toml             # Generated config file
+├── deployments.testnet.json          # Per-network deployment records
+├── deployments.public.json           # (one file per network)
+└── deploy_contracts.py               # Supports --network {standalone|testnet|public}
 ```
 
 ## 🚀 Usage Flow
