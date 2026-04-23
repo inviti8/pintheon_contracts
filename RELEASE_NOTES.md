@@ -14,20 +14,35 @@
 
 ### Contracts
 
+Mainnet IDs reconciled against the on-chain `hvym_registry` at
+`CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV`. Reproduce with:
+
+```bash
+python verify_registry.py --network public \
+  --registry-id CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV \
+  --verify-wasm
+```
+
 | Contract | Testnet | Mainnet (Public) |
 |---|---|---|
-| `opus_token`              | `CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU` | `CA4NA27APFFWBEAML275ZT4HD6ALUUZJGHH6W27IW6GT6DQFPZWKTIPF` |
-| `hvym_collective`         | `CDPDM3XDYZSQE4ZWWK2PGFJP74IS7UH3OYPGGPO7TI2KP4JDH7E54EL7` | `CC6GWVUM54FBCCWZ4YJUCQCXC22C3IIQZG5JCTN3NHRGY7RSL6ZIJKJT` |
+| `opus_token`              | `CDPEWPM3B77Q3HBPLZQTKCUND6MAR6A73IQFIAVIPGKF2U2XBEDWMENU` | `CAXX7JEGO2P2X6KMXCII2ISCA24L7KHU6O3O66BXRMDAJ5Y5T7GSZEK6` |
+| `hvym_collective`         | `CDPDM3XDYZSQE4ZWWK2PGFJP74IS7UH3OYPGGPO7TI2KP4JDH7E54EL7` | `CBZPNQJUPE5E4BOHA7PYVH44B4RWEQQW4QU4BL6LHQOWZYAU5ZRNWJYL` |
 | `hvym_roster`             | `CBDOEYS5Z6RXRBIHJK72JPE2GIPR2HTUGIVHKVCOASKXGKL73Y4HOMVM` | `CBUS33CAIMTV7T4M4G3FTH35QBAY6VWY3K4IZTYTRPD45ZDSQMSIZ2AB` |
-| `hvym_pin_service`        | `CBWZFS3QRW67SHEX5KLY7OFOTA3V5TF6V5QIDQQ52GQT7FY5Y5OQXIWW` | `CDYUS4OXHGVX4AFNERP3CQAMI5JNDTPQZ6MAV3EH53NN3YYPJW2SW2FP` |
-| `hvym_pin_service_factory`| `CD3OUO6BSCOQWMCPE5LFSG2F2TQSNNDZGA3EITKYSE74ZACO5OXGBQ5A` | `CBWEFPAAUYARY6SS4UAUFTJEF2YNCGBH2BGDMTSS7OJKLPYMDLDAWMFG` |
-| `hvym_registry`           | `CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V` | `CAYZSYW4XO7XU3PNYILG256VYLFJEBTNCA4DTPRJ6GP7QGS2U2Z2R2HN` |
+| `hvym_pin_service`        | `CBWZFS3QRW67SHEX5KLY7OFOTA3V5TF6V5QIDQQ52GQT7FY5Y5OQXIWW` | `CCMEKYORB732TMYJJ6FR5EZM3XRWOE2U4HNGZUWBLTMXATVRZ2DQYOBZ` |
+| `hvym_pin_service_factory`| `CD3OUO6BSCOQWMCPE5LFSG2F2TQSNNDZGA3EITKYSE74ZACO5OXGBQ5A` | *Not deployed this release* (WASM uploaded, hash `d9002069…`) |
+| `hvym_registry`           | `CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V` | `CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV` |
 | `pintheon_ipfs_token`     | *Upload only* (WASM `416704f4…`) | *Upload only* (WASM `416704f4…`) |
 | `pintheon_node_token`     | *Upload only* (WASM `3dad7958…`) | *Upload only* (WASM `3dad7958…`) |
 
 Authoritative records: [`deployments.testnet.json`](deployments.testnet.json)
 / [`deployments.public.json`](deployments.public.json) and their `.md`
 siblings.
+
+> **Correction note (2026-04-23):** an earlier draft of this release file
+> recorded stale testnet contract IDs for the mainnet column. The table
+> above is the result of verifying against the on-chain registry plus
+> `stellar contract fetch` on each ID. All mainnet WASMs at these IDs are
+> byte-identical to the repo's `wasm/` artifacts (sha256 verified).
 
 ### New since v1.0.0
 
