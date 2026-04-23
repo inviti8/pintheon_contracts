@@ -1,6 +1,6 @@
 {
-  "network": "testnet",
-  "timestamp": 1774404430,
+  "network": "public",
+  "timestamp": 1776920986,
   "cli_version": "23.0.1",
   "note": "Deployed with standardized underscore format",
   "pintheon_ipfs_token": {
@@ -37,11 +37,11 @@
   },
   "hvym_roster": {
     "contract_dir": "hvym-roster",
-    "wasm_hash": "bd5266c2c0355598b3b038a544ac38f13d524930ab48c8767b09b941c7385353",
-    "contract_id": "CCG3LT5SHVQ2QLCFZYS3WXMNQFQ4GTGVPXDTIPL4FT2MBVADVJLUTQBK",
-    "network": "testnet",
-    "deployer": "TESTNET_DEPLOYER",
-    "timestamp": 1774404405
+    "wasm_hash": "3f88b09753a43291da62799db81a051fda10ce97e7a091ad8ace4da17c62c284",
+    "contract_id": "CBUS33CAIMTV7T4M4G3FTH35QBAY6VWY3K4IZTYTRPD45ZDSQMSIZ2AB",
+    "network": "public",
+    "deployer": "lepus-luminary-1",
+    "timestamp": 1776920982
   },
   "hvym_pin_service": {
     "wasm_hash": "448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a",
