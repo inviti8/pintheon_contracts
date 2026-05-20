@@ -166,6 +166,7 @@ jobs:
             "hvym_pin_service"
             "hvym_pin_service_factory"
             "hvym_registry"
+            "hvym_cert_registry"
           )
           
           # Fetch all releases and find the latest one matching the version

@@ -99,18 +99,29 @@ the wire token; it doesn't mint.
 Not done in this commit. Manual step for the operator:
 
 ```bash
-# Build
+# 1. Build the cert-registry WASM. (Only this one contract.)
 python build_contracts.py --contract hvym-cert-registry
 
-# Make sure TESTNET_DEPLOYER is in the stellar CLI keystore and funded.
-# (See workflows.md §3.)
-python deploy_contracts.py --contract hvym-cert-registry --network testnet \
+# 2. Make sure TESTNET_DEPLOYER is in the stellar CLI keystore and funded.
+#    (See workflows.md section 3.)
+#
+# 3. Deploy. deploy_contracts.py has no --contract flag — it iterates the
+#    full CONTRACTS list with hash-skip logic, so only newly-built or
+#    changed contracts actually deploy. For testnet this is harmless.
+python deploy_contracts.py --network testnet \
   --deployer-acct TESTNET_DEPLOYER
 
-# This writes hvym_cert_registry.contract_id into deployments.testnet.json.
-# Then the testnet mode of the mock works:
+# 4. The script writes hvym_cert_registry.contract_id into
+#    deployments.testnet.json. Then the testnet mode of the mock works:
 python -m mock_c2pa.run_mock_flow --mode testnet --app-kind Andromica
 ```
+
+> **Why no `--contract` flag on deploy_contracts.py?** The script's
+> hash-skip behavior already gives you the same effect: it computes
+> SHA-256 of each `wasm/*.optimized.wasm` and skips any contract whose
+> hash matches the recorded hash in `deployments.{network}.json`. New
+> or changed contracts (like cert-registry on its first deploy) are the
+> only ones that hit the network.
 
 ## What this mock deliberately does NOT do
 

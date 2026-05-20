@@ -33,7 +33,7 @@ jobs:
           echo "🔍 Verifying all WASM files exist..."
           
           # Check all required contracts
-          contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory")
+          contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory" "hvym_registry" "hvym_cert_registry")
           
           for contract in "${contracts[@]}"; do
             wasm_file="wasm/${contract}.optimized.wasm"
@@ -54,7 +54,7 @@ jobs:
           # Create release directory
           mkdir -p release-wasm
           
-          contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory")
+          contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory" "hvym_registry" "hvym_cert_registry")
           
           for contract in "${contracts[@]}"; do
             wasm_file="wasm/${contract}.optimized.wasm"
@@ -97,7 +97,7 @@ jobs:
               deployment_table="| Contract | Contract ID | Network | Status |\n"
               deployment_table+="|---------|-------------|---------|--------|\n"
               
-              contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory")
+              contracts=("pintheon_node_token" "pintheon_ipfs_token" "opus_token" "hvym_collective" "hvym_roster" "hvym_pin_service" "hvym_pin_service_factory" "hvym_registry" "hvym_cert_registry")
               
               for contract in "${contracts[@]}"; do
                 if jq -e ".${contract}" deployments.json &> /dev/null; then

@@ -507,7 +507,7 @@ jobs:
 
           # Final verification of all WASM files
           echo "\n🔍 Verifying all WASM files..."
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory hvym_registry hvym_cert_registry; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ ! -f "$wasm_file" ]; then
               echo "::error::Missing final WASM file: $wasm_file"
@@ -528,7 +528,7 @@ jobs:
           echo "Built WASM files in wasm/ directory:"
           ls -la wasm/
           # Verify each contract was built
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory hvym_registry hvym_cert_registry; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ ! -f "$wasm_file" ]; then
               echo "::error::Failed to find built WASM for ${contract}"
@@ -544,7 +544,7 @@ jobs:
           mkdir -p release-wasm
           
           # Copy all optimized WASM and metadata files from wasm/ to release directory
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory hvym_registry hvym_cert_registry; do
             wasm_file="wasm/${contract}.optimized.wasm"
             meta_file="${wasm_file}.meta.json"
             
@@ -576,7 +576,7 @@ jobs:
       - name: Generate contract metadata
         run: |
           # Generate metadata for each contract
-          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory; do
+          for contract in pintheon_node_token pintheon_ipfs_token opus_token hvym_collective hvym_roster hvym_pin_service hvym_pin_service_factory hvym_registry hvym_cert_registry; do
             wasm_file="wasm/${contract}.optimized.wasm"
             if [ -f "$wasm_file" ]; then
               echo "Generating metadata for $wasm_file"

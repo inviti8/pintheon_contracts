@@ -64,7 +64,8 @@ CONTRACTS = [
     "hvym_roster",
     "hvym_pin_service",
     "hvym_pin_service_factory",
-    "hvym_registry"
+    "hvym_registry",
+    "hvym_cert_registry"
 ]
 
 # Get timeout from environment or use default
@@ -406,6 +407,7 @@ DEPLOY_ONLY_CONTRACTS = [
     "hvym_pin_service",
     "hvym_pin_service_factory",
     "hvym_registry",
+    "hvym_cert_registry",
 ]
 
 def generate_deployments_md(deployments: dict) -> None:

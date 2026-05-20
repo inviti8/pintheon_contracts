@@ -574,8 +574,15 @@ locked above.
    `python test_all_contracts.py` for the full suite).
 3. Deploy to testnet:
    `python deploy_contracts.py --deployer-acct TESTNET_DEPLOYER
-   --network testnet`. Constructor takes no args
-   (`hvym_cert_registry_args.json` is `{}`).
+   --network testnet`. The deploy script iterates the full CONTRACTS
+   list with hash-skip logic, so only newly-built or changed contracts
+   actually hit the network. Constructor takes no args
+   (`hvym_cert_registry_args.json` is `{}`). **Any funded Stellar
+   identity can deploy** — the contract has no admin and no on-chain
+   privileges for the deployer; the canonical-ness of one deployment
+   over another comes from registering its contract ID into
+   `hvym_registry` (step 6) and the cooperative's published release
+   notes.
 4. **Measure the three empirical unknowns above** and fold the
    resulting numbers back into `C2PA.md §4.4`'s funding-floor
    guidance before mainnet deployment.
