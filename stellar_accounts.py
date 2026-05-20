@@ -372,6 +372,135 @@ def estimate_upload_fee_xlm(
     return fee_stroops / 10_000_000.0, wasm_size, None
 
 
+def load_registry_contract_id(network: str) -> Optional[str]:
+    """Read hvym_registry's deployed contract_id from deployments.{network}.json."""
+    path = REPO_ROOT / f"deployments.{network}.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except Exception:  # noqa: BLE001
+        return None
+    entry = data.get("hvym_registry") or {}
+    cid = entry.get("contract_id")
+    return cid if isinstance(cid, str) and cid.startswith("C") else None
+
+
+def load_contract_id(network: str, contract_name: str) -> Optional[str]:
+    """Read any contract's deployed contract_id from deployments.{network}.json."""
+    path = REPO_ROOT / f"deployments.{network}.json"
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except Exception:  # noqa: BLE001
+        return None
+    entry = data.get(contract_name) or {}
+    cid = entry.get("contract_id")
+    return cid if isinstance(cid, str) and cid.startswith("C") else None
+
+
+def fetch_first_admin(registry_id: str, network: str) -> Optional[str]:
+    """Query hvym_registry.get_admin_list and return the first admin G-address.
+
+    Returns None on any failure.
+    """
+    cfg = NETWORK_CONFIGS[network]
+    try:
+        from stellar_sdk import (
+            Account,
+            Keypair,
+            SorobanServer,
+            TransactionBuilder,
+            scval,
+            xdr as stellar_xdr,
+        )
+    except ImportError:
+        return None
+
+    server = SorobanServer(cfg["rpc_url"])
+    ephemeral = Keypair.random()
+    source = Account(ephemeral.public_key, 0)
+    tx = (
+        TransactionBuilder(source, cfg["passphrase"], 100)
+        .append_invoke_contract_function_op(
+            contract_id=registry_id,
+            function_name="get_admin_list",
+            parameters=[],
+        )
+        .set_timeout(30)
+        .build()
+    )
+    try:
+        sim = server.simulate_transaction(tx)
+    except Exception:  # noqa: BLE001
+        return None
+    if getattr(sim, "error", None) or not sim.results:
+        return None
+    raw_xdr = sim.results[0].xdr
+    if not raw_xdr:
+        return None
+    try:
+        sc_val = stellar_xdr.SCVal.from_xdr(raw_xdr)
+        admins = scval.to_native(sc_val)
+    except Exception:  # noqa: BLE001
+        return None
+    if not admins:
+        return None
+    first = admins[0]
+    # to_native returns stellar_sdk Address objects; coerce to G-string.
+    return getattr(first, "address", str(first))
+
+
+def estimate_registry_set_fee_xlm(
+    registry_id: str,
+    admin_pub: str,
+    contract_name: str,
+    contract_id_to_register: str,
+    network: str,
+) -> tuple[Optional[float], Optional[str]]:
+    """Simulate hvym_registry.set_contract_id and return (fee_xlm, error)."""
+    cfg = NETWORK_CONFIGS[network]
+    try:
+        from stellar_sdk import (
+            Account,
+            SorobanServer,
+            TransactionBuilder,
+            scval,
+        )
+    except ImportError as e:
+        return None, f"stellar-sdk not installed: {e}"
+
+    network_variant = "Testnet" if network == "testnet" else "Mainnet"
+    server = SorobanServer(cfg["rpc_url"])
+    source = Account(admin_pub, 0)
+
+    params = [
+        scval.to_address(admin_pub),
+        scval.to_string(contract_name),
+        scval.to_enum(network_variant, None),
+        scval.to_address(contract_id_to_register),
+    ]
+    tx = (
+        TransactionBuilder(source, cfg["passphrase"], 100)
+        .append_invoke_contract_function_op(
+            contract_id=registry_id,
+            function_name="set_contract_id",
+            parameters=params,
+        )
+        .set_timeout(30)
+        .build()
+    )
+    try:
+        sim = server.simulate_transaction(tx)
+    except Exception as e:  # noqa: BLE001
+        return None, f"simulate_transaction error: {e}"
+    if getattr(sim, "error", None):
+        return None, f"simulation failed: {sim.error}"
+    fee_stroops = int(getattr(sim, "min_resource_fee", 0) or 0)
+    return fee_stroops / 10_000_000.0, None
+
+
 # ── Subcommand handlers ────────────────────────────────────────────────────
 
 
@@ -556,26 +685,86 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     deploy_buffer = 0.5      # XLM for the deploy op itself
     account_reserve = 1.0    # base XLM reserve to provision the account
     op_buffer = 1.5          # operational headroom for post-deploy admin calls
+
+    register_xlm: Optional[float] = None
+    register_note: Optional[str] = None
+    if args.include_register:
+        register_xlm, register_note = _estimate_register_into_hvym_registry(
+            contract_name=args.contract,
+            network=network,
+        )
+
     total = (upload_xlm or 0.0) + deploy_buffer + account_reserve + op_buffer
+    if register_xlm is not None:
+        total += register_xlm
 
     print(f"Contract : {args.contract}")
     print(f"WASM     : {wasm_size} bytes ({wasm_size / 1024:.2f} KB)")
     print(f"Network  : {network}")
     print()
-    print(f"  Upload fee (simulated)   : {upload_xlm:>10.4f} XLM")
-    print(f"  Deploy op (estimate)     : {deploy_buffer:>10.4f} XLM")
-    print(f"  Account base reserve     : {account_reserve:>10.4f} XLM")
-    print(f"  Operational buffer       : {op_buffer:>10.4f} XLM")
-    print(f"  {'-' * 42}")
-    print(f"  Recommended funding      : {total:>10.4f} XLM")
+    print(f"  Upload fee (simulated)         : {upload_xlm:>10.4f} XLM")
+    print(f"  Deploy op (estimate)           : {deploy_buffer:>10.4f} XLM")
+    print(f"  Account base reserve           : {account_reserve:>10.4f} XLM")
+    print(f"  Operational buffer             : {op_buffer:>10.4f} XLM")
+    if register_xlm is not None:
+        print(f"  hvym_registry set_contract_id  : {register_xlm:>10.4f} XLM")
+    elif args.include_register and register_note:
+        print(f"  hvym_registry set_contract_id  :  (skipped — {register_note})")
+    print(f"  {'-' * 48}")
+    print(f"  Recommended funding            : {total:>10.4f} XLM")
     print()
     print(
-        "Notes: 'upload' fee from a Soroban simulation against the live RPC; "
-        "'deploy op' / 'buffer' are flat estimates that have been empirically "
-        "sufficient for the contracts in this repo. Round up generously for "
-        "mainnet."
+        "Notes: 'upload' / 'hvym_registry set_contract_id' fees come from "
+        "live Soroban simulations; 'deploy op' / 'buffer' are flat estimates "
+        "that have been empirically sufficient for the contracts in this "
+        "repo. Round up generously for mainnet."
     )
+    if args.include_register and register_xlm is None:
+        print()
+        print(
+            "  hvym_registry register cost could not be simulated — see "
+            "the skip reason above. The actual cost is typically <1 XLM on "
+            "testnet and <5 XLM on mainnet for a single set_contract_id call."
+        )
     return 0
+
+
+def _estimate_register_into_hvym_registry(
+    *,
+    contract_name: str,
+    network: str,
+) -> tuple[Optional[float], Optional[str]]:
+    """Wrapper that resolves registry_id + admin_pub + contract_id_to_register
+    from local + on-chain state, then simulates the set_contract_id call.
+
+    Returns (fee_xlm, skip_reason). Either fee_xlm or skip_reason is set.
+    """
+    registry_id = load_registry_contract_id(network)
+    if not registry_id:
+        return None, f"hvym_registry not in deployments.{network}.json"
+
+    admin_pub = fetch_first_admin(registry_id, network)
+    if not admin_pub:
+        return None, "could not read admin list from on-chain hvym_registry"
+
+    # The contract_id we'd register. If the target contract isn't deployed
+    # yet, the registry-set fee is essentially independent of the bytes
+    # being stored (all Stellar addresses are 32 bytes), so we use the
+    # registry's own contract_id as a syntactically-valid placeholder.
+    contract_id_to_register = (
+        load_contract_id(network, contract_name) or registry_id
+    )
+
+    fee, err = estimate_registry_set_fee_xlm(
+        registry_id=registry_id,
+        admin_pub=admin_pub,
+        contract_name=contract_name,
+        contract_id_to_register=contract_id_to_register,
+        network=network,
+    )
+    if err:
+        return None, err
+    return fee, None
 
 
 # ── argparse plumbing ──────────────────────────────────────────────────────
@@ -627,6 +816,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_est = sub.add_parser("estimate", help="Estimate XLM needed to upload+deploy a contract.")
     p_est.add_argument("--contract", required=True, help="Contract name (matches wasm/<name>.optimized.wasm).")
     p_est.add_argument("--network", default=None)
+    p_est.add_argument(
+        "--include-register",
+        action="store_true",
+        help="Also simulate the hvym_registry.set_contract_id admin call "
+             "that registers the deployed contract ID, and add its fee to "
+             "the total. Reads hvym_registry's contract_id from "
+             "deployments.{network}.json and the first admin from chain.",
+    )
     p_est.set_defaults(func=cmd_estimate)
 
     return parser
