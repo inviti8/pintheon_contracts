@@ -166,6 +166,7 @@ print(client.get_admin_list())
 | `generate_bindings.py` | Generate Python bindings using `stellar-contract-bindings` |
 | `verify_deployment_hashes.py` | Verify that locally-built WASM matches the hashes recorded in `deployments.*.json` |
 | `verify_registry.py` | Verify `deployments.{network}.json` against the on-chain `hvym_registry`, optionally against on-ledger WASM bytes ([`REGISTRY_VERIFICATION.md`](REGISTRY_VERIFICATION.md)) |
+| `stellar_accounts.py` | Manage Stellar CLI identities: `create` / `address` / `list` / `balance` / `fund` (friendbot on testnet, QR + SEP-0007 URI on mainnet) / `estimate` (XLM needed to deploy a specific contract, from a live Soroban simulation) |
 | `setup_deployer_identity.py` | Load a deployer secret (from `ACCT_SECRET` / env) into the Stellar CLI keystore for CI |
 | `setup_local_stellar.py` | Spin up a local Stellar / soroban-rpc node for standalone testing (see [LOCAL_STELLAR_NODE.md](LOCAL_STELLAR_NODE.md)) |
 | `check_rpc.py` | Probe an RPC endpoint for basic reachability |

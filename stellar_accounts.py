@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""
+stellar_accounts.py - Manage Stellar CLI identities for this repo.
+
+Wraps the `stellar keys` CLI and adds helpers the deployment workflow needs
+without adding a parallel keystore (we delegate to the CLI for storage).
+
+Subcommands:
+  create     Generate a new keypair via `stellar keys generate`.
+  address    Print the G-address of a named identity.
+  list       Print every CLI identity with its balance on the chosen network.
+  fund       Show a QR code + SEP-0007 URI for external-wallet funding.
+             On testnet, also tries Friendbot.
+  balance    Print balances for a named identity.
+  estimate   Estimate the XLM needed to upload+deploy a built contract.
+
+Conventions match deploy_contracts.py:
+  - --network testnet|public (default: public via STELLAR_NETWORK env or fallback)
+  - delegated storage in the stellar CLI keystore (~/.config/stellar/identity)
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from typing import Optional
+
+
+# ── Network config (mirrors deploy_contracts.py) ───────────────────────────
+
+NETWORK_CONFIGS = {
+    "testnet": {
+        "passphrase": "Test SDF Network ; September 2015",
+        "rpc_url": "https://soroban-testnet.stellar.org",
+        "horizon_url": "https://horizon-testnet.stellar.org",
+        "friendbot_url": "https://friendbot.stellar.org",
+        "explorer": "https://stellar.expert/explorer/testnet/account/",
+    },
+    "public": {
+        "passphrase": "Public Global Stellar Network ; September 2015",
+        "rpc_url": "https://stellar-soroban-public.nodies.app",
+        "horizon_url": "https://horizon.stellar.org",
+        "friendbot_url": None,
+        "explorer": "https://stellar.expert/explorer/public/account/",
+    },
+}
+
+REPO_ROOT = Path(__file__).parent.resolve()
+WASM_DIR = REPO_ROOT / "wasm"
+
+
+def resolve_network(cli_value: Optional[str]) -> str:
+    """CLI flag > STELLAR_NETWORK env > 'public' (mainnet)."""
+    network = cli_value or os.environ.get("STELLAR_NETWORK") or "public"
+    if network not in NETWORK_CONFIGS:
+        sys.exit(
+            f"Unsupported network '{network}'. "
+            f"Supported: {', '.join(NETWORK_CONFIGS)}"
+        )
+    return network
+
+
+# ── Stellar CLI wrappers ───────────────────────────────────────────────────
+
+
+def cli_keys_ls() -> list[str]:
+    result = subprocess.run(
+        ["stellar", "keys", "ls"],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def cli_keys_address(name: str) -> str:
+    result = subprocess.run(
+        ["stellar", "keys", "address", name],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def cli_keys_generate(name: str, overwrite: bool = False) -> None:
+    cmd = ["stellar", "keys", "generate", name]
+    if overwrite:
+        cmd.append("--overwrite")
+    subprocess.run(cmd, check=True)
+
+
+def cli_keys_fund_testnet(name: str) -> bool:
+    """Friendbot-fund via the CLI's built-in helper. Testnet only."""
+    try:
+        subprocess.run(
+            ["stellar", "keys", "fund", name, "--network", "testnet"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        # Already funded is success in our book.
+        msg = (e.stderr or "") + (e.stdout or "")
+        if "already exists" in msg.lower() or "createaccountalreadyexist" in msg.lower():
+            return True
+        print(f"  friendbot error: {msg.strip()}", file=sys.stderr)
+        return False
+
+
+# ── Horizon balance queries ────────────────────────────────────────────────
+
+
+def fetch_account(public_key: str, horizon_url: str) -> Optional[dict]:
+    url = f"{horizon_url}/accounts/{public_key}"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
+def native_balance(account: dict) -> float:
+    for b in account.get("balances", []):
+        if b.get("asset_type") == "native":
+            return float(b["balance"])
+    return 0.0
+
+
+# ── QR code rendering ──────────────────────────────────────────────────────
+
+
+def render_qr(data: str) -> None:
+    try:
+        import qrcode
+    except ImportError:
+        sys.exit(
+            "qrcode package not installed. Run: pip install qrcode\n"
+            "(Or `pip install -r mock_c2pa/requirements.txt` if you want the C2PA bundle.)"
+        )
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(data)
+    qr.make(fit=True)
+    # invert=True gives dark modules on light terminal background, which scans
+    # reliably with phone cameras against both light and dark terminal themes.
+    qr.print_ascii(invert=True)
+
+
+def build_sep0007_uri(
+    destination: str,
+    network_passphrase: str,
+    amount: Optional[str] = None,
+    memo: Optional[str] = None,
+) -> str:
+    """SEP-0007 web+stellar:pay URI. Supported by Lobstr, Freighter,
+    Albedo, and most modern Stellar wallets."""
+    params = {"destination": destination}
+    if amount is not None:
+        params["amount"] = amount
+    if memo is not None:
+        params["memo"] = memo
+        params["memo_type"] = "MEMO_TEXT"
+    params["network_passphrase"] = network_passphrase
+    return "web+stellar:pay?" + urllib.parse.urlencode(params)
+
+
+# ── Cost estimation ────────────────────────────────────────────────────────
+
+
+def estimate_upload_fee_xlm(
+    contract_name: str, network: str
+) -> tuple[Optional[float], int, Optional[str]]:
+    """Return (upload_fee_xlm, wasm_size_bytes, error_message).
+
+    Builds an upload tx, simulates against the chosen Soroban RPC,
+    and reads `min_resource_fee` from the simulation result.
+    Does not submit anything.
+    """
+    wasm_path = WASM_DIR / f"{contract_name}.optimized.wasm"
+    if not wasm_path.exists():
+        return None, 0, (
+            f"WASM not found: {wasm_path}\n"
+            f"Build first: python build_contracts.py --contract <dir>"
+        )
+    wasm_bytes = wasm_path.read_bytes()
+    wasm_size = len(wasm_bytes)
+
+    cfg = NETWORK_CONFIGS[network]
+    try:
+        from stellar_sdk import (
+            Account,
+            Keypair,
+            SorobanServer,
+            TransactionBuilder,
+        )
+    except ImportError:
+        return None, wasm_size, (
+            "stellar-sdk not installed. "
+            "Run: pip install stellar-sdk"
+        )
+
+    # Simulation doesn't actually validate source-account existence, so we
+    # can use a deterministic ephemeral keypair (no funds needed).
+    ephemeral = Keypair.random()
+    source = Account(account=ephemeral.public_key, sequence=0)
+
+    tx = (
+        TransactionBuilder(
+            source_account=source,
+            network_passphrase=cfg["passphrase"],
+            base_fee=100,
+        )
+        .append_upload_contract_wasm_op(contract=wasm_bytes)
+        .set_timeout(30)
+        .build()
+    )
+
+    server = SorobanServer(cfg["rpc_url"])
+    try:
+        sim = server.simulate_transaction(tx)
+    except Exception as e:  # noqa: BLE001
+        return None, wasm_size, f"simulate_transaction error: {e}"
+
+    if getattr(sim, "error", None):
+        return None, wasm_size, f"simulation failed: {sim.error}"
+
+    # min_resource_fee is the Soroban-side fee in stroops (1 XLM = 10^7 stroops).
+    fee_stroops = int(getattr(sim, "min_resource_fee", 0) or 0)
+    return fee_stroops / 10_000_000.0, wasm_size, None
+
+
+# ── Subcommand handlers ────────────────────────────────────────────────────
+
+
+def cmd_create(args: argparse.Namespace) -> int:
+    network = resolve_network(args.network)
+    cfg = NETWORK_CONFIGS[network]
+
+    existing = cli_keys_ls()
+    if args.name in existing and not args.overwrite:
+        print(
+            f"Identity '{args.name}' already exists. "
+            f"Address: {cli_keys_address(args.name)}\n"
+            "Pass --overwrite to replace it."
+        )
+        return 1
+
+    cli_keys_generate(args.name, overwrite=args.overwrite)
+    pub = cli_keys_address(args.name)
+    print(f"Created '{args.name}'")
+    print(f"  public key : {pub}")
+    print(f"  network    : {network}")
+    print(f"  explorer   : {cfg['explorer']}{pub}")
+    print()
+    print("Next:")
+    print(
+        f"  Fund:    python stellar_accounts.py fund --name {args.name} --network {network}"
+    )
+    print(
+        f"  Balance: python stellar_accounts.py balance --name {args.name} --network {network}"
+    )
+    return 0
+
+
+def cmd_address(args: argparse.Namespace) -> int:
+    print(cli_keys_address(args.name))
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    network = resolve_network(args.network)
+    cfg = NETWORK_CONFIGS[network]
+    identities = cli_keys_ls()
+    if not identities:
+        print("No identities in the stellar CLI keystore.")
+        return 0
+
+    print(f"Network: {network}  ({cfg['horizon_url']})")
+    print()
+    print(f"  {'NAME':<22} {'ADDRESS':<58} {'BALANCE':>15}")
+    print(f"  {'-' * 22} {'-' * 58} {'-' * 15}")
+    for name in identities:
+        try:
+            pub = cli_keys_address(name)
+        except subprocess.CalledProcessError:
+            print(f"  {name:<22} <unable to read>")
+            continue
+        acct = fetch_account(pub, cfg["horizon_url"])
+        if acct is None:
+            balance_str = "unfunded"
+        else:
+            balance_str = f"{native_balance(acct):.4f} XLM"
+        print(f"  {name:<22} {pub:<58} {balance_str:>15}")
+    return 0
+
+
+def cmd_balance(args: argparse.Namespace) -> int:
+    network = resolve_network(args.network)
+    cfg = NETWORK_CONFIGS[network]
+    pub = cli_keys_address(args.name)
+
+    acct = fetch_account(pub, cfg["horizon_url"])
+    if acct is None:
+        print(f"{args.name} ({pub}) is not provisioned on {network}.")
+        print(f"  Fund: python stellar_accounts.py fund --name {args.name} --network {network}")
+        return 1
+
+    print(f"{args.name} on {network}")
+    print(f"  address : {pub}")
+    for b in acct.get("balances", []):
+        if b.get("asset_type") == "native":
+            print(f"  XLM     : {float(b['balance']):.7f}")
+        else:
+            code = b.get("asset_code", "?")
+            issuer = b.get("asset_issuer", "?")
+            print(f"  {code:<8}: {float(b['balance']):.7f}  (issuer {issuer})")
+    print(f"  explorer: {cfg['explorer']}{pub}")
+    return 0
+
+
+def cmd_fund(args: argparse.Namespace) -> int:
+    network = resolve_network(args.network)
+    cfg = NETWORK_CONFIGS[network]
+    pub = cli_keys_address(args.name)
+
+    # Testnet: try friendbot first (free + automatic).
+    if network == "testnet" and not args.no_friendbot:
+        print(f"Friendbot funding {pub} on testnet...")
+        if cli_keys_fund_testnet(args.name):
+            acct = fetch_account(pub, cfg["horizon_url"])
+            bal = native_balance(acct) if acct else 0.0
+            print(f"  OK. Balance: {bal:.4f} XLM")
+            return 0
+        else:
+            print("  Friendbot failed; falling back to QR.")
+
+    # Otherwise (mainnet, or testnet --no-friendbot): print the QR.
+    uri = (
+        build_sep0007_uri(
+            destination=pub,
+            network_passphrase=cfg["passphrase"],
+            amount=args.amount,
+            memo=args.memo,
+        )
+        if (args.amount or args.memo or args.sep0007)
+        else pub
+    )
+
+    print(f"Funding identity : {args.name}")
+    print(f"Network          : {network}")
+    print(f"Destination      : {pub}")
+    if args.amount:
+        print(f"Amount           : {args.amount} XLM")
+    if args.memo:
+        print(f"Memo             : {args.memo}")
+    print()
+    print("Scan with any Stellar wallet (Lobstr, Freighter, Albedo, ...):")
+    print()
+    render_qr(uri)
+    print()
+    print(f"URI: {uri}")
+    print()
+    print(f"After funding, verify:")
+    print(
+        f"  python stellar_accounts.py balance --name {args.name} --network {network}"
+    )
+    return 0
+
+
+def cmd_estimate(args: argparse.Namespace) -> int:
+    network = resolve_network(args.network)
+    upload_xlm, wasm_size, err = estimate_upload_fee_xlm(args.contract, network)
+    if err:
+        print(err, file=sys.stderr)
+        return 2
+
+    # Soroban deploy itself is small relative to upload; the storage rent
+    # on the persistent WASM blob is the dominant cost and is already
+    # reflected in upload_xlm via min_resource_fee.
+    deploy_buffer = 0.5      # XLM for the deploy op itself
+    account_reserve = 1.0    # base XLM reserve to provision the account
+    op_buffer = 1.5          # operational headroom for post-deploy admin calls
+    total = (upload_xlm or 0.0) + deploy_buffer + account_reserve + op_buffer
+
+    print(f"Contract : {args.contract}")
+    print(f"WASM     : {wasm_size} bytes ({wasm_size / 1024:.2f} KB)")
+    print(f"Network  : {network}")
+    print()
+    print(f"  Upload fee (simulated)   : {upload_xlm:>10.4f} XLM")
+    print(f"  Deploy op (estimate)     : {deploy_buffer:>10.4f} XLM")
+    print(f"  Account base reserve     : {account_reserve:>10.4f} XLM")
+    print(f"  Operational buffer       : {op_buffer:>10.4f} XLM")
+    print(f"  {'-' * 42}")
+    print(f"  Recommended funding      : {total:>10.4f} XLM")
+    print()
+    print(
+        "Notes: 'upload' fee from a Soroban simulation against the live RPC; "
+        "'deploy op' / 'buffer' are flat estimates that have been empirically "
+        "sufficient for the contracts in this repo. Round up generously for "
+        "mainnet."
+    )
+    return 0
+
+
+# ── argparse plumbing ──────────────────────────────────────────────────────
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Manage Stellar CLI identities for the hvym_contracts repo.",
+    )
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_create = sub.add_parser("create", help="Generate a new keypair via the stellar CLI.")
+    p_create.add_argument("--name", required=True, help="Identity name.")
+    p_create.add_argument("--network", default=None, help="testnet|public (informational; affects suggested next-steps).")
+    p_create.add_argument("--overwrite", action="store_true", help="Replace an existing identity of the same name.")
+    p_create.set_defaults(func=cmd_create)
+
+    p_addr = sub.add_parser("address", help="Print the G-address of a named identity.")
+    p_addr.add_argument("--name", required=True)
+    p_addr.set_defaults(func=cmd_address)
+
+    p_list = sub.add_parser("list", help="List CLI identities with their balance on the chosen network.")
+    p_list.add_argument("--network", default=None)
+    p_list.set_defaults(func=cmd_list)
+
+    p_bal = sub.add_parser("balance", help="Print balances for a named identity.")
+    p_bal.add_argument("--name", required=True)
+    p_bal.add_argument("--network", default=None)
+    p_bal.set_defaults(func=cmd_balance)
+
+    p_fund = sub.add_parser("fund", help="Friendbot (testnet) or QR-prompt (mainnet) funding.")
+    p_fund.add_argument("--name", required=True)
+    p_fund.add_argument("--network", default=None)
+    p_fund.add_argument("--amount", default=None, help="If set, embed in SEP-0007 URI.")
+    p_fund.add_argument("--memo", default=None, help="Optional MEMO_TEXT.")
+    p_fund.add_argument("--sep0007", action="store_true", help="Force SEP-0007 URI even without --amount/--memo.")
+    p_fund.add_argument("--no-friendbot", action="store_true", help="On testnet, skip friendbot and show QR instead.")
+    p_fund.set_defaults(func=cmd_fund)
+
+    p_est = sub.add_parser("estimate", help="Estimate XLM needed to upload+deploy a contract.")
+    p_est.add_argument("--contract", required=True, help="Contract name (matches wasm/<name>.optimized.wasm).")
+    p_est.add_argument("--network", default=None)
+    p_est.set_defaults(func=cmd_estimate)
+
+    return parser
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
