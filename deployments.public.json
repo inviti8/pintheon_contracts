@@ -3,7 +3,7 @@
   "timestamp": 1779318983,
   "cli_version": "23.0.1",
   "release": "alpha",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "note": "Contract IDs can be verified against the on-chain hvym_registry at CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV. hvym_pin_service_factory is not deployed as an instance for this release (WASM uploaded, no factory contract).",
   "pintheon_ipfs_token": {
     "contract_dir": "pintheon-ipfs-deployer/pintheon-ipfs-token",
