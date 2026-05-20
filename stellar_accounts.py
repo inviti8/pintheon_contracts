@@ -26,6 +26,8 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -142,20 +144,74 @@ def native_balance(account: dict) -> float:
 # ── QR code rendering ──────────────────────────────────────────────────────
 
 
-def render_qr(data: str) -> None:
+def _import_qrcode():
     try:
-        import qrcode
+        import qrcode  # noqa: F401
     except ImportError:
         sys.exit(
-            "qrcode package not installed. Run: pip install qrcode\n"
-            "(Or `pip install -r mock_c2pa/requirements.txt` if you want the C2PA bundle.)"
+            "qrcode package not installed. Run: pip install -r requirements.txt"
         )
+    return __import__("qrcode")
+
+
+def render_qr_ascii(data: str) -> None:
+    qrcode = _import_qrcode()
     qr = qrcode.QRCode(border=1)
     qr.add_data(data)
     qr.make(fit=True)
     # invert=True gives dark modules on light terminal background, which scans
     # reliably with phone cameras against both light and dark terminal themes.
     qr.print_ascii(invert=True)
+
+
+def render_qr_popup(data: str) -> Optional[str]:
+    """Save the QR as a PNG and open it in the OS default image viewer.
+
+    Returns the path to the saved file (so the user can re-open / share it),
+    or None if popup failed and we fell back to ASCII.
+    """
+    qrcode = _import_qrcode()
+    try:
+        img = qrcode.make(data)  # PilImage when qrcode[pil] (Pillow) is installed
+    except Exception as e:  # noqa: BLE001
+        print(f"  (PIL unavailable: {e}; falling back to ASCII)\n", file=sys.stderr)
+        render_qr_ascii(data)
+        return None
+
+    tmp = tempfile.NamedTemporaryFile(
+        suffix=".png", prefix="stellar_qr_", delete=False
+    )
+    tmp.close()
+    try:
+        img.save(tmp.name)
+    except Exception as e:  # noqa: BLE001
+        print(f"  (could not save PNG: {e}; falling back to ASCII)\n", file=sys.stderr)
+        render_qr_ascii(data)
+        return None
+
+    opened = False
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(tmp.name)  # noqa: SIM115
+            opened = True
+        elif sys.platform == "darwin":
+            subprocess.run(["open", tmp.name], check=False)
+            opened = True
+        else:
+            # Most Linux desktop envs honor xdg-open.
+            subprocess.run(["xdg-open", tmp.name], check=False)
+            opened = True
+    except Exception as e:  # noqa: BLE001
+        print(f"  (could not launch image viewer: {e})", file=sys.stderr)
+
+    if not opened:
+        print(
+            f"  (auto-open not available on this platform; "
+            f"please open the file manually: {tmp.name})",
+            file=sys.stderr,
+        )
+
+    return tmp.name
 
 
 def build_sep0007_uri(
@@ -174,6 +230,81 @@ def build_sep0007_uri(
         params["memo_type"] = "MEMO_TEXT"
     params["network_passphrase"] = network_passphrase
     return "web+stellar:pay?" + urllib.parse.urlencode(params)
+
+
+# ── Funding poll ───────────────────────────────────────────────────────────
+
+
+def poll_for_funding(
+    public_key: str,
+    horizon_url: str,
+    initial_balance: float,
+    expected_amount: Optional[float] = None,
+    timeout_s: int = 600,
+    interval_s: int = 4,
+) -> bool:
+    """Poll Horizon until the account is funded or the balance increases.
+
+    Returns True if funding was observed before the timeout, False otherwise.
+    Ctrl+C exits cleanly and returns False.
+    """
+    start = time.monotonic()
+    current = initial_balance
+    print(
+        f"Waiting for funding on {public_key[:8]}...{public_key[-6:]} "
+        f"(timeout {timeout_s}s; Ctrl+C to skip)."
+    )
+    if expected_amount is not None:
+        print(f"  Expecting at least {expected_amount:.4f} XLM delta.")
+
+    try:
+        while time.monotonic() - start < timeout_s:
+            elapsed = int(time.monotonic() - start)
+            try:
+                acct = fetch_account(public_key, horizon_url)
+            except Exception as e:  # noqa: BLE001
+                # Transient Horizon errors are non-fatal; just keep polling.
+                print(f"\r  [{elapsed:4d}s] horizon error: {e!s:.60}", end="", flush=True)
+                time.sleep(interval_s)
+                continue
+
+            current = native_balance(acct) if acct else 0.0
+            delta = current - initial_balance
+
+            funded = False
+            if initial_balance == 0.0 and current > 0.0:
+                # Unprovisioned -> provisioned.
+                funded = True
+            elif expected_amount is not None:
+                # Specific amount expected — accept once that delta arrives
+                # (allow 1% tolerance for human-imprecise sends).
+                if delta >= expected_amount * 0.99:
+                    funded = True
+            elif delta > 0:
+                # Any positive delta counts when no expected amount given.
+                funded = True
+
+            if funded:
+                # Clear status line, then summary.
+                print("\r" + " " * 70, end="\r")
+                print(f"  Funded. Balance: {current:.7f} XLM (delta {delta:+.7f}).")
+                return True
+
+            print(
+                f"\r  [{elapsed:4d}s] balance: {current:.7f} XLM "
+                f"(delta {delta:+.7f})  waiting...",
+                end="",
+                flush=True,
+            )
+            time.sleep(interval_s)
+    except KeyboardInterrupt:
+        print("\n  Polling cancelled by user.")
+        return False
+
+    print(
+        f"\n  Timed out after {timeout_s}s. Current balance: {current:.7f} XLM."
+    )
+    return False
 
 
 # ── Cost estimation ────────────────────────────────────────────────────────
@@ -335,18 +466,22 @@ def cmd_fund(args: argparse.Namespace) -> int:
     cfg = NETWORK_CONFIGS[network]
     pub = cli_keys_address(args.name)
 
-    # Testnet: try friendbot first (free + automatic).
+    # Snapshot the balance before funding, for the poll's delta calculation.
+    initial_account = fetch_account(pub, cfg["horizon_url"])
+    initial_balance = native_balance(initial_account) if initial_account else 0.0
+
+    # Testnet: try friendbot first (free + automatic). If the caller passed
+    # --no-friendbot, fall through to the QR path.
     if network == "testnet" and not args.no_friendbot:
         print(f"Friendbot funding {pub} on testnet...")
         if cli_keys_fund_testnet(args.name):
             acct = fetch_account(pub, cfg["horizon_url"])
             bal = native_balance(acct) if acct else 0.0
-            print(f"  OK. Balance: {bal:.4f} XLM")
+            print(f"  OK. Balance: {bal:.7f} XLM")
             return 0
-        else:
-            print("  Friendbot failed; falling back to QR.")
+        print("  Friendbot failed; falling back to QR.")
 
-    # Otherwise (mainnet, or testnet --no-friendbot): print the QR.
+    # Otherwise (mainnet, or testnet --no-friendbot): show the QR.
     uri = (
         build_sep0007_uri(
             destination=pub,
@@ -361,6 +496,7 @@ def cmd_fund(args: argparse.Namespace) -> int:
     print(f"Funding identity : {args.name}")
     print(f"Network          : {network}")
     print(f"Destination      : {pub}")
+    print(f"Current balance  : {initial_balance:.7f} XLM")
     if args.amount:
         print(f"Amount           : {args.amount} XLM")
     if args.memo:
@@ -368,14 +504,42 @@ def cmd_fund(args: argparse.Namespace) -> int:
     print()
     print("Scan with any Stellar wallet (Lobstr, Freighter, Albedo, ...):")
     print()
-    render_qr(uri)
+
+    if args.ascii:
+        render_qr_ascii(uri)
+        saved_path = None
+    else:
+        saved_path = render_qr_popup(uri)
+
     print()
     print(f"URI: {uri}")
+    if saved_path:
+        print(f"QR PNG: {saved_path}")
     print()
-    print(f"After funding, verify:")
-    print(
-        f"  python stellar_accounts.py balance --name {args.name} --network {network}"
+
+    if args.no_wait:
+        print("Polling skipped (--no-wait). After funding, verify with:")
+        print(
+            f"  python stellar_accounts.py balance --name {args.name} --network {network}"
+        )
+        return 0
+
+    expected = float(args.amount) if args.amount else None
+    ok = poll_for_funding(
+        public_key=pub,
+        horizon_url=cfg["horizon_url"],
+        initial_balance=initial_balance,
+        expected_amount=expected,
+        timeout_s=args.wait_timeout,
     )
+    if not ok:
+        print()
+        print("Re-check later with:")
+        print(
+            f"  python stellar_accounts.py balance --name {args.name} --network {network}"
+        )
+        return 1
+    print(f"  Explorer: {cfg['explorer']}{pub}")
     return 0
 
 
@@ -445,10 +609,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_fund = sub.add_parser("fund", help="Friendbot (testnet) or QR-prompt (mainnet) funding.")
     p_fund.add_argument("--name", required=True)
     p_fund.add_argument("--network", default=None)
-    p_fund.add_argument("--amount", default=None, help="If set, embed in SEP-0007 URI.")
-    p_fund.add_argument("--memo", default=None, help="Optional MEMO_TEXT.")
-    p_fund.add_argument("--sep0007", action="store_true", help="Force SEP-0007 URI even without --amount/--memo.")
-    p_fund.add_argument("--no-friendbot", action="store_true", help="On testnet, skip friendbot and show QR instead.")
+    p_fund.add_argument("--amount", default=None,
+                        help="Expected XLM amount. Embeds in SEP-0007 URI and tightens the funding-detection threshold during polling.")
+    p_fund.add_argument("--memo", default=None, help="Optional MEMO_TEXT for the SEP-0007 URI.")
+    p_fund.add_argument("--sep0007", action="store_true",
+                        help="Force SEP-0007 URI in the QR even when --amount/--memo aren't set.")
+    p_fund.add_argument("--no-friendbot", action="store_true",
+                        help="On testnet, skip friendbot and show QR instead.")
+    p_fund.add_argument("--ascii", action="store_true",
+                        help="Render QR as ASCII in the terminal (default: open PNG in OS image viewer).")
+    p_fund.add_argument("--no-wait", action="store_true",
+                        help="Skip the post-QR funding poll and exit immediately.")
+    p_fund.add_argument("--wait-timeout", type=int, default=600,
+                        help="Seconds to wait for funding before giving up (default 600).")
     p_fund.set_defaults(func=cmd_fund)
 
     p_est = sub.add_parser("estimate", help="Estimate XLM needed to upload+deploy a contract.")
