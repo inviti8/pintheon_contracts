@@ -611,27 +611,45 @@ def cmd_fund(args: argparse.Namespace) -> int:
         print("  Friendbot failed; falling back to QR.")
 
     # Otherwise (mainnet, or testnet --no-friendbot): show the QR.
-    uri = (
-        build_sep0007_uri(
+    #
+    # Default to a plain G-address QR — universally supported by every
+    # Stellar wallet (the wallet just asks the user to type amount/memo).
+    # SEP-0007 web+stellar:pay URIs are only honored by Lobstr in
+    # practice; other wallets (Freighter, etc.) paste the raw URI string
+    # into their address field, which is broken. Opt in via --sep0007.
+    if args.sep0007:
+        uri = build_sep0007_uri(
             destination=pub,
             network_passphrase=cfg["passphrase"],
             amount=args.amount,
             memo=args.memo,
         )
-        if (args.amount or args.memo or args.sep0007)
-        else pub
-    )
+        qr_format_label = "SEP-0007 (web+stellar:pay) - Lobstr only"
+    else:
+        uri = pub
+        qr_format_label = "plain G-address - works with any wallet"
 
     print(f"Funding identity : {args.name}")
     print(f"Network          : {network}")
     print(f"Destination      : {pub}")
     print(f"Current balance  : {initial_balance:.7f} XLM")
+    print(f"QR encoding      : {qr_format_label}")
     if args.amount:
-        print(f"Amount           : {args.amount} XLM")
+        print(f"Amount to send   : {args.amount} XLM")
     if args.memo:
-        print(f"Memo             : {args.memo}")
+        print(f"Memo to attach   : {args.memo}")
     print()
-    print("Scan with any Stellar wallet (Lobstr, Freighter, Albedo, ...):")
+    if args.sep0007:
+        print(
+            "Scan with Lobstr (other wallets paste the URI text into the "
+            "address field and break):"
+        )
+    else:
+        print(
+            "Scan with any Stellar wallet (Lobstr, Freighter, Albedo, "
+            "Solar, ...). The wallet will prompt you for the amount and "
+            "memo above."
+        )
     print()
 
     if args.ascii:
@@ -802,7 +820,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Expected XLM amount. Embeds in SEP-0007 URI and tightens the funding-detection threshold during polling.")
     p_fund.add_argument("--memo", default=None, help="Optional MEMO_TEXT for the SEP-0007 URI.")
     p_fund.add_argument("--sep0007", action="store_true",
-                        help="Force SEP-0007 URI in the QR even when --amount/--memo aren't set.")
+                        help="Encode the QR as a SEP-0007 web+stellar:pay URI "
+                             "(amount/memo pre-filled). Only Lobstr honors this "
+                             "format reliably; other wallets paste the URI text "
+                             "into the address field and break. Default QR is the "
+                             "plain G-address, which every wallet accepts.")
     p_fund.add_argument("--no-friendbot", action="store_true",
                         help="On testnet, skip friendbot and show QR instead.")
     p_fund.add_argument("--ascii", action="store_true",
