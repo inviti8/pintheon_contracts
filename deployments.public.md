@@ -5,6 +5,11 @@ Verified against the on-chain `hvym_registry` at
 Run `python verify_registry.py --network public --registry-id CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV --verify-wasm`
 to reproduce.
 
+`hvym_pin_service_factory` WASM is uploaded to mainnet but no factory
+instance is deployed for this release. `hvym_cert_registry` is the C2PA
+app-CA trust list (see [HVYM_CERT_REGISTRY.md](HVYM_CERT_REGISTRY.md));
+its contract has no admin and is permissionless by design.
+
 | Contract | Contract ID | Wasm Hash |
 |----------|-------------|-----------|
 | pintheon_ipfs_token | `Upload only` | `416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6` |
@@ -14,5 +19,5 @@ to reproduce.
 | hvym_roster | `CBUS33CAIMTV7T4M4G3FTH35QBAY6VWY3K4IZTYTRPD45ZDSQMSIZ2AB` | `3f88b09753a43291da62799db81a051fda10ce97e7a091ad8ace4da17c62c284` |
 | hvym_pin_service | `CCMEKYORB732TMYJJ6FR5EZM3XRWOE2U4HNGZUWBLTMXATVRZ2DQYOBZ` | `448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a` |
 | hvym_registry | `CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV` | `39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1` |
-
-`hvym_pin_service_factory` WASM is uploaded to mainnet (hash `d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d`) but no factory instance contract is deployed for this release.
+| hvym_pin_service_factory | `Upload only` | `d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d` |
+| hvym_cert_registry | `CAKBTT765YCBZDPU7RNPGC4C4TSXIRFHQCEBNPEQZNMJCLXAB3K6VE2G` | `a85d4e7e67757d36c7d50c180a88f07a29c7f87d6f7288c398d5734ece40d09e` |

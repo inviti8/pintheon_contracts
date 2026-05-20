@@ -1,6 +1,6 @@
 {
   "network": "public",
-  "timestamp": 1776920986,
+  "timestamp": 1779318983,
   "cli_version": "23.0.1",
   "release": "alpha",
   "version": "1.1.0",
@@ -58,5 +58,20 @@
     "network": "public",
     "deployer": "lepus-luminary-1",
     "timestamp": 1776920982
+  },
+  "hvym_pin_service_factory": {
+    "contract_dir": "hvym-pin-service-factory",
+    "wasm_hash": "d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d",
+    "network": "public",
+    "deployer": "lepus-luminary-1",
+    "timestamp": 1776920982
+  },
+  "hvym_cert_registry": {
+    "contract_dir": "hvym-cert-registry",
+    "wasm_hash": "a85d4e7e67757d36c7d50c180a88f07a29c7f87d6f7288c398d5734ece40d09e",
+    "network": "public",
+    "deployer": "mainnet-deployer",
+    "timestamp": 1779318978,
+    "contract_id": "CAKBTT765YCBZDPU7RNPGC4C4TSXIRFHQCEBNPEQZNMJCLXAB3K6VE2G"
   }
 }
