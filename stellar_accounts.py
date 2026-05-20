@@ -134,6 +134,39 @@ def fetch_account(public_key: str, horizon_url: str) -> Optional[dict]:
         raise
 
 
+def find_last_sender(public_key: str, horizon_url: str) -> Optional[str]:
+    """Return the G-address of the most recent native XLM sender to
+    `public_key`, or None if no incoming native payment is found.
+
+    Walks Horizon's payments endpoint, newest first. Handles both
+    `create_account` (account provisioning) and `payment` operation
+    types; skips non-native and outgoing records.
+    """
+    url = (
+        f"{horizon_url}/accounts/{public_key}/payments"
+        "?order=desc&limit=50"
+    )
+    try:
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            data = json.loads(resp.read())
+    except Exception:  # noqa: BLE001
+        return None
+
+    records = data.get("_embedded", {}).get("records", []) or []
+    for record in records:
+        rtype = record.get("type")
+        if rtype == "create_account":
+            if record.get("account") == public_key:
+                return record.get("funder") or record.get("source_account")
+        elif rtype == "payment":
+            if (
+                record.get("to") == public_key
+                and record.get("asset_type") == "native"
+            ):
+                return record.get("from")
+    return None
+
+
 def native_balance(account: dict) -> float:
     for b in account.get("balances", []):
         if b.get("asset_type") == "native":
@@ -690,6 +723,125 @@ def cmd_fund(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_drain(args: argparse.Namespace) -> int:
+    network = resolve_network(args.network)
+    cfg = NETWORK_CONFIGS[network]
+    pub = cli_keys_address(args.name)
+
+    acct = fetch_account(pub, cfg["horizon_url"])
+    if acct is None:
+        print(
+            f"Account {pub} is not provisioned on {network}; nothing to drain.",
+            file=sys.stderr,
+        )
+        return 1
+    current = native_balance(acct)
+
+    # Destination resolution
+    if args.to:
+        dest = args.to
+        dest_source = "explicit --to"
+    else:
+        dest = find_last_sender(pub, cfg["horizon_url"])
+        if not dest:
+            print(
+                "Could not auto-detect last sender from Horizon payments. "
+                "Pass --to <G-address> explicitly.",
+                file=sys.stderr,
+            )
+            return 2
+        dest_source = "auto-detected (last incoming native payment)"
+
+    if dest == pub:
+        print(
+            f"Auto-detected sender is the same account ({pub}). "
+            "Pass --to <G-address> explicitly.",
+            file=sys.stderr,
+        )
+        return 2
+
+    keep_xlm = float(args.keep)
+    fee_stroops = int(args.fee_stroops)
+    fee_xlm = fee_stroops / 10_000_000.0
+    send_xlm = current - keep_xlm - fee_xlm
+
+    if send_xlm <= 0:
+        print(
+            f"Nothing to drain. Balance {current:.7f} XLM is at or below "
+            f"keep+fee ({keep_xlm:.4f} + {fee_xlm:.7f} XLM).",
+            file=sys.stderr,
+        )
+        return 1
+
+    send_stroops = int(round(send_xlm * 10_000_000))
+    send_xlm_actual = send_stroops / 10_000_000.0
+    post_balance_xlm = current - send_xlm_actual - fee_xlm
+
+    print("Drain plan")
+    print(f"  Source        : {args.name} ({pub})")
+    print(f"  Destination   : {dest}")
+    print(f"                  ({dest_source})")
+    print(f"  Network       : {network}")
+    print(f"  Current bal   : {current:.7f} XLM")
+    print(f"  Keep (target) : {keep_xlm:.7f} XLM")
+    print(f"  Tx fee (max)  : {fee_xlm:.7f} XLM")
+    print(f"  Send amount   : {send_xlm_actual:.7f} XLM  ({send_stroops} stroops)")
+    print(f"  Expected post : {post_balance_xlm:.7f} XLM")
+    print()
+
+    if args.dry_run:
+        print("Dry run only (--dry-run). No transaction submitted.")
+        return 0
+
+    if not args.yes:
+        try:
+            answer = input("Submit this payment? [y/N] ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print("\nAborted.", file=sys.stderr)
+            return 1
+        if answer not in {"y", "yes"}:
+            print("Aborted.")
+            return 1
+
+    # stellar tx new payment handles build + sign + submit when --source-account
+    # is a named identity in the CLI keystore.
+    cmd = [
+        "stellar", "tx", "new", "payment",
+        "--source-account", args.name,
+        "--rpc-url", cfg["rpc_url"],
+        "--network-passphrase", cfg["passphrase"],
+        "--destination", dest,
+        "--asset", "native",
+        "--amount", str(send_stroops),
+        "--fee", str(fee_stroops),
+    ]
+    print(f"Running: {' '.join(cmd)}")
+    print()
+    try:
+        result = subprocess.run(cmd, check=False)
+    except FileNotFoundError:
+        print(
+            "stellar CLI not found on PATH. Install from "
+            "https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup",
+            file=sys.stderr,
+        )
+        return 127
+    if result.returncode != 0:
+        print(
+            f"\nstellar tx new payment exited {result.returncode}. "
+            "See output above for details.",
+            file=sys.stderr,
+        )
+        return result.returncode
+
+    acct_after = fetch_account(pub, cfg["horizon_url"])
+    new_balance = native_balance(acct_after) if acct_after else 0.0
+    print()
+    print(f"New balance of {args.name}: {new_balance:.7f} XLM")
+    print(f"Explorer: {cfg['explorer']}{pub}")
+    return 0
+
+
 def cmd_estimate(args: argparse.Namespace) -> int:
     network = resolve_network(args.network)
     upload_xlm, wasm_size, err = estimate_upload_fee_xlm(args.contract, network)
@@ -834,6 +986,46 @@ def build_parser() -> argparse.ArgumentParser:
     p_fund.add_argument("--wait-timeout", type=int, default=600,
                         help="Seconds to wait for funding before giving up (default 600).")
     p_fund.set_defaults(func=cmd_fund)
+
+    p_drain = sub.add_parser(
+        "drain",
+        help="Send the source account's balance (minus a reserve) back to a destination "
+             "(default: the most recent native sender).",
+    )
+    p_drain.add_argument("--name", required=True, help="Identity to drain from.")
+    p_drain.add_argument("--network", default=None)
+    p_drain.add_argument(
+        "--to",
+        default=None,
+        help="Destination G-address. If omitted, auto-detected as the most "
+             "recent native-XLM sender from Horizon's payments history.",
+    )
+    p_drain.add_argument(
+        "--keep",
+        type=float,
+        default=1.5,
+        help="XLM to leave in the source account (default 1.5 XLM — Stellar's "
+             "minimum reserve is 1 XLM for an account with no subentries; 1.5 "
+             "leaves room for one more transaction).",
+    )
+    p_drain.add_argument(
+        "--fee-stroops",
+        type=int,
+        default=100,
+        help="Max tx fee in stroops (default 100; raise under network congestion). "
+             "Subtracted from the send amount to keep the post-tx balance >= --keep.",
+    )
+    p_drain.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the drain plan but don't submit anything.",
+    )
+    p_drain.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip the interactive submit confirmation.",
+    )
+    p_drain.set_defaults(func=cmd_drain)
 
     p_est = sub.add_parser("estimate", help="Estimate XLM needed to upload+deploy a contract.")
     p_est.add_argument("--contract", required=True, help="Contract name (matches wasm/<name>.optimized.wasm).")
