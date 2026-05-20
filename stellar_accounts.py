@@ -134,37 +134,70 @@ def fetch_account(public_key: str, horizon_url: str) -> Optional[dict]:
         raise
 
 
-def find_last_sender(public_key: str, horizon_url: str) -> Optional[str]:
-    """Return the G-address of the most recent native XLM sender to
-    `public_key`, or None if no incoming native payment is found.
-
-    Walks Horizon's payments endpoint, newest first. Handles both
-    `create_account` (account provisioning) and `payment` operation
-    types; skips non-native and outgoing records.
+def list_incoming_senders(
+    public_key: str, horizon_url: str, limit: int = 50
+) -> list[tuple[str, float, str, str]]:
+    """Return a list of (sender_g, amount_xlm, op_type, created_at) tuples
+    for every incoming native-XLM payment / create_account in the account's
+    most recent `limit` operations, newest first.
     """
     url = (
         f"{horizon_url}/accounts/{public_key}/payments"
-        "?order=desc&limit=50"
+        f"?order=desc&limit={limit}"
     )
     try:
         with urllib.request.urlopen(url, timeout=15) as resp:
             data = json.loads(resp.read())
     except Exception:  # noqa: BLE001
+        return []
+    out: list[tuple[str, float, str, str]] = []
+    for record in data.get("_embedded", {}).get("records", []) or []:
+        rtype = record.get("type")
+        when = record.get("created_at", "?")
+        if rtype == "create_account" and record.get("account") == public_key:
+            funder = record.get("funder") or record.get("source_account")
+            if funder:
+                out.append(
+                    (funder, float(record.get("starting_balance", 0) or 0),
+                     rtype, when)
+                )
+        elif rtype == "payment" and record.get("to") == public_key:
+            if record.get("asset_type") == "native":
+                src = record.get("from")
+                if src:
+                    out.append(
+                        (src, float(record.get("amount", 0) or 0), rtype, when)
+                    )
+    return out
+
+
+def find_funder(public_key: str, horizon_url: str) -> Optional[str]:
+    """Determine the most likely "real funder" to return funds to.
+
+    Priority:
+      1. The `funder` of the account's original create_account operation
+         (deterministic, unambiguous — that account brought this one into
+         existence).
+      2. Otherwise, the sender that has sent the largest cumulative native
+         XLM amount in the recent payment history (defensible default; not
+         fooled by tiny dust pings).
+
+    Callers should still confirm visually via `list_incoming_senders`.
+    """
+    senders = list_incoming_senders(public_key, horizon_url)
+    if not senders:
         return None
 
-    records = data.get("_embedded", {}).get("records", []) or []
-    for record in records:
-        rtype = record.get("type")
-        if rtype == "create_account":
-            if record.get("account") == public_key:
-                return record.get("funder") or record.get("source_account")
-        elif rtype == "payment":
-            if (
-                record.get("to") == public_key
-                and record.get("asset_type") == "native"
-            ):
-                return record.get("from")
-    return None
+    # Priority 1: create_account funder.
+    for src, _amt, op, _when in senders:
+        if op == "create_account":
+            return src
+
+    # Priority 2: largest cumulative sender.
+    totals: dict[str, float] = {}
+    for src, amt, _op, _when in senders:
+        totals[src] = totals.get(src, 0.0) + amt
+    return max(totals.items(), key=lambda kv: kv[1])[0]
 
 
 def native_balance(account: dict) -> float:
@@ -738,19 +771,24 @@ def cmd_drain(args: argparse.Namespace) -> int:
     current = native_balance(acct)
 
     # Destination resolution
+    senders = list_incoming_senders(pub, cfg["horizon_url"])
     if args.to:
         dest = args.to
         dest_source = "explicit --to"
     else:
-        dest = find_last_sender(pub, cfg["horizon_url"])
+        dest = find_funder(pub, cfg["horizon_url"])
         if not dest:
             print(
-                "Could not auto-detect last sender from Horizon payments. "
+                "Could not auto-detect a funder from Horizon payments. "
                 "Pass --to <G-address> explicitly.",
                 file=sys.stderr,
             )
             return 2
-        dest_source = "auto-detected (last incoming native payment)"
+        # Priority info to surface in the plan.
+        if any(op == "create_account" and src == dest for src, _a, op, _w in senders):
+            dest_source = "auto-detected (original create_account funder)"
+        else:
+            dest_source = "auto-detected (largest cumulative native sender)"
 
     if dest == pub:
         print(
@@ -788,6 +826,26 @@ def cmd_drain(args: argparse.Namespace) -> int:
     print(f"  Send amount   : {send_xlm_actual:.7f} XLM  ({send_stroops} stroops)")
     print(f"  Expected post : {post_balance_xlm:.7f} XLM")
     print()
+
+    if senders:
+        # Show the full incoming-payment history so the user can verify the
+        # auto-detection visually before approving. Highlight the chosen dest.
+        print("Recent incoming native senders (newest first):")
+        print(f"  {'PICK':<5} {'WHEN':<22} {'OP':<14} {'AMOUNT':>14}  SENDER")
+        for src, amt, op, when in senders:
+            mark = ">>>" if src == dest else "   "
+            print(f"  {mark:<5} {when:<22} {op:<14} {amt:>10.7f} XLM  {src}")
+        # Also show per-sender cumulative if there are multiple.
+        totals: dict[str, float] = {}
+        for src, amt, _op, _when in senders:
+            totals[src] = totals.get(src, 0.0) + amt
+        if len(totals) > 1:
+            print()
+            print("Cumulative by sender:")
+            for src, total in sorted(totals.items(), key=lambda kv: -kv[1]):
+                mark = ">>>" if src == dest else "   "
+                print(f"  {mark:<5} {total:>10.7f} XLM  {src}")
+        print()
 
     if args.dry_run:
         print("Dry run only (--dry-run). No transaction submitted.")
