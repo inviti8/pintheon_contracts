@@ -4,6 +4,7 @@ wasm_release/
 hvym-roster/test_snapshots/
 hvym-pin-service/test_snapshots/
 hvym-collective/test_snapshots/
+hvym-cert-registry/test_snapshots/
 
 # Deployment Records (optional - uncomment if you don't want to track deployments)
 # deployments.json

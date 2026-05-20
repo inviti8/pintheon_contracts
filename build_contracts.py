@@ -15,7 +15,8 @@ BUILD_ORDER = [
     "hvym-roster",
     "hvym-pin-service",
     "hvym-pin-service-factory",
-    "hvym-registry"
+    "hvym-registry",
+    "hvym-cert-registry"
 ]
 
 # For backward compatibility

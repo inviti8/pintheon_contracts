@@ -32,6 +32,7 @@ hvym-roster
 hvym-pin-service
 hvym-pin-service-factory       ← depends on hvym-pin-service (embeds its WASM)
 hvym-registry                  ← independent (no contractimport dependencies)
+hvym-cert-registry             ← independent (no contractimport dependencies)
 ```
 
 ### Usage
@@ -318,6 +319,12 @@ same args file network-agnostic.
   "admin": "deployer"
 }
 ```
+
+### `hvym_cert_registry_args.json`
+```json
+{}
+```
+*No constructor arguments — the contract has no admin and no seeded config. See [`HVYM_CERT_REGISTRY.md`](HVYM_CERT_REGISTRY.md).*
 
 ### `opus_token_args.json`
 ```json

@@ -4,8 +4,8 @@ This repository contains the Soroban smart contracts that power the Heavymeta
 Cooperative's Pintheon ecosystem: membership (`hvym-collective`), the protected
 member roster (`hvym-roster`), IPFS pin management (`hvym-pin-service` +
 `hvym-pin-service-factory`), the on-chain contract registry (`hvym-registry`),
-and the `opus_token` / `pintheon_node_token` / `pintheon_ipfs_token` SEP-41
-tokens.
+the C2PA app-CA trust list (`hvym-cert-registry`), and the `opus_token` /
+`pintheon_node_token` / `pintheon_ipfs_token` SEP-41 tokens.
 
 > **Repo note:** this repository was previously named `pintheon_contracts`;
 > the canonical GitHub location is now `inviti8/hvym_contracts`. GitHub
@@ -37,6 +37,7 @@ keeps them transparent and auditable. See [LICENSE](LICENSE).
 | `hvym-pin-service/` | `hvym_pin_service` | IPFS pin slot pool with epoch expiration and flag-based CID Hunter reputation |
 | `hvym-pin-service-factory/` | `hvym_pin_service_factory` | Deploys per-pinner pin-service instances; embeds the pin-service WASM |
 | `hvym-registry/` | `hvym_registry` | On-chain source-of-truth for contract IDs per network (Testnet / Mainnet) |
+| `hvym-cert-registry/` | `hvym_cert_registry` | C2PA app-CA trust list: per-app-instance X.509 CA fingerprint + authorizing member ed25519 pubkey (no admin) |
 | `opus_token/` | `opus_token` | OPUS SEP-41 token |
 | `pintheon-node-deployer/pintheon-node-token/` | `pintheon_node_token` | Node-identity SEP-41 token (upload-only, deployed via factory flow) |
 | `pintheon-ipfs-deployer/pintheon-ipfs-token/` | `pintheon_ipfs_token` | IPFS-asset SEP-41 token (upload-only) |
@@ -193,6 +194,7 @@ workflow description.
 | [`workflows.md`](workflows.md) | Complete build / test / deploy / bindings workflow reference |
 | [`REGISTRY_VERIFICATION.md`](REGISTRY_VERIFICATION.md) | Using `verify_registry.py` to prove on-ledger contracts match this repo |
 | [`HVYM_PIN_SERVICE.md`](HVYM_PIN_SERVICE.md) | `hvym-pin-service` design — slot pool, epoch expiration, CID Hunter |
+| [`HVYM_CERT_REGISTRY.md`](HVYM_CERT_REGISTRY.md) | `hvym-cert-registry` design — C2PA app-CA trust list, dual-auth (app `require_auth` + member `ed25519_verify`), no admin |
 | [`hvym-registry/USAGE.md`](hvym-registry/USAGE.md) | `hvym-registry` CLI guide |
 | [`IMPORT_NAMING_GUIDE.md`](IMPORT_NAMING_GUIDE.md) | How to determine the correct `contractimport!` WASM path |
 | [`LOCAL_STELLAR_NODE.md`](LOCAL_STELLAR_NODE.md) | Running a local Stellar / soroban-rpc node |
