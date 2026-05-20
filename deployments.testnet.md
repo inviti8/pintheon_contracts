@@ -1,5 +1,17 @@
 # Deployments — testnet
 
+Verified against the on-chain `hvym_registry` at
+`CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V`.
+Run `python verify_registry.py --network testnet --registry-id CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V --verify-wasm`
+to reproduce.
+
+`hvym_cert_registry` is the C2PA app-CA trust list
+(see [HVYM_CERT_REGISTRY.md](HVYM_CERT_REGISTRY.md)). Same Pintheon-aware
+WASM hash (`a85d4e7e…`) as the mainnet deployment in
+[`deployments.public.md`](deployments.public.md). The contract has no
+admin by design — any funded keypair can call its entry points subject
+to the per-function auth requirements.
+
 | Contract | Contract ID | Wasm Hash |
 |----------|-------------|-----------|
 | pintheon_ipfs_token | `Upload only` | `416704f4bce9a1a69d10b468deb0ed98944a6d21a5341663636b085df773c8a6` |
@@ -10,3 +22,4 @@
 | hvym_pin_service | `CBWZFS3QRW67SHEX5KLY7OFOTA3V5TF6V5QIDQQ52GQT7FY5Y5OQXIWW` | `448d2c5e1921a9d3fe349b6e40b93b3ebc9cbf38d427145419e0f787cb71cd4a` |
 | hvym_pin_service_factory | `CD3OUO6BSCOQWMCPE5LFSG2F2TQSNNDZGA3EITKYSE74ZACO5OXGBQ5A` | `d9002069e506bb00df9c0f8e3c3634c8d695289c5dcae18ff7d8b337824fed2d` |
 | hvym_registry | `CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V` | `39be8e7d49cd82d0fa79a07a05fd268c97631d0360382bb8fe6732d75513dad1` |
+| hvym_cert_registry | `CC252R637U7QXG5SSHTVHBSKB3PGKRKRP66EEI2IEVTXIQWP6EQRLH2T` | `a85d4e7e67757d36c7d50c180a88f07a29c7f87d6f7288c398d5734ece40d09e` |

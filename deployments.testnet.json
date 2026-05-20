@@ -54,5 +54,13 @@
     "contract_id": "CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V"
   },
   "network": "testnet",
-  "timestamp": 1776915367
+  "timestamp": 1779320474,
+  "hvym_cert_registry": {
+    "contract_dir": "hvym-cert-registry",
+    "wasm_hash": "a85d4e7e67757d36c7d50c180a88f07a29c7f87d6f7288c398d5734ece40d09e",
+    "network": "testnet",
+    "deployer": "testnet-deployer",
+    "timestamp": 1779320470,
+    "contract_id": "CC252R637U7QXG5SSHTVHBSKB3PGKRKRP66EEI2IEVTXIQWP6EQRLH2T"
+  }
 }
