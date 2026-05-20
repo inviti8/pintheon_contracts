@@ -263,8 +263,48 @@ Use these names when calling `set_contract_id` / `get_contract_id`:
 | `pintheon_ipfs_token` | Pintheon IPFS File Token |
 | `pintheon_node_token` | Pintheon Node Token |
 | `hvym_registry` | This registry contract |
+| `hvym_cert_registry` | C2PA app-CA trust list ([HVYM_CERT_REGISTRY.md](../HVYM_CERT_REGISTRY.md)) |
 
 Names are free-form strings — you can register any name. The above are the standard names matching the per-network deployments files (`deployments.testnet.json` / `deployments.public.json`).
+
+### Registering hvym_cert_registry (post-deploy)
+
+After deploying `hvym-cert-registry` (see [HVYM_CERT_REGISTRY.md](../HVYM_CERT_REGISTRY.md)),
+record its contract ID in the on-chain registry so downstream tooling
+(`verify_registry.py`, client apps, the C2PA verifier) can discover it:
+
+```bash
+# Mainnet — admin is lepus-luminary-1
+stellar contract invoke \
+  --id CA6KQ5GYGI33VZB5IGWW7XXLLHR2MPEBWVDREU4P5ZGCSKRGHXBCRKXV \
+  --source lepus-luminary-1 \
+  --rpc-url https://stellar-soroban-public.nodies.app \
+  --network-passphrase "Public Global Stellar Network ; September 2015" \
+  -- \
+  set_contract_id \
+  --caller <LEPUS_LUMINARY_1_PUBLIC_KEY> \
+  --name hvym_cert_registry \
+  --network Mainnet \
+  --contract_id <CERT_REGISTRY_CONTRACT_ID_FROM_deployments.public.json>
+
+# Testnet
+stellar contract invoke \
+  --id CB6TWFLNGRFIYEHA7T2Y3VHDJ3VWC5OQHDZCSMGCSSOYWRBIVPKXMC6V \
+  --source <TESTNET_ADMIN_IDENTITY> \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015" \
+  -- \
+  set_contract_id \
+  --caller <TESTNET_ADMIN_PUBLIC_KEY> \
+  --name hvym_cert_registry \
+  --network Testnet \
+  --contract_id <CERT_REGISTRY_CONTRACT_ID_FROM_deployments.testnet.json>
+```
+
+The `hvym-registry` contract itself **does not need any code change or
+redeploy** to accept this new name — `set_contract_id` takes an
+arbitrary string. Verify the registration round-trips with
+`python verify_registry.py --network public --registry-id CA6KQ5GY... --verify-wasm`.
 
 ## 9. Using from another Soroban contract
 
